@@ -41,6 +41,18 @@ const config = {
     appKey: env.EJAMAAT_APP_KEY || '',
     timeoutMs: Number(env.EJAMAAT_TIMEOUT_MS) || 10_000,
   },
+  // Public address of the client app, used in email links (no trailing slash).
+  // Dev: http://localhost:5173/Atom  ·  Prod: https://marol.jameasaifiyah.edu/Atom
+  appUrl: String(env.APP_URL || 'http://localhost:5173/Atom').replace(/\/+$/, ''),
+  smtp: {
+    host: env.SMTP_HOST || '',
+    port: Number(env.SMTP_PORT) || 587,
+    secure: String(env.SMTP_SECURE).toLowerCase() === 'true',
+    user: env.SMTP_USER || '',
+    password: env.SMTP_PASSWORD || '',
+    from: env.SMTP_FROM || env.SMTP_USER || '',
+  },
+  passwordResetMinutes: 30,
 };
 
 // Called once by server.js before listening. Throws so iisnode logs the reason and stops.
