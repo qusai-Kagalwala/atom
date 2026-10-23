@@ -1,15 +1,35 @@
 import { Route, Routes } from 'react-router-dom';
+import rolesData from '@shared/roles.json';
 import AppShell from './components/AppShell';
+import ProtectedRoute from './components/ProtectedRoute';
+import ComingSoonPage from './pages/ComingSoonPage';
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SystemCheckPage from './pages/SystemCheckPage';
 
+// Nav items not built yet get a placeholder route (replaced phase by phase).
+const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => key !== 'home');
+
 export default function App() {
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<SystemCheckPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </AppShell>
+    <Routes>
+      {/* Public */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ComingSoonPage title="Forgot password" />} />
+      <Route path="/reset-password" element={<ComingSoonPage title="Reset password" />} />
+
+      {/* Signed in */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppShell />}>
+          <Route index element={<HomePage />} />
+          <Route path="/system-check" element={<SystemCheckPage />} />
+          {PLACEHOLDERS.map(([key, item]) => (
+            <Route key={key} path={item.path} element={<ComingSoonPage title={item.label} />} />
+          ))}
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Route>
+    </Routes>
   );
 }
