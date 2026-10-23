@@ -1,111 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ATOM design tokens as CSS variables — same values as tailwind.config.js.
+   Read these from non-Tailwind code (Recharts colours, inline dynamic styles). */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --color-primary: #0F5B5A;
+  --color-primary-dark: #083F3E;
+  --color-primary-light: #17706E;
+  --color-primary-muted: rgba(15, 91, 90, 0.08);
+  --color-primary-tint: #E2F0EC;
+  --color-primary-border: rgba(201, 168, 76, 0.2);
+  --color-on-primary: #FFFFFF;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --color-gold: #C9A84C;
+  --color-gold-light: #E4C97E;
+  --color-gold-dark: #A07830;
+  --color-gold-muted: #F5EDD8;
+  --color-on-gold: #3D2B1F;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --color-dark-brown: #3D2B1F;
+  --color-charcoal: #1C1C1C;
+  --color-cream: #FAF7F2;
+  --color-cream-dark: #F0EBE0;
+  --color-white: #FFFFFF;
+  --color-border: #E0D6C8;
+  --color-border-dark: #C8B89A;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #4B5563;
+  --color-text-tertiary: #8C7B6B;
+  --color-text-on-primary: rgba(255, 255, 255, 0.85);
+
+  --color-success: #3A6B4A;
+  --color-success-bg: #EBF4EE;
+  --color-warning: #8B5E1A;
+  --color-warning-bg: #FDF3E0;
+  --color-error: #8B2A2A;
+  --color-error-bg: #FBEDED;
+  --color-info: #1A4A6B;
+  --color-info-bg: #E8F2FB;
+  --color-rust: #B5561F;
+  --color-rust-bg: #FBEAE0;
+  --color-disposed: #2E2E2E;
+
+  --color-role-super: #5A1A8B;
+  --color-role-super-bg: #F3EBFB;
+  --color-role-engineer: #1F6FB2;
+  --color-role-engineer-bg: #E3F0F9;
+  --color-role-employee: #6B3A1A;
+  --color-role-employee-bg: #FBF0E8;
+
+  /* Recharts palette order: primary → gold → info → success → rust → role-super */
+  --chart-1: var(--color-primary);
+  --chart-2: var(--color-gold);
+  --chart-3: var(--color-info);
+  --chart-4: var(--color-success);
+  --chart-5: var(--color-rust);
+  --chart-6: var(--color-role-super);
+
+  --font-display: 'Amiri', 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Amiri', 'Inter', 'Lato', Helvetica, Arial, sans-serif;
+  --font-arabic: 'Amiri', 'Kanz-al-Marjaan', 'Arial Unicode MS', serif;
+  --font-ui: 'Inter', 'Lato', Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply min-h-screen bg-cream font-sans text-ink antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-bold text-brown;
+  }
+
+  [dir='rtl'],
+  .arabic {
+    @apply font-arabic;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-cream;
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+@layer components {
+  .card {
+    @apply rounded-card border border-line bg-white p-5 shadow-sm;
   }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  .btn {
+    @apply inline-flex min-h-tap items-center justify-center gap-2 rounded-btn px-4 font-ui text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60;
   }
-}
 
-body {
-  margin: 0;
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+  .btn-primary {
+    @apply btn bg-primary text-white shadow-glow-teal hover:bg-primary-dark;
   }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+  .btn-gold {
+    @apply btn bg-gold text-gold-on shadow-glow-gold hover:bg-gold-light;
   }
-}
-p {
-  margin: 0;
-}
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 font-ui text-xs font-medium;
+  }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  /* Request / ticket status badges */
+  .status-open { @apply badge bg-info-bg text-info; }
+  .status-assigned { @apply badge bg-primary-tint text-primary; }
+  .status-in-progress { @apply badge bg-gold-muted text-gold-dark; }
+  .status-waiting { @apply badge bg-warning-bg text-warning; }
+  .status-resolved { @apply badge bg-success-bg text-success; }
+  .status-closed { @apply badge bg-cream-dark text-ink-3; }
+  .status-rejected { @apply badge bg-error-bg text-error; }
+
+  /* Asset status badges */
+  .asset-available { @apply badge bg-success-bg text-success; }
+  .asset-assigned { @apply badge bg-primary-tint text-primary; }
+  .asset-repair { @apply badge bg-warning-bg text-warning; }
+  .asset-damaged { @apply badge bg-rust-bg text-rust; }
+  .asset-lost { @apply badge bg-error-bg text-error; }
+  .asset-retired { @apply badge bg-cream-dark text-ink-3; }
+  .asset-disposed { @apply badge bg-cream-dark text-disposed; }
+
+  /* Role badges */
+  .role-super { @apply badge bg-role-super-bg text-role-super; }
+  .role-engineer { @apply badge bg-role-engineer-bg text-role-engineer; }
+  .role-employee { @apply badge bg-role-employee-bg text-role-employee; }
 }

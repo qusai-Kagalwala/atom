@@ -1,0 +1,41 @@
+{
+  "roles": {
+    "EMPLOYEE": { "key": "EMPLOYEE", "label": "Employee", "rank": 1, "badge": "role-employee" },
+    "ENGINEER": { "key": "ENGINEER", "label": "Engineer", "rank": 2, "badge": "role-engineer" },
+    "SUPER_ADMIN": { "key": "SUPER_ADMIN", "label": "Super Admin", "rank": 3, "badge": "role-super" }
+  },
+  "loginTypes": {
+    "ITS": { "key": "ITS", "label": "ITS" },
+    "EMPLOYEE_ID": { "key": "EMPLOYEE_ID", "label": "Employee ID" }
+  },
+  "navItems": {
+    "home": { "label": "Home", "path": "/", "icon": "House" },
+    "assistant": { "label": "AI assistant", "path": "/assistant", "icon": "Bot" },
+    "request": { "label": "Request", "path": "/request", "icon": "ShoppingCart" },
+    "track": { "label": "My tickets & requests", "path": "/track", "icon": "Ticket" },
+    "myAssets": { "label": "My assets", "path": "/my-assets", "icon": "Package" },
+    "notifications": { "label": "Notifications", "path": "/notifications", "icon": "Bell" },
+    "workQueue": { "label": "My work queue", "path": "/work-queue", "icon": "Ticket" },
+    "invoices": { "label": "Invoices", "path": "/invoices", "icon": "Receipt" },
+    "assignQueue": { "label": "Assign queue", "path": "/assign", "icon": "Ticket" },
+    "approvals": { "label": "Approvals", "path": "/approvals", "icon": "ShieldCheck" },
+    "allRequests": { "label": "All tickets & requests", "path": "/all", "icon": "Ticket" },
+    "inventory": { "label": "Inventory", "path": "/inventory", "icon": "Package" },
+    "catalogue": { "label": "Catalogue", "path": "/catalogue", "icon": "ShoppingCart" },
+    "faqs": { "label": "FAQs", "path": "/faqs", "icon": "CircleHelp" },
+    "onboarding": { "label": "Onboarding / Offboarding", "path": "/onboarding", "icon": "PackagePlus" },
+    "users": { "label": "Users & roles", "path": "/users", "icon": "Users" },
+    "analytics": { "label": "Analytics", "path": "/analytics", "icon": "BarChart3" },
+    "reports": { "label": "Reports (PDF)", "path": "/reports", "icon": "FileDown" },
+    "syncStatus": { "label": "Sync status", "path": "/sync", "icon": "RefreshCw" }
+  },
+  "navByRole": {
+    "EMPLOYEE": ["home", "assistant", "request", "track", "myAssets", "notifications"],
+    "ENGINEER": ["home", "assistant", "request", "track", "myAssets", "notifications", "workQueue", "invoices"],
+    "SUPER_ADMIN": [
+      "home", "assistant", "request", "track", "myAssets", "notifications", "workQueue",
+      "assignQueue", "approvals", "allRequests", "inventory", "catalogue", "faqs", "invoices",
+      "onboarding", "users", "analytics", "reports", "syncStatus"
+    ]
+  }
+}
