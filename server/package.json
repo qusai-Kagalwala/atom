@@ -10,13 +10,17 @@
     "dev": "nodemon server.js",
     "test": "jest",
     "migrate": "node db/migrate.js",
-    "check": "node --check server.js && node --check app.js && node --check config/env.js && node --check db/pool.js && node --check db/migrate.js && node --check modules/health/health.routes.js"
+    "seed:dev": "node db/seeds/001_dev_users.js",
+    "check": "node scripts/check.js"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=24"
   },
   "jest": {
     "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/tests/setupEnv.js"
+    ],
     "testMatch": [
       "<rootDir>/tests/**/*.test.js"
     ]

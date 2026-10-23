@@ -1,14 +1,23 @@
 const { assertStartupConfig, parsePort, normaliseBasePath } = require('../config/env');
 
+const SECRET = 'x'.repeat(40);
+
 const base = {
   isProduction: false,
   authMode: 'live',
   basePath: '/Atom',
-  sessionSecret: '',
+  sessionSecret: SECRET,
+  ejamaat: { soapUrl: '', appKey: '' },
+};
+
+const prod = {
+  ...base,
+  isProduction: true,
+  ejamaat: { soapUrl: 'https://ejamaat.example/Service.asmx?wsdl', appKey: 'key' },
 };
 
 describe('assertStartupConfig', () => {
-  it('accepts a normal development config', () => {
+  it('accepts a normal development config (eJamaat may be empty in dev)', () => {
     expect(() => assertStartupConfig(base)).not.toThrow();
   });
 
@@ -16,16 +25,27 @@ describe('assertStartupConfig', () => {
     expect(() => assertStartupConfig({ ...base, authMode: 'mock' })).not.toThrow();
   });
 
-  it('refuses AUTH_MODE=mock in production', () => {
-    expect(() =>
-      assertStartupConfig({ ...base, isProduction: true, authMode: 'mock', sessionSecret: 'x'.repeat(40) })
-    ).toThrow(/AUTH_MODE=mock is not allowed/);
+  it('accepts a complete production config', () => {
+    expect(() => assertStartupConfig(prod)).not.toThrow();
   });
 
-  it('requires a long SESSION_SECRET in production', () => {
-    expect(() => assertStartupConfig({ ...base, isProduction: true, sessionSecret: 'short' })).toThrow(
-      /SESSION_SECRET/
-    );
+  it('refuses AUTH_MODE=mock in production', () => {
+    expect(() => assertStartupConfig({ ...prod, authMode: 'mock' })).toThrow(/AUTH_MODE=mock is not allowed/);
+  });
+
+  it('requires a long SESSION_SECRET in every environment', () => {
+    expect(() => assertStartupConfig({ ...base, sessionSecret: '' })).toThrow(/SESSION_SECRET/);
+    expect(() => assertStartupConfig({ ...prod, sessionSecret: 'short' })).toThrow(/SESSION_SECRET/);
+  });
+
+  it('requires eJamaat settings in production live mode', () => {
+    expect(() => assertStartupConfig({ ...prod, ejamaat: { soapUrl: '', appKey: '' } })).toThrow(/EJAMAAT_SOAP_URL/);
+  });
+
+  it('requires https for the eJamaat URL in production', () => {
+    expect(() =>
+      assertStartupConfig({ ...prod, ejamaat: { soapUrl: 'http://ejamaat.example/x?wsdl', appKey: 'k' } })
+    ).toThrow(/https/);
   });
 
   it('rejects an unknown AUTH_MODE', () => {

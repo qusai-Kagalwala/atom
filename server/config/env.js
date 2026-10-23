@@ -36,6 +36,11 @@ const config = {
     user: env.PG_USER || 'atom',
     password: env.PG_PASSWORD || '',
   },
+  ejamaat: {
+    soapUrl: env.EJAMAAT_SOAP_URL || '',
+    appKey: env.EJAMAAT_APP_KEY || '',
+    timeoutMs: Number(env.EJAMAAT_TIMEOUT_MS) || 10_000,
+  },
 };
 
 // Called once by server.js before listening. Throws so iisnode logs the reason and stops.
@@ -51,8 +56,16 @@ function assertStartupConfig(cfg) {
   if (cfg.basePath !== '/Atom') {
     problems.push(`BASE_PATH must be exactly "/Atom" (got "${cfg.basePath}").`);
   }
-  if (cfg.isProduction && cfg.sessionSecret.length < 32) {
-    problems.push('SESSION_SECRET must be set (at least 32 characters) in production.');
+  if (!cfg.sessionSecret || cfg.sessionSecret.length < 32) {
+    problems.push('SESSION_SECRET must be set (at least 32 characters).');
+  }
+  if (cfg.isProduction && cfg.authMode === 'live') {
+    const { soapUrl, appKey } = cfg.ejamaat || {};
+    if (!soapUrl || !appKey) {
+      problems.push('EJAMAAT_SOAP_URL and EJAMAAT_APP_KEY must be set in production.');
+    } else if (!/^https:\/\//i.test(soapUrl)) {
+      problems.push('EJAMAAT_SOAP_URL must use https.');
+    }
   }
 
   if (problems.length) {
