@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Builds
+client/dist/
+dist/
+build/
+
+# Uploads & runtime data (attachments live outside the web root in prod)
+attachments/
+uploads/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+iisnode/
+
+# Tests
+coverage/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
