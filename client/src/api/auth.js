@@ -6,3 +6,13 @@ export const loginRequest = (identifier, password) =>
 export const switchRoleRequest = (role) => http.post('/auth/switch-role', { role }).then((r) => r.data);
 
 export const meRequest = () => http.get('/auth/me').then((r) => r.data.user);
+
+// Employee-ID users only.
+export const changePasswordRequest = (currentPassword, newPassword) =>
+  http.post('/auth/change-password', { currentPassword, newPassword }).then((r) => r.data);
+
+export const forgotPasswordRequest = (employeeId) =>
+  http.post('/auth/forgot-password', { employeeId }).then((r) => r.data);
+
+export const resetPasswordRequest = (token, newPassword) =>
+  http.post('/auth/reset-password', { token, newPassword }).then((r) => r.data);

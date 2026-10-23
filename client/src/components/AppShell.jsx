@@ -34,11 +34,14 @@ export default function AppShell() {
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-primary-border bg-primary lg:block">
-        <div className="flex h-16 items-center border-b border-primary-border px-5">
+      {/* Stays in place while the page scrolls; scrolls on its own when the nav is long (Super Admin). */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-primary-border bg-primary lg:flex">
+        <div className="flex h-16 shrink-0 items-center border-b border-primary-border px-5">
           <span className="font-display text-2xl font-bold leading-none text-white">ATOM</span>
         </div>
-        <SideNav items={items} />
+        <div className="scrollbar-nav min-h-0 flex-1 overflow-y-auto">
+          <SideNav items={items} />
+        </div>
       </aside>
 
       {/* Mobile drawer */}
@@ -50,7 +53,7 @@ export default function AppShell() {
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-primary shadow-xl">
+          <aside className="scrollbar-nav absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-primary shadow-xl">
             <div className="flex h-16 items-center justify-between border-b border-primary-border px-4">
               <span className="font-display text-2xl font-bold leading-none text-white">ATOM</span>
               <button

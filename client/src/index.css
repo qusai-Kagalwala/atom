@@ -135,3 +135,24 @@
   .role-engineer { @apply badge bg-role-engineer-bg text-role-engineer; }
   .role-employee { @apply badge bg-role-employee-bg text-role-employee; }
 }
+
+@layer utilities {
+  /* Slim, low-contrast scrollbar for the teal sidebar / drawer. */
+  .scrollbar-nav {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  }
+  .scrollbar-nav::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-nav::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.25);
+    border-radius: 9999px;
+  }
+  .scrollbar-nav::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+  }
+}

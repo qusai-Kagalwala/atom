@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, LoaderCircle, LogOut, Repeat } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Check, ChevronDown, LoaderCircle, LogOut, Repeat, UserRound } from 'lucide-react';
 import { errorMessage } from '../api/http';
 import useAuth from '../hooks/useAuth';
 import { initials, roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
@@ -97,6 +98,15 @@ export default function UserMenu() {
               {error && <p className="px-4 pb-2 text-xs text-error">{error}</p>}
             </div>
           )}
+
+          <Link
+            to="/profile"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex min-h-tap w-full items-center gap-2 border-b border-line px-4 hover:bg-gold-muted"
+          >
+            <UserRound size={18} aria-hidden="true" className="text-ink-2" /> My profile
+          </Link>
 
           <button
             type="button"
