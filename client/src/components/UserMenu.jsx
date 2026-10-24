@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Check, ChevronDown, LoaderCircle, LogOut, Repeat, UserRound } from 'lucide-react';
 import { errorMessage } from '../api/http';
 import useAuth from '../hooks/useAuth';
+import UserName from './UserName';
 import { initials, roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
 
 // Avatar + name, role switcher (only when the user holds more than one role) and sign out.
@@ -54,10 +55,10 @@ export default function UserMenu() {
           aria-hidden="true"
           className="flex h-9 w-9 items-center justify-center rounded-full bg-gold font-ui text-sm font-bold text-gold-on"
         >
-          {initials(user.name)}
+          {initials(user.displayName || user.name)}
         </span>
         <span className="hidden text-left font-ui leading-tight sm:block">
-          <span className="block max-w-[12rem] truncate text-sm font-medium">{user.name}</span>
+          <UserName user={user} className="block max-w-[12rem] truncate text-sm font-medium" />
           <span className="block text-xs text-ink-on-primary">{roleLabel(user.activeRole)}</span>
         </span>
         <ChevronDown size={16} aria-hidden="true" className="text-ink-on-primary" />
@@ -69,7 +70,9 @@ export default function UserMenu() {
           className="absolute right-0 z-40 mt-2 w-72 overflow-hidden rounded-card border border-line bg-white font-ui text-sm text-ink shadow-lg"
         >
           <div className="border-b border-line bg-cream-dark px-4 py-3">
-            <p className="truncate font-medium">{user.name}</p>
+            <p className="truncate font-medium">
+              <UserName user={user} />
+            </p>
             <p className="text-xs tabular-nums text-ink-3">
               {user.loginType === 'ITS' ? `ITS ${user.itsNumber}` : `Employee ID ${user.employeeId}`}
             </p>

@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const { config } = require('./config/env');
 const healthRoutes = require('./modules/health/health.routes');
 const { createAuthRouter } = require('./modules/auth/auth.routes');
+const { createSyncRouter } = require('./modules/sync/sync.routes');
 
 function createApp() {
   const app = express();
@@ -18,6 +19,7 @@ function createApp() {
   const api = express.Router();
   api.use('/health', healthRoutes);
   api.use('/auth', createAuthRouter());
+  api.use('/sync', createSyncRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
 
   app.use(`${config.basePath}/api`, api);

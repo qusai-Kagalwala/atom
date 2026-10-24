@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { KeyRound, LoaderCircle } from 'lucide-react';
-import { changePasswordRequest } from '../api/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { Check, KeyRound, LoaderCircle } from 'lucide-react';
+import { changePasswordRequest, updatePreferencesRequest } from '../api/auth';
 import { errorMessage } from '../api/http';
 import { Alert, Field, PasswordInput } from '../components/FormControls';
+import UserName from '../components/UserName';
 import useAuth from '../hooks/useAuth';
 import { MIN_PASSWORD, newPasswordErrors } from '../utils/passwordRules';
 import { roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
@@ -102,6 +104,76 @@ function ChangePasswordCard() {
   );
 }
 
+// Which of your two names ATOM shows for you (only when an Arabic name is on file).
+function NameLanguageCard({ user }) {
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(null);
+  const [error, setError] = useState('');
+
+  async function choose(nameLanguage) {
+    if (nameLanguage === user.nameLanguage || saving) return;
+    setError('');
+    setSaving(nameLanguage);
+    try {
+      const fresh = await updatePreferencesRequest({ nameLanguage });
+      queryClient.setQueryData(['auth', 'me'], fresh);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not save your choice.'));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  const options = [
+    { value: 'en', label: user.name, dir: 'ltr', font: 'font-ui' },
+    { value: 'ar', label: user.nameArabic, dir: 'rtl', font: 'font-arabic text-lg' },
+  ];
+
+  return (
+    <section className="card">
+      <h2 className="text-xl">Show my name in</h2>
+      <p className="mt-1 font-ui text-sm text-ink-2">Used on your home page and in the top bar.</p>
+      <div role="radiogroup" aria-label="Show my name in" className="mt-4 grid gap-3 sm:grid-cols-2">
+        {options.map((o) => {
+          const selected = user.nameLanguage === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={Boolean(saving)}
+              onClick={() => choose(o.value)}
+              className={`flex min-h-tap items-center justify-between gap-3 rounded-btn border px-4 py-3 text-left transition-colors ${
+                selected ? 'border-primary bg-primary-tint' : 'border-line bg-white hover:border-gold'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="block font-ui text-xs uppercase tracking-wider text-ink-3">
+                  {o.value === 'en' ? 'English' : 'Arabic'}
+                </span>
+                <span dir={o.dir} lang={o.value} className={`block truncate text-ink ${o.font}`}>
+                  {o.label}
+                </span>
+              </span>
+              {saving === o.value ? (
+                <LoaderCircle size={18} className="shrink-0 animate-spin text-ink-3" aria-hidden="true" />
+              ) : (
+                selected && <Check size={18} className="shrink-0 text-primary" aria-hidden="true" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {error && (
+        <div className="mt-3">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const isIts = user.loginType === 'ITS';
@@ -110,7 +182,9 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Profile</p>
-        <h1 className="mt-1 text-3xl">{user.name}</h1>
+        <h1 className="mt-1 text-3xl">
+          <UserName user={user} />
+        </h1>
       </header>
 
       <section className="card">
@@ -135,6 +209,8 @@ export default function ProfilePage() {
           </Detail>
         </dl>
       </section>
+
+      {user.nameArabic && <NameLanguageCard user={user} />}
 
       {isIts ? (
         <Alert tone="info">Your password is managed by eJamaat. Change or reset it there.</Alert>

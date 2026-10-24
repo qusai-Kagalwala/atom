@@ -16,7 +16,7 @@ atom/
 │  ├─ modules/    one folder per feature (health, auth, …)
 │  └─ tests/      Jest — no real DB or external services
 ├─ shared/        roles.json, statuses.json (used by client and server)
-├─ sync/          Idarah sync (Windows Task Scheduler, not iisnode)
+├─ sync/          run scripts only (Task Scheduler / one-time import); logic in server/modules/sync
 ├─ web.config     IIS: handler, rewrites, security (project root only)
 └─ .env.example   every setting; copy to .env
 ```
@@ -57,7 +57,37 @@ The home page is a system check: API, Database and Real-time should all show OK.
 | server | `npm test` | Jest |
 | server | `npm run check` | `node --check` on server files |
 | server | `npm run migrate` | apply pending migrations |
+| server | `npm run seed:dev` | dev test accounts (refused in production) |
+| server | `npm run sync:idarah` | Idarah view → ATOM (`-- --force` overrides the 50% guard) |
+| server | `npm run import:employees` | Login_Master dry run (`-- --commit` to save) |
 | client | `npm run dev` / `build` / `lint` | Vite dev / production build / ESLint |
+
+## People data (Phase 3)
+
+**Employee-ID users — once:**
+
+```bash
+cd server
+npm run import:employees               # dry run: counts + errors, nothing saved
+npm run import:employees -- --commit   # all rows or nothing; re-running skips existing IDs
+```
+
+**Idarah sync — by hand, then every ~10 min by Windows Task Scheduler:**
+
+```bash
+cd server && npm run sync:idarah
+```
+
+Task Scheduler action: Program `C:\Program Files\nodejs\node.exe`, Arguments `sync\run-idarah-sync.js`,
+Start in = the ATOM folder. Exit code 0 = OK / already running, 2 = blocked by the guard, 1 = failed.
+Every run is logged in `src.sync_runs` (Super Admin: `GET /Atom/api/sync/runs`, "Sync now": `POST /Atom/api/sync/idarah`).
+
+**Integration tests (real PostgreSQL, SQL Server faked)** — only against a database whose name ends in `_test`:
+
+```bash
+createdb atom_test   # or in pgAdmin
+TEST_DATABASE_URL=postgresql://postgres:<pw>@localhost:5432/atom_test npx jest integration --runInBand
+```
 
 ## Migrations
 

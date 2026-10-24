@@ -36,6 +36,16 @@ const config = {
     user: env.PG_USER || 'atom',
     password: env.PG_PASSWORD || '',
   },
+  // SQL Server — read-only: the Idarah view and Login_Master.
+  mssql: {
+    server: env.MSSQL_SERVER || '',
+    port: Number(env.MSSQL_PORT) || 1433,
+    database: env.MSSQL_DATABASE || 'Jameasaifiyah',
+    user: env.MSSQL_USER || '',
+    password: env.MSSQL_PASSWORD || '',
+    encrypt: String(env.MSSQL_ENCRYPT).toLowerCase() === 'true',
+    trustServerCertificate: String(env.MSSQL_TRUST_SERVER_CERT ?? 'true').toLowerCase() !== 'false',
+  },
   ejamaat: {
     soapUrl: env.EJAMAAT_SOAP_URL || '',
     appKey: env.EJAMAAT_APP_KEY || '',

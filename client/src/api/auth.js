@@ -5,6 +5,9 @@ export const loginRequest = (identifier, password) =>
 
 export const switchRoleRequest = (role) => http.post('/auth/switch-role', { role }).then((r) => r.data);
 
+export const updatePreferencesRequest = (prefs) =>
+  http.patch('/auth/preferences', prefs).then((r) => r.data.user);
+
 export const meRequest = () => http.get('/auth/me').then((r) => r.data.user);
 
 // Employee-ID users only.

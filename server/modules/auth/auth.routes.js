@@ -5,6 +5,7 @@
 //   POST /change-password  { currentPassword, newPassword }     → { message }   (employee-ID users)
 //   POST /forgot-password  { employeeId }                       → { sent, message }
 //   POST /reset-password   { token, newPassword }               → { message }
+//   PATCH /preferences     { nameLanguage: 'en' | 'ar' }        → { user }
 // SECURITY: never log req.body here.
 const express = require('express');
 const { body, validationResult } = require('express-validator');
@@ -12,7 +13,8 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { login, AuthError } = require('./auth.service');
 const { changePassword, requestReset, resetPassword, PasswordError } = require('./passwords.service');
 const { requireAuth } = require('../../middleware/requireAuth');
-const { ROLE_KEYS } = require('./session');
+const { ROLE_KEYS, toPublicUser } = require('./session');
+const { loadSessionUser, setNameLanguage } = require('./users.repo');
 const { signSession } = require('./tokens');
 
 const WINDOW_MS = 15 * 60 * 1000;
@@ -84,6 +86,20 @@ function createAuthRouter() {
     }
     const user = { ...req.user, activeRole: role };
     return res.json({ token: signSession(user.id, role), user });
+  });
+
+  // ---------- Preferences ----------
+  // Which name to show for yourself: 'en' (U_NAME) or 'ar' (T_Name, only if you have one).
+  router.patch('/preferences', requireAuth, body('nameLanguage').isIn(['en', 'ar']), async (req, res, next) => {
+    if (invalid(req)) return res.status(400).json({ message: 'Choose English or Arabic.' });
+    try {
+      const ok = await setNameLanguage(req.user.id, req.body.nameLanguage);
+      if (!ok) return res.status(400).json({ message: 'No Arabic name is on file for you.', code: 'no_arabic_name' });
+      const fresh = await loadSessionUser(req.user.id);
+      return res.json({ user: toPublicUser(fresh, req.user.activeRole) });
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // ---------- Change password (logged in) ----------

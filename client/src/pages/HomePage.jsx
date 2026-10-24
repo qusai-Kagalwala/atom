@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bot, ShoppingCart, Ticket } from 'lucide-react';
+import UserName from '../components/UserName';
 import useAuth from '../hooks/useAuth';
 
 // Same three cards for every role — Super Admins and Engineers raise tickets too.
@@ -26,12 +27,13 @@ const CARDS = [
 
 export default function HomePage() {
   const { user } = useAuth();
-  const firstName = String(user.name || '').split(/\s+/)[0];
 
   return (
     <section>
       <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Home</p>
-      <h1 className="mt-1 text-3xl">{firstName ? `Welcome, ${firstName}` : 'Welcome'}</h1>
+      <h1 className="mt-1 text-3xl">
+        Welcome, <UserName user={user} />
+      </h1>
       <p className="mt-2 font-ui text-sm text-ink-2">What do you need help with today?</p>
 
       <ul className="mt-6 grid gap-4 md:grid-cols-3">

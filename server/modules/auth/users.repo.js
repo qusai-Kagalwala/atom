@@ -25,7 +25,8 @@ async function findItsUser(itsNumber) {
 // Session view of a user: profile fields + granted roles (enum order: EMPLOYEE, ENGINEER, SUPER_ADMIN).
 async function loadSessionUser(userId) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.email, u.is_active,
+    `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic, u.name_language,
+            u.email, u.is_active,
             COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id
@@ -36,4 +37,14 @@ async function loadSessionUser(userId) {
   return rows[0] || null;
 }
 
-module.exports = { findEmployeeForLogin, findItsUser, loadSessionUser };
+// 'en' | 'ar'. Arabic only when the user has an Arabic name (checked here, not just in the UI).
+async function setNameLanguage(userId, language) {
+  const { rowCount } = await pool.query(
+    `UPDATE users SET name_language = $2::text
+      WHERE id = $1::bigint AND ($2::text = 'en' OR name_arabic IS NOT NULL)`,
+    [userId, language]
+  );
+  return rowCount === 1;
+}
+
+module.exports = { findEmployeeForLogin, findItsUser, loadSessionUser, setNameLanguage };

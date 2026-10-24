@@ -20,6 +20,8 @@ function createFakeUsers() {
       its_number: user.its_number ?? null,
       employee_id: user.employee_id ?? null,
       name: user.name ?? null,
+      name_arabic: user.name_arabic ?? null,
+      name_language: user.name_language ?? 'en',
       email: user.email ?? null,
       legacy_password: user.legacy_password ?? null,
       is_active: user.is_active ?? true,
@@ -56,6 +58,13 @@ function createFakeUsers() {
       const { legacy_password, ...rest } = u; // eslint-disable-line no-unused-vars
       const granted = ROLE_ORDER.filter((r) => roles.get(u.id).has(r));
       return { rows: [{ ...rest, roles: granted }] };
+    }
+
+    if (text.startsWith('UPDATE users SET name_language')) {
+      const u = users.get(String(params[0]));
+      if (!u || (params[1] === 'ar' && !u.name_arabic)) return { rowCount: 0, rows: [] };
+      u.name_language = params[1];
+      return { rowCount: 1, rows: [] };
     }
 
     if (text.startsWith('SELECT legacy_password')) {
