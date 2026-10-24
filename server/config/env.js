@@ -63,6 +63,10 @@ const config = {
     from: env.SMTP_FROM || env.SMTP_USER || '',
   },
   passwordResetMinutes: 30,
+  // Photos and invoices. Must be OUTSIDE the web root in production (e.g. D:\ATOM-data\attachments).
+  // Dev default: <project>/attachments (git-ignored).
+  attachmentDir: path.resolve(env.ATTACHMENT_DIR || path.join(__dirname, '..', '..', 'attachments')),
+  attachmentDirIsDefault: !env.ATTACHMENT_DIR,
 };
 
 // Called once by server.js before listening. Throws so iisnode logs the reason and stops.
@@ -88,6 +92,10 @@ function assertStartupConfig(cfg) {
     } else if (!/^https:\/\//i.test(soapUrl)) {
       problems.push('EJAMAAT_SOAP_URL must use https.');
     }
+  }
+
+  if (cfg.isProduction && cfg.attachmentDirIsDefault) {
+    problems.push('ATTACHMENT_DIR must be set in production (a folder outside the web root).');
   }
 
   if (problems.length) {

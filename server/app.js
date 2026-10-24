@@ -7,6 +7,7 @@ const { createAuthRouter } = require('./modules/auth/auth.routes');
 const { createSyncRouter } = require('./modules/sync/sync.routes');
 const { createServiceUnitsRouter } = require('./modules/serviceUnits/serviceUnits.routes');
 const { createUsersRouter } = require('./modules/users/users.routes');
+const { createRequestsRouter } = require('./modules/requests/requests.routes');
 const { HttpError } = require('./utils/httpError');
 
 function createApp() {
@@ -25,6 +26,7 @@ function createApp() {
   api.use('/sync', createSyncRouter());
   api.use('/service-units', createServiceUnitsRouter());
   api.use('/users', createUsersRouter());
+  api.use('/requests', createRequestsRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
 
   app.use(`${config.basePath}/api`, api);

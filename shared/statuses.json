@@ -1,32 +1,159 @@
 {
   "requestTypes": {
-    "TICKET": { "key": "TICKET", "label": "Ticket", "tag": "primary" },
-    "SERVICE_REQUEST": { "key": "SERVICE_REQUEST", "label": "Service request", "tag": "gold" }
+    "TICKET": {
+      "key": "TICKET",
+      "label": "Ticket",
+      "tag": "primary"
+    },
+    "SERVICE_REQUEST": {
+      "key": "SERVICE_REQUEST",
+      "label": "Service request",
+      "tag": "gold"
+    }
   },
   "requestStatuses": {
-    "OPEN": { "key": "OPEN", "label": "Open", "order": 1, "final": false, "badge": "status-open" },
-    "ASSIGNED": { "key": "ASSIGNED", "label": "Assigned", "order": 2, "final": false, "badge": "status-assigned" },
-    "IN_PROGRESS": { "key": "IN_PROGRESS", "label": "In progress", "order": 3, "final": false, "badge": "status-in-progress" },
-    "WAITING_FOR_USER": { "key": "WAITING_FOR_USER", "label": "Waiting for you", "order": 4, "final": false, "badge": "status-waiting" },
-    "WAITING_FOR_EQUIPMENT": { "key": "WAITING_FOR_EQUIPMENT", "label": "Waiting for equipment", "order": 5, "final": false, "badge": "status-waiting" },
-    "RESOLVED": { "key": "RESOLVED", "label": "Resolved", "order": 6, "final": false, "badge": "status-resolved" },
-    "CLOSED": { "key": "CLOSED", "label": "Closed", "order": 7, "final": true, "badge": "status-closed" },
-    "REJECTED": { "key": "REJECTED", "label": "Rejected", "order": 8, "final": true, "badge": "status-rejected" }
+    "OPEN": {
+      "key": "OPEN",
+      "label": "Open",
+      "order": 1,
+      "final": false,
+      "badge": "status-open"
+    },
+    "ASSIGNED": {
+      "key": "ASSIGNED",
+      "label": "Assigned",
+      "order": 2,
+      "final": false,
+      "badge": "status-assigned"
+    },
+    "IN_PROGRESS": {
+      "key": "IN_PROGRESS",
+      "label": "In progress",
+      "order": 3,
+      "final": false,
+      "badge": "status-in-progress"
+    },
+    "WAITING_FOR_USER": {
+      "key": "WAITING_FOR_USER",
+      "label": "Waiting for you",
+      "order": 4,
+      "final": false,
+      "badge": "status-waiting"
+    },
+    "WAITING_FOR_EQUIPMENT": {
+      "key": "WAITING_FOR_EQUIPMENT",
+      "label": "Waiting for equipment",
+      "order": 5,
+      "final": false,
+      "badge": "status-waiting"
+    },
+    "RESOLVED": {
+      "key": "RESOLVED",
+      "label": "Resolved",
+      "order": 6,
+      "final": false,
+      "badge": "status-resolved"
+    },
+    "CLOSED": {
+      "key": "CLOSED",
+      "label": "Closed",
+      "order": 7,
+      "final": true,
+      "badge": "status-closed"
+    },
+    "REJECTED": {
+      "key": "REJECTED",
+      "label": "Rejected",
+      "order": 8,
+      "final": true,
+      "badge": "status-rejected"
+    }
   },
   "assetStatuses": {
-    "AVAILABLE": { "key": "AVAILABLE", "label": "Available", "badge": "asset-available" },
-    "ASSIGNED": { "key": "ASSIGNED", "label": "Assigned", "badge": "asset-assigned" },
-    "UNDER_REPAIR": { "key": "UNDER_REPAIR", "label": "Under repair", "badge": "asset-repair" },
-    "DAMAGED": { "key": "DAMAGED", "label": "Damaged", "badge": "asset-damaged" },
-    "LOST": { "key": "LOST", "label": "Lost", "badge": "asset-lost" },
-    "RETIRED": { "key": "RETIRED", "label": "Retired", "badge": "asset-retired" },
-    "DISPOSED": { "key": "DISPOSED", "label": "Disposed", "badge": "asset-disposed" }
+    "AVAILABLE": {
+      "key": "AVAILABLE",
+      "label": "Available",
+      "badge": "asset-available"
+    },
+    "ASSIGNED": {
+      "key": "ASSIGNED",
+      "label": "Assigned",
+      "badge": "asset-assigned"
+    },
+    "UNDER_REPAIR": {
+      "key": "UNDER_REPAIR",
+      "label": "Under repair",
+      "badge": "asset-repair"
+    },
+    "DAMAGED": {
+      "key": "DAMAGED",
+      "label": "Damaged",
+      "badge": "asset-damaged"
+    },
+    "LOST": {
+      "key": "LOST",
+      "label": "Lost",
+      "badge": "asset-lost"
+    },
+    "RETIRED": {
+      "key": "RETIRED",
+      "label": "Retired",
+      "badge": "asset-retired"
+    },
+    "DISPOSED": {
+      "key": "DISPOSED",
+      "label": "Disposed",
+      "badge": "asset-disposed"
+    }
   },
   "assetFlags": {
-    "TO_RECOVER": { "key": "TO_RECOVER", "label": "To recover", "badge": "asset-damaged" }
+    "TO_RECOVER": {
+      "key": "TO_RECOVER",
+      "label": "To recover",
+      "badge": "asset-damaged"
+    }
   },
   "serviceUnits": {
-    "AVIT": { "key": "AVIT", "label": "AVIT", "active": true },
-    "SIYANAAT": { "key": "SIYANAAT", "label": "Siyanaat", "active": false }
-  }
+    "AVIT": {
+      "key": "AVIT",
+      "label": "AVIT",
+      "active": true
+    },
+    "SIYANAAT": {
+      "key": "SIYANAAT",
+      "label": "Siyanaat",
+      "active": false
+    }
+  },
+  "priorities": {
+    "LOW": {
+      "key": "LOW",
+      "label": "Low",
+      "requesterLabel": "Low — when you can",
+      "badge": "badge bg-cream-dark text-ink-2"
+    },
+    "NORMAL": {
+      "key": "NORMAL",
+      "label": "Normal",
+      "requesterLabel": "Normal",
+      "badge": "badge bg-info-bg text-info"
+    },
+    "HIGH": {
+      "key": "HIGH",
+      "label": "High",
+      "requesterLabel": "High",
+      "badge": "badge bg-warning-bg text-warning"
+    },
+    "URGENT": {
+      "key": "URGENT",
+      "label": "Urgent",
+      "requesterLabel": "Urgent — work is stopped",
+      "badge": "badge bg-error-bg text-error"
+    }
+  },
+  "requesterPriorities": [
+    "LOW",
+    "NORMAL",
+    "URGENT"
+  ]
 }

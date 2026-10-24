@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 // ATOM design tokens (Awraaq theme). Same values are exposed as CSS variables in src/index.css.
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx}'],
+  content: ['./index.html', './src/**/*.{js,jsx}', '../shared/**/*.json'],
   theme: {
     extend: {
       colors: {
