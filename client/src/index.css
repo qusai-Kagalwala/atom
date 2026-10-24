@@ -104,6 +104,14 @@
     @apply btn bg-primary text-white shadow-glow-teal hover:bg-primary-dark;
   }
 
+  .btn-secondary {
+    @apply btn border border-line bg-white text-ink hover:bg-cream-dark;
+  }
+
+  .btn-danger {
+    @apply btn bg-error text-white hover:bg-error/90;
+  }
+
   .btn-gold {
     @apply btn bg-gold text-gold-on shadow-glow-gold hover:bg-gold-light;
   }

@@ -9,10 +9,14 @@ import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ProfilePage from './pages/ProfilePage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import SyncStatusPage from './pages/SyncStatusPage';
+import UserDetailPage from './pages/UserDetailPage';
+import UsersPage from './pages/UsersPage';
 import SystemCheckPage from './pages/SystemCheckPage';
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => key !== 'home');
+const BUILT = new Set(['home', 'users', 'syncStatus']);
+const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
   return (
@@ -28,6 +32,14 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/system-check" element={<SystemCheckPage />} />
+
+          {/* Super Admin (UI guard only — the API returns 404 to anyone else) */}
+          <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/users/:id" element={<UserDetailPage />} />
+            <Route path="/sync" element={<SyncStatusPage />} />
+          </Route>
+
           {PLACEHOLDERS.map(([key, item]) => (
             <Route key={key} path={item.path} element={<ComingSoonPage title={item.label} />} />
           ))}
