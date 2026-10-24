@@ -231,6 +231,17 @@ function Photo({ a, onOpen }) {
   );
 }
 
+// Where "Back" goes: the list that opened this ticket (only our own list pages are accepted).
+const BACK_LABELS = [
+  ['/work-queue', 'My work queue'],
+  ['/assign', 'Assign queue'],
+  ['/all', 'All tickets & requests'],
+];
+function backTarget(from) {
+  const hit = typeof from === 'string' && BACK_LABELS.find(([p]) => from === p || from.startsWith(`${p}?`));
+  return hit ? { to: from, label: hit[1] } : { to: '/track', label: 'My tickets & requests' };
+}
+
 export default function TicketPage() {
   const { number } = useParams();
   const location = useLocation();
@@ -240,6 +251,7 @@ export default function TicketPage() {
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [viewer, setViewer] = useState(null); // blob URL of an opened photo
 
+  const back = backTarget(location.state?.from);
   const key = ['requests', 'detail', number];
   const ticketQuery = useQuery({ queryKey: key, queryFn: () => getTicket(number), retry: false });
 
@@ -259,8 +271,8 @@ export default function TicketPage() {
   if (ticketQuery.isError) {
     return (
       <div className="space-y-4">
-        <Link to="/track" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
-          <ArrowLeft size={16} aria-hidden="true" /> My tickets &amp; requests
+        <Link to={back.to} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+          <ArrowLeft size={16} aria-hidden="true" /> {back.label}
         </Link>
         <Alert tone="error">{errorMessage(ticketQuery.error, 'Could not load this ticket.')}</Alert>
       </div>
@@ -274,8 +286,8 @@ export default function TicketPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to="/track" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
-        <ArrowLeft size={16} aria-hidden="true" /> My tickets &amp; requests
+      <Link to={back.to} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <ArrowLeft size={16} aria-hidden="true" /> {back.label}
       </Link>
 
       {notice && <Alert tone="success">{notice}</Alert>}

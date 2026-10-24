@@ -207,7 +207,86 @@ async function listMine(db, userId, { open, limit, offset }) {
   return { rows, total: rows.length ? Number(rows[0].total) : 0 };
 }
 
+// Queues and "All tickets" (Phase 7). The caller passes the scope clause from recordScopeSql(),
+// so a list can never contain rows the viewer couldn't open.
+//   f.statuses       request_status[] or null
+//   f.priority       one priority or null
+//   f.categoryId     bigint or null
+//   f.engineerId     bigint | 'none' (unassigned) | null
+//   f.assignedTo     bigint — only rows assigned to this user (work queue)
+//   f.q              number ("T-1001" / "1001"), title, requester name / ITS / employee ID
+//   f.sort           'updated' (default) | 'priority' (urgent first, then oldest) | 'oldest'
+const SORTS = {
+  updated: 'r.updated_at DESC, r.id DESC',
+  oldest: 'r.created_at ASC, r.id ASC',
+  priority: `CASE r.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, r.created_at ASC, r.id ASC`,
+};
+
+async function listRequests(db, scope, f) {
+  const params = [...scope.params];
+  const where = [scope.clause, `r.type = 'TICKET'`];
+  // Every "?" in `sql` becomes the same new placeholder.
+  const add = (sql, value) => {
+    params.push(value);
+    where.push(sql.replaceAll('?', `$${params.length}`));
+  };
+
+  if (f.statuses?.length) add('r.status = ANY(?::request_status[])', f.statuses);
+  if (f.priority) add('r.priority = ?::request_priority', f.priority);
+  if (f.categoryId) add('r.category_id = ?::bigint', f.categoryId);
+  if (f.engineerId === 'none') where.push('r.assigned_engineer_id IS NULL');
+  else if (f.engineerId) add('r.assigned_engineer_id = ?::bigint', f.engineerId);
+  if (f.assignedTo) add('r.assigned_engineer_id = ?::bigint', f.assignedTo);
+  if (f.q) {
+    const num = /^(?:[TR]-)?(\d{1,9})$/i.exec(f.q);
+    if (num) add('r.number = ?::int', num[1]);
+    else {
+      const pattern = `%${f.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      add(
+        `(r.title ILIKE ?::text OR req.name ILIKE ?::text OR req.its_number LIKE ?::text
+          OR req.employee_id LIKE ?::text OR r.location ILIKE ?::text)`,
+        pattern
+      );
+    }
+  }
+
+  params.push(f.limit, f.offset);
+  const { rows } = await db.query(
+    `SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.location, r.created_at, r.updated_at,
+            c.name AS category_name, ${PERSON('req')} AS requester,
+            CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer,
+            (SELECT max(e.created_at) FROM request_events e
+              WHERE e.request_id = r.id AND e.type IN ('created', 'status', 'assigned')) AS status_since,
+            count(*) OVER () AS total
+       FROM requests r
+       JOIN users req ON req.id = r.requester_id
+       LEFT JOIN users eng ON eng.id = r.assigned_engineer_id
+       LEFT JOIN categories c ON c.id = r.category_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY ${SORTS[f.sort] || SORTS.updated}
+      LIMIT $${params.length - 1}::int OFFSET $${params.length}::int`,
+    params
+  );
+  return { rows, total: rows.length ? Number(rows[0].total) : 0 };
+}
+
+// Sidebar badges.
+async function queueCounts(db, userId) {
+  const { rows } = await db.query(
+    `SELECT
+       count(*) FILTER (WHERE assigned_engineer_id = $1::bigint
+                          AND status IN ('ASSIGNED','IN_PROGRESS','WAITING_FOR_USER','WAITING_FOR_EQUIPMENT'))::int AS work,
+       count(*) FILTER (WHERE status = 'OPEN')::int AS unassigned,
+       count(*) FILTER (WHERE status = 'RESOLVED')::int AS to_close
+       FROM requests WHERE type = 'TICKET'`,
+    [userId]
+  );
+  return rows[0];
+}
+
 module.exports = {
+  listRequests,
+  queueCounts,
   getByNumber,
   defaultServiceUnitId,
   getCategory,

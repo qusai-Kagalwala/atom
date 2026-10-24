@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import rolesData from '@shared/roles.json';
 import AppShell from './components/AppShell';
@@ -6,19 +7,25 @@ import ComingSoonPage from './pages/ComingSoonPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import MyRequestsPage from './pages/MyRequestsPage';
 import NotFoundPage from './pages/NotFoundPage';
-import ProfilePage from './pages/ProfilePage';
-import RaiseTicketPage from './pages/RaiseTicketPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import SyncStatusPage from './pages/SyncStatusPage';
-import UserDetailPage from './pages/UserDetailPage';
-import UsersPage from './pages/UsersPage';
-import SystemCheckPage from './pages/SystemCheckPage';
-import TicketPage from './pages/TicketPage';
+
+// Everything past login/home is loaded on first visit, so phones download less up front.
+// AppShell shows a spinner (Suspense) while a page loads.
+const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
+const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
+const MyRequestsPage = lazy(() => import('./pages/MyRequestsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const RaiseTicketPage = lazy(() => import('./pages/RaiseTicketPage'));
+const SyncStatusPage = lazy(() => import('./pages/SyncStatusPage'));
+const SystemCheckPage = lazy(() => import('./pages/SystemCheckPage'));
+const TicketPage = lazy(() => import('./pages/TicketPage'));
+const UserDetailPage = lazy(() => import('./pages/UserDetailPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'users', 'syncStatus', 'track']);
+const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'workQueue', 'assignQueue', 'allRequests']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -39,8 +46,14 @@ export default function App() {
           <Route path="/tickets/new" element={<RaiseTicketPage />} />
           <Route path="/tickets/:number" element={<TicketPage />} />
 
+          <Route element={<ProtectedRoute roles={['ENGINEER', 'SUPER_ADMIN']} />}>
+            <Route path="/work-queue" element={<WorkQueuePage />} />
+          </Route>
+
           {/* Super Admin (UI guard only — the API returns 404 to anyone else) */}
           <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
+            <Route path="/assign" element={<AssignQueuePage />} />
+            <Route path="/all" element={<AllRequestsPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/users/:id" element={<UserDetailPage />} />
             <Route path="/sync" element={<SyncStatusPage />} />

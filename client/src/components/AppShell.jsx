@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { LoaderCircle, Menu, X } from 'lucide-react';
+import { queueCounts } from '../api/requests';
 import useAuth from '../hooks/useAuth';
 import { navForRole } from '../utils/roles';
 import UserMenu from './UserMenu';
@@ -11,13 +13,31 @@ const linkClass = ({ isActive }) =>
     isActive ? 'bg-white/10 font-medium text-white' : 'text-ink-on-primary hover:bg-white/5 hover:text-white',
   ].join(' ');
 
-function SideNav({ items, onNavigate }) {
+// Numbers on nav items: work waiting for the active role (refreshes every minute and on focus).
+function useNavCounts(role) {
+  const enabled = role === 'ENGINEER' || role === 'SUPER_ADMIN';
+  const { data } = useQuery({
+    queryKey: ['requests', 'counts'],
+    queryFn: queueCounts,
+    enabled,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  return enabled && data ? data : {};
+}
+
+function SideNav({ items, counts, onNavigate }) {
   return (
     <nav aria-label="Main" className="flex flex-col gap-1 p-3">
       {items.map(({ key, label, path, Icon }) => (
         <NavLink key={key} to={path} end={path === '/'} className={linkClass} onClick={onNavigate}>
           <Icon size={20} aria-hidden="true" className="shrink-0" />
           <span className="truncate">{label}</span>
+          {counts[key] > 0 && (
+            <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} waiting`}>
+              {counts[key] > 99 ? '99+' : counts[key]}
+            </span>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -29,6 +49,7 @@ export default function AppShell() {
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = navForRole(user.activeRole);
+  const counts = useNavCounts(user.activeRole);
   const year = new Date().getFullYear();
 
   return (
@@ -40,7 +61,7 @@ export default function AppShell() {
           <span className="font-display text-2xl font-bold leading-none text-white">ATOM</span>
         </div>
         <div className="scrollbar-nav min-h-0 flex-1 overflow-y-auto">
-          <SideNav items={items} />
+          <SideNav items={items} counts={counts} />
         </div>
       </aside>
 
@@ -65,7 +86,7 @@ export default function AppShell() {
                 <X size={20} />
               </button>
             </div>
-            <SideNav items={items} onNavigate={() => setDrawerOpen(false)} />
+            <SideNav items={items} counts={counts} onNavigate={() => setDrawerOpen(false)} />
           </aside>
         </div>
       )}
@@ -92,7 +113,15 @@ export default function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <Outlet />
+          <Suspense
+            fallback={
+              <p className="flex items-center gap-2 font-ui text-sm text-ink-2">
+                <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Loading…
+              </p>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
 
         <footer className="border-t border-line py-4 text-center font-ui text-xs text-ink-3">

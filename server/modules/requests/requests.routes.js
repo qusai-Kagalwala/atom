@@ -11,6 +11,12 @@
 //   POST   /:number/comments  multipart: note, internal, photos[]              → { request }
 //   GET    /:number/engineers  (Super Admin: who can be assigned)              → { engineers }
 //   GET    /:number/attachments/:attachmentId                  → the image (scope-checked)
+// Phase 7 (lists; out-of-role = 404):
+//   GET    /counts                         sidebar badges for the active role
+//   GET    /engineers                      Super Admin: engineers tagged to AVIT
+//   GET    /queue/work?group=active|to_start|in_progress|waiting|resolved   Engineer / Super Admin: assigned to me
+//   GET    /queue/assign?view=unassigned|to_close                          Super Admin
+//   GET    /all?q=&status=&priority=&categoryId=&engineerId=(id|none)&sort=  Super Admin
 const express = require('express');
 const { query, validationResult } = require('express-validator');
 const { requireAuth } = require('../../middleware/requireAuth');
@@ -49,6 +55,52 @@ function createRequestsRouter() {
         offset: (page - 1) * pageSize,
       });
       res.json({ ...result, page, pageSize });
+    })
+  );
+
+  // ---------- Phase 7: queues ----------
+  const paging = [
+    query('page').optional().isInt({ min: 1, max: 100000 }).withMessage('Bad page.'),
+    query('pageSize').optional().isInt({ min: 1, max: 100 }).withMessage('Bad page size.'),
+  ];
+  const pageOf = (req, size = 25) => {
+    const page = Number(req.query.page) || 1;
+    const pageSize = Number(req.query.pageSize) || size;
+    return { page, pageSize, limit: pageSize, offset: (page - 1) * pageSize };
+  };
+
+  router.get('/counts', handle(async (req, res) => res.json({ counts: await svc.queueCounts(req.user) })));
+
+  router.get('/engineers', handle(async (req, res) => res.json({ engineers: await svc.listEngineers(req.user) })));
+
+  router.get(
+    '/queue/work',
+    ...paging,
+    handle(async (req, res) => {
+      const p = pageOf(req);
+      const result = await svc.listWorkQueue(req.user, { group: req.query.group || 'active', ...p });
+      res.json({ ...result, page: p.page, pageSize: p.pageSize });
+    })
+  );
+
+  router.get(
+    '/queue/assign',
+    ...paging,
+    handle(async (req, res) => {
+      const p = pageOf(req);
+      const result = await svc.listAssignQueue(req.user, { view: req.query.view || 'unassigned', ...p });
+      res.json({ ...result, page: p.page, pageSize: p.pageSize });
+    })
+  );
+
+  router.get(
+    '/all',
+    ...paging,
+    handle(async (req, res) => {
+      const p = pageOf(req);
+      const { q, status, priority, categoryId, engineerId, sort } = req.query;
+      const result = await svc.listAll(req.user, { q, status, priority, categoryId, engineerId, sort, ...p });
+      res.json({ ...result, page: p.page, pageSize: p.pageSize });
     })
   );
 

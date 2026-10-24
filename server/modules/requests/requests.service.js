@@ -4,7 +4,7 @@ const pool = require('../../db/pool');
 const repo = require('./requests.repo');
 const lifecycle = require('./lifecycle');
 const files = require('./attachments');
-const { assertRecordInScope } = require('../../middleware/scope');
+const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const { HttpError, notFound } = require('../../utils/httpError');
 
 const REQUESTER_PRIORITIES = new Set(['LOW', 'NORMAL', 'URGENT']); // "How urgent?"
@@ -355,6 +355,96 @@ async function getAttachmentFile(user, numberParam, attachmentId) {
   return { path: files.filePath(r.id, a.stored_name), mimeType: a.mime_type };
 }
 
+// ---------- queues & "All tickets" (Phase 7) ----------
+const STATUS_GROUPS = {
+  open: ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED'],
+  unassigned: ['OPEN'],
+  active: ['ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT'],
+  to_start: ['ASSIGNED'],
+  in_progress: ['IN_PROGRESS'],
+  waiting: ['WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT'],
+  resolved: ['RESOLVED'],
+  closed: ['CLOSED'],
+  rejected: ['REJECTED'],
+  all: null,
+};
+
+const WORK_GROUPS = ['active', 'to_start', 'in_progress', 'waiting', 'resolved'];
+
+function toQueueItem(r) {
+  return { ...toSummary(r), location: r.location || null, statusSince: r.status_since };
+}
+
+const requireRoles = (user, roles) => {
+  if (!roles.includes(user.activeRole)) throw notFound();
+};
+
+// Engineer (or a Super Admin who is assigned work): tickets assigned to ME.
+async function listWorkQueue(user, { group = 'active', limit, offset }) {
+  requireRoles(user, ['ENGINEER', 'SUPER_ADMIN']);
+  if (!WORK_GROUPS.includes(group)) throw bad('Unknown queue.', 'bad_group');
+  const scope = recordScopeSql(user, 'r', 1);
+  const { rows, total } = await repo.listRequests(pool, scope, {
+    statuses: STATUS_GROUPS[group],
+    assignedTo: user.id,
+    sort: group === 'resolved' ? 'updated' : 'priority',
+    limit,
+    offset,
+  });
+  return { requests: rows.map(toQueueItem), total };
+}
+
+// Super Admin: waiting for an engineer (urgent first, then oldest) / resolved, waiting to be closed.
+async function listAssignQueue(user, { view = 'unassigned', limit, offset }) {
+  requireRoles(user, ['SUPER_ADMIN']);
+  if (!['unassigned', 'to_close'].includes(view)) throw bad('Unknown queue.', 'bad_group');
+  const { rows, total } = await repo.listRequests(pool, recordScopeSql(user, 'r', 1), {
+    statuses: view === 'unassigned' ? ['OPEN'] : ['RESOLVED'],
+    sort: view === 'unassigned' ? 'priority' : 'oldest',
+    limit,
+    offset,
+  });
+  return { requests: rows.map(toQueueItem), total };
+}
+
+// Super Admin: everything, with filters.
+async function listAll(user, f) {
+  requireRoles(user, ['SUPER_ADMIN']);
+  if (f.status && !(f.status in STATUS_GROUPS)) throw bad('Unknown status filter.', 'bad_group');
+  if (f.priority && !ALL_PRIORITIES.has(f.priority)) throw bad('Unknown priority.', 'bad_priority');
+  if (f.categoryId && !/^\d{1,18}$/.test(f.categoryId)) throw bad('Unknown category.', 'bad_category');
+  if (f.engineerId && f.engineerId !== 'none' && !/^\d{1,18}$/.test(f.engineerId)) throw bad('Unknown engineer.', 'bad_engineer');
+  if (f.sort && !['updated', 'priority', 'oldest'].includes(f.sort)) throw bad('Unknown sort.', 'bad_sort');
+
+  const { rows, total } = await repo.listRequests(pool, recordScopeSql(user, 'r', 1), {
+    statuses: STATUS_GROUPS[f.status || 'open'],
+    priority: f.priority || null,
+    categoryId: f.categoryId || null,
+    engineerId: f.engineerId || null,
+    q: f.q ? String(f.q).trim().slice(0, 100) : null,
+    sort: f.sort || 'updated',
+    limit: f.limit,
+    offset: f.offset,
+  });
+  return { requests: rows.map(toQueueItem), total };
+}
+
+// Sidebar badges: only the numbers this role can act on.
+async function queueCounts(user) {
+  if (!['ENGINEER', 'SUPER_ADMIN'].includes(user.activeRole)) return {};
+  const c = await repo.queueCounts(pool, user.id);
+  return user.activeRole === 'SUPER_ADMIN'
+    ? { workQueue: c.work, assignQueue: c.unassigned, toClose: c.to_close }
+    : { workQueue: c.work };
+}
+
+// Super Admin: engineers who can take AVIT tickets (for quick-assign in the queue).
+async function listEngineers(user) {
+  requireRoles(user, ['SUPER_ADMIN']);
+  const unitId = await repo.defaultServiceUnitId(pool);
+  return unitId ? repo.eligibleEngineers(pool, unitId) : [];
+}
+
 async function eligibleEngineers(user, numberParam) {
   if (user.activeRole !== 'SUPER_ADMIN') throw notFound();
   const r = await loadInScope(pool, { user }, numberParam);
@@ -371,6 +461,11 @@ module.exports = {
   comment,
   getAttachmentFile,
   eligibleEngineers,
+  listWorkQueue,
+  listAssignQueue,
+  listAll,
+  queueCounts,
+  listEngineers,
   parseNumber,
   displayNumber,
 };

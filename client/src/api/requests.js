@@ -24,3 +24,10 @@ export const eligibleEngineers = (number) => http.get(`/requests/${number}/engin
 
 // Photos need the login token, so they're fetched as blobs (an <img src> can't send it).
 export const fetchAttachment = (url) => http.get(url, { responseType: 'blob' }).then((r) => r.data);
+
+// Phase 7: queues and lists.
+export const queueCounts = () => http.get('/requests/counts').then((r) => r.data.counts);
+export const listEngineers = () => http.get('/requests/engineers').then((r) => r.data.engineers);
+export const listWorkQueue = (params) => http.get('/requests/queue/work', { params }).then((r) => r.data);
+export const listAssignQueue = (params) => http.get('/requests/queue/assign', { params }).then((r) => r.data);
+export const listAllRequests = (params) => http.get('/requests/all', { params }).then((r) => r.data);
