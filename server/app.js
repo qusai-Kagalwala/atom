@@ -5,6 +5,8 @@ const { config } = require('./config/env');
 const healthRoutes = require('./modules/health/health.routes');
 const { createAuthRouter } = require('./modules/auth/auth.routes');
 const { createSyncRouter } = require('./modules/sync/sync.routes');
+const { createServiceUnitsRouter } = require('./modules/serviceUnits/serviceUnits.routes');
+const { HttpError } = require('./utils/httpError');
 
 function createApp() {
   const app = express();
@@ -20,6 +22,7 @@ function createApp() {
   api.use('/health', healthRoutes);
   api.use('/auth', createAuthRouter());
   api.use('/sync', createSyncRouter());
+  api.use('/service-units', createServiceUnitsRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
 
   app.use(`${config.basePath}/api`, api);
@@ -36,6 +39,9 @@ function createApp() {
       console.error(`${req.method} ${req.originalUrl} failed:`, err.stack || err.message);
       return res.status(status).json({ message: 'Something went wrong. Please try again.' });
     }
+    // Our own HttpError (scope guards, services) carries a user-safe message. Don't trust
+    // err.expose: body-parser sets it too, and its messages can echo the request body.
+    if (err instanceof HttpError) return res.status(status).json({ message: err.message, code: err.code });
     const message = err.type === 'entity.parse.failed' ? 'Invalid JSON in request body.' : 'Bad request.';
     return res.status(status).json({ message });
   });
