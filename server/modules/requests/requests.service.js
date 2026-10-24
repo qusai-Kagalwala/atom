@@ -6,6 +6,7 @@ const repo = require('./requests.repo');
 const lifecycle = require('./lifecycle');
 const files = require('./attachments');
 const notifications = require('../notifications/notifications.service');
+const invoices = require('../invoices/invoices.service');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const { HttpError, notFound } = require('../../utils/httpError');
 
@@ -114,7 +115,11 @@ async function toDetail(db, user, r) {
         actor: e.actor,
         at: e.created_at,
       })),
+    // Invoices: Super Admins and the assigned engineer only (requesters never see them).
+    invoices: seeInternal ? await invoices.forRequest(db, r.id) : undefined,
     permissions: {
+      canLinkInvoices: seeInternal && (user.activeRole === 'SUPER_ADMIN' || user.activeRole === 'ENGINEER'),
+      canUnlinkInvoices: user.activeRole === 'SUPER_ADMIN',
       actions: lifecycle.allowedActions(user, r),
       canComment: lifecycle.canComment(user, r),
       canAddInternalNote: seeInternal && lifecycle.canComment(user, r),

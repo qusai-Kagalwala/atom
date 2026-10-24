@@ -9,6 +9,7 @@ const { createServiceUnitsRouter } = require('./modules/serviceUnits/serviceUnit
 const { createUsersRouter } = require('./modules/users/users.routes');
 const { createRequestsRouter } = require('./modules/requests/requests.routes');
 const { createNotificationsRouter } = require('./modules/notifications/notifications.routes');
+const { createInvoicesRouter } = require('./modules/invoices/invoices.routes');
 const { HttpError } = require('./utils/httpError');
 
 function createApp() {
@@ -29,6 +30,7 @@ function createApp() {
   api.use('/users', createUsersRouter());
   api.use('/requests', createRequestsRouter());
   api.use('/notifications', createNotificationsRouter());
+  api.use('/invoices', createInvoicesRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
 
   app.use(`${config.basePath}/api`, api);

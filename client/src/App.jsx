@@ -14,6 +14,8 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 // AppShell shows a spinner (Suspense) while a page loads.
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
 const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
+const InvoicePage = lazy(() => import('./pages/InvoicePage'));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const MyRequestsPage = lazy(() => import('./pages/MyRequestsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -26,7 +28,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'notifications', 'workQueue', 'assignQueue', 'allRequests']);
+const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'workQueue', 'assignQueue', 'allRequests']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -50,6 +52,8 @@ export default function App() {
 
           <Route element={<ProtectedRoute roles={['ENGINEER', 'SUPER_ADMIN']} />}>
             <Route path="/work-queue" element={<WorkQueuePage />} />
+            <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/invoices/:number" element={<InvoicePage />} />
           </Route>
 
           {/* Super Admin (UI guard only — the API returns 404 to anyone else) */}

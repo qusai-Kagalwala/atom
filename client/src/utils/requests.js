@@ -43,6 +43,10 @@ export function eventText(e) {
       return `Changed priority from ${priorityLabel(d.from)} to ${priorityLabel(d.to)}`;
     case 'category':
       return `Changed category from ${d.from || '—'} to ${d.to}`;
+    case 'invoice_linked':
+      return `Linked invoice ${d.invoiceNumber}`;
+    case 'invoice_unlinked':
+      return `Unlinked invoice ${d.invoiceNumber}`;
     default:
       return e.type;
   }

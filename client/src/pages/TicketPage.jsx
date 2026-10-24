@@ -8,6 +8,7 @@ import AuthImage from '../components/AuthImage';
 import { Alert, Field } from '../components/FormControls';
 import Modal from '../components/Modal';
 import PhotoPicker from '../components/PhotoPicker';
+import TicketInvoices from '../components/TicketInvoices';
 import useAuth from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
 import {
@@ -237,6 +238,7 @@ const BACK_LABELS = [
   ['/assign', 'Assign queue'],
   ['/all', 'All tickets & requests'],
   ['/notifications', 'Notifications'],
+  ['/invoices', 'Invoices'],
 ];
 function backTarget(from) {
   const hit = typeof from === 'string' && BACK_LABELS.find(([p]) => from === p || from.startsWith(`${p}?`));
@@ -368,6 +370,16 @@ export default function TicketPage() {
           </div>
         )}
       </header>
+
+      {t.invoices && (
+        <TicketInvoices
+          ticket={t}
+          onChanged={(message) => {
+            queryClient.invalidateQueries({ queryKey: key });
+            setNotice(message);
+          }}
+        />
+      )}
 
       {t.permissions.canEditTriage && (
         <section className="card">
