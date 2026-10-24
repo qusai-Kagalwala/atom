@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { clearSession, getToken } from '../auth/storage';
+import { socketId } from './socket';
 
 // BASE_URL is '/Atom/' (from vite.config.js base), so every call goes to /Atom/api/...
 export const API_BASE = `${import.meta.env.BASE_URL}api`;
@@ -7,7 +8,7 @@ export const LOGIN_PATH = `${import.meta.env.BASE_URL}login`;
 
 // These answer 401 for a wrong password — that is not a lost session.
 const PUBLIC_AUTH = ['/auth/login', '/auth/forgot-password', '/auth/reset-password'];
-const SESSION_CODES = ['session_expired', 'removed', 'role_changed'];
+const SESSION_CODES = ['session_expired', 'removed', 'role_changed', 'password_changed'];
 
 const http = axios.create({
   baseURL: API_BASE,
@@ -18,6 +19,8 @@ const http = axios.create({
 http.interceptors.request.use((cfg) => {
   const token = getToken();
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  const sid = socketId(); // lets the server keep this tab's live connection on a password change
+  if (sid) cfg.headers['X-Socket-Id'] = sid;
   return cfg;
 });
 

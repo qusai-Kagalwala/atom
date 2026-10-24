@@ -69,7 +69,7 @@ async function login({ identifier, password, preferredRole }) {
   if (!user.roles.length) throw new AuthError(403, MSG.noRole, 'no_role');
 
   const activeRole = pickActiveRole(user.roles, preferredRole);
-  return { token: signSession(user.id, activeRole), user: toPublicUser(user, activeRole) };
+  return { token: signSession(user.id, activeRole, user.session_version), user: toPublicUser(user, activeRole) };
 }
 
 module.exports = { login, AuthError, MSG };

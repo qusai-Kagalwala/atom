@@ -12,13 +12,16 @@ async function getEmployeePassword(userId) {
   return rows[0]?.legacy_password ?? null;
 }
 
+// Also bumps session_version, which signs the user out on every device (tokens carry the old one).
+// → the new session_version, or null if no such employee-ID user.
 async function setEmployeePassword(userId, newPassword, db = pool) {
-  const { rowCount } = await db.query(
-    `UPDATE users SET legacy_password = $2::text
-      WHERE id = $1::bigint AND login_type = 'EMPLOYEE_ID'`,
+  const { rows } = await db.query(
+    `UPDATE users SET legacy_password = $2::text, session_version = session_version + 1
+      WHERE id = $1::bigint AND login_type = 'EMPLOYEE_ID'
+      RETURNING session_version`,
     [userId, newPassword]
   );
-  return rowCount === 1;
+  return rows[0] ? rows[0].session_version : null;
 }
 
 async function findEmployeeForReset(employeeId) {

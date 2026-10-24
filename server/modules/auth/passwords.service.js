@@ -8,6 +8,8 @@ const { config } = require('../../config/env');
 const { sendMail } = require('../../services/mailer');
 const safeCompare = require('../../utils/safeCompare');
 const repo = require('./passwords.repo');
+const { signSession } = require('./tokens');
+const realtime = require('../../realtime');
 
 const MIN_LENGTH = 8;
 const MAX_LENGTH = 256;
@@ -55,7 +57,8 @@ function checkNewPassword(newPassword, currentPassword) {
 }
 
 // Logged-in employee-ID user, from the profile page.
-async function changePassword(user, currentPassword, newPassword) {
+// keepSocketId: this device's Socket.IO id (X-Socket-Id header), so only OTHER devices are dropped.
+async function changePassword(user, currentPassword, newPassword, { keepSocketId } = {}) {
   if (user.loginType !== 'EMPLOYEE_ID') throw new PasswordError(400, MSG.itsUser, 'its_user');
 
   const stored = await repo.getEmployeePassword(user.id);
@@ -65,9 +68,12 @@ async function changePassword(user, currentPassword, newPassword) {
   }
   checkNewPassword(newPassword, stored);
 
-  await repo.setEmployeePassword(user.id, newPassword);
+  const version = await repo.setEmployeePassword(user.id, newPassword);
   await repo.expireResetTokens(user.id); // any outstanding reset link is now useless
-  return { message: MSG.changed };
+  const except = /^[A-Za-z0-9_-]{1,64}$/.test(String(keepSocketId || '')) ? keepSocketId : undefined;
+  realtime.disconnectUser(user.id, { except }); // other devices' live connections drop now; their next request gets 401
+  // Other devices are signed out (session_version went up). This device gets a fresh token and stays in.
+  return { message: MSG.changed, token: signSession(user.id, user.activeRole, version) };
 }
 
 function resetEmail(link) {
@@ -138,6 +144,7 @@ async function resetPassword(token, newPassword) {
     await repo.setEmployeePassword(row.user_id, newPassword, client);
     await repo.expireResetTokens(row.user_id, client);
     await client.query('COMMIT');
+    realtime.disconnectUser(row.user_id); // signed out everywhere (session_version went up)
     return { message: MSG.reset };
   } catch (err) {
     if (!(err instanceof PasswordError)) await client.query('ROLLBACK').catch(() => {});

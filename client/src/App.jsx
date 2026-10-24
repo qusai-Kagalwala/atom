@@ -15,6 +15,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
 const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
 const MyRequestsPage = lazy(() => import('./pages/MyRequestsPage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const RaiseTicketPage = lazy(() => import('./pages/RaiseTicketPage'));
 const SyncStatusPage = lazy(() => import('./pages/SyncStatusPage'));
@@ -25,7 +26,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'workQueue', 'assignQueue', 'allRequests']);
+const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'notifications', 'workQueue', 'assignQueue', 'allRequests']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/system-check" element={<SystemCheckPage />} />
           <Route path="/track" element={<MyRequestsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/tickets/new" element={<RaiseTicketPage />} />
           <Route path="/tickets/:number" element={<TicketPage />} />
 

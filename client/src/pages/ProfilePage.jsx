@@ -52,7 +52,7 @@ function ChangePasswordCard() {
   return (
     <section className="card">
       <h2 className="text-xl">Change password</h2>
-      <p className="mt-1 font-ui text-sm text-ink-2">Optional. You'll stay signed in on this device.</p>
+      <p className="mt-1 font-ui text-sm text-ink-2">Optional. You'll stay signed in on this device; other devices will be signed out.</p>
 
       {result && (
         <div className="mt-4">

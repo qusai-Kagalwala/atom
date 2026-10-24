@@ -25,6 +25,7 @@ function createFakeUsers() {
       email: user.email ?? null,
       legacy_password: user.legacy_password ?? null,
       is_active: user.is_active ?? true,
+      session_version: user.session_version ?? 0,
     });
     roles.set(id, new Set(userRoles));
     return id;
@@ -76,7 +77,8 @@ function createFakeUsers() {
       const u = users.get(String(params[0]));
       if (!u || u.login_type !== 'EMPLOYEE_ID') return { rowCount: 0, rows: [] };
       u.legacy_password = params[1];
-      return { rowCount: 1, rows: [] };
+      u.session_version += 1; // signs the user out everywhere (Phase 7.1)
+      return { rowCount: 1, rows: [{ session_version: u.session_version }] };
     }
 
     if (text.startsWith('UPDATE password_reset_tokens SET used_at')) {

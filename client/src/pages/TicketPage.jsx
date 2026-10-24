@@ -236,6 +236,7 @@ const BACK_LABELS = [
   ['/work-queue', 'My work queue'],
   ['/assign', 'Assign queue'],
   ['/all', 'All tickets & requests'],
+  ['/notifications', 'Notifications'],
 ];
 function backTarget(from) {
   const hit = typeof from === 'string' && BACK_LABELS.find(([p]) => from === p || from.startsWith(`${p}?`));

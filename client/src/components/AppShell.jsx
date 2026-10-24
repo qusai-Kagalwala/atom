@@ -4,6 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { LoaderCircle, Menu, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
 import useAuth from '../hooks/useAuth';
+import useLiveUpdates from '../hooks/useLiveUpdates';
+import useUnreadCount from '../hooks/useUnreadCount';
+import NotificationBell from './NotificationBell';
+import Toasts from './Toasts';
 import { navForRole } from '../utils/roles';
 import UserMenu from './UserMenu';
 
@@ -13,7 +17,8 @@ const linkClass = ({ isActive }) =>
     isActive ? 'bg-white/10 font-medium text-white' : 'text-ink-on-primary hover:bg-white/5 hover:text-white',
   ].join(' ');
 
-// Numbers on nav items: work waiting for the active role (refreshes every minute and on focus).
+// Numbers on nav items: work waiting for the active role + unread notifications.
+// Live pushes refresh them; the interval is only a fallback if the live connection is down.
 function useNavCounts(role) {
   const enabled = role === 'ENGINEER' || role === 'SUPER_ADMIN';
   const { data } = useQuery({
@@ -23,7 +28,8 @@ function useNavCounts(role) {
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-  return enabled && data ? data : {};
+  const notifications = useUnreadCount();
+  return { ...(enabled && data ? data : {}), notifications };
 }
 
 function SideNav({ items, counts, onNavigate }) {
@@ -34,7 +40,7 @@ function SideNav({ items, counts, onNavigate }) {
           <Icon size={20} aria-hidden="true" className="shrink-0" />
           <span className="truncate">{label}</span>
           {counts[key] > 0 && (
-            <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} waiting`}>
+            <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} ${key === 'notifications' ? 'unread' : 'waiting'}`}>
               {counts[key] > 99 ? '99+' : counts[key]}
             </span>
           )}
@@ -50,6 +56,7 @@ export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = navForRole(user.activeRole);
   const counts = useNavCounts(user.activeRole);
+  useLiveUpdates();
   const year = new Date().getFullYear();
 
   return (
@@ -106,7 +113,8 @@ export default function AppShell() {
             <span className="hidden font-ui text-sm text-ink-on-primary lg:inline">
               AVIT Ticketing &amp; Operations Manager
             </span>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <NotificationBell />
               <UserMenu />
             </div>
           </div>
@@ -128,6 +136,7 @@ export default function AppShell() {
           © {year} Aljamea-tus-Saifiyah · ATOM v{import.meta.env.VITE_ATOM_VERSION}
         </footer>
       </div>
+      <Toasts />
     </div>
   );
 }

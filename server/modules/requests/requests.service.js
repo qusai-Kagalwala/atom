@@ -1,9 +1,11 @@
 // Tickets (Phase 6). Every change: one transaction, ticket row locked, scope + lifecycle checked,
 // one timeline event written. Out of scope = 404 (assertRecordInScope).
+// Phase 13: notifications are written in the same transaction and pushed after COMMIT.
 const pool = require('../../db/pool');
 const repo = require('./requests.repo');
 const lifecycle = require('./lifecycle');
 const files = require('./attachments');
+const notifications = require('../notifications/notifications.service');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const { HttpError, notFound } = require('../../utils/httpError');
 
@@ -14,19 +16,30 @@ const bad = (message, code) => new HttpError(400, message, code);
 const displayNumber = (r) => `${r.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${r.number}`;
 const clean = (v) => (v == null ? '' : String(v).trim());
 
+// fn(db, afterCommit): afterCommit(cb) queues cb to run only once the COMMIT has succeeded
+// (live pushes must never announce a change that was rolled back).
 async function inTransaction(fn) {
+  const after = [];
   const client = await pool.connect();
+  let result;
   try {
     await client.query('BEGIN');
-    const result = await fn(client);
+    result = await fn(client, (cb) => after.push(cb));
     await client.query('COMMIT');
-    return result;
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
     client.release();
   }
+  for (const cb of after) {
+    try {
+      cb();
+    } catch (err) {
+      console.error('After-commit step failed:', err.message);
+    }
+  }
+  return result;
 }
 
 // "T-1001" or "1001" → 1001
@@ -167,7 +180,7 @@ async function createTicket(user, input, uploads) {
   const written = { requestId: null, files: [] };
   let created;
   try {
-    created = await inTransaction(async (db) => {
+    created = await inTransaction(async (db, afterCommit) => {
       const serviceUnitId = await repo.defaultServiceUnitId(db);
       if (!serviceUnitId) throw new HttpError(503, 'Ticketing is not available right now.', 'no_service_unit');
 
@@ -204,6 +217,14 @@ async function createTicket(user, input, uploads) {
       });
       written.requestId = row.id;
       written.files = await savePhotos(db, row, uploads, user.id, null);
+
+      const ticket = { ...row, type: 'TICKET', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null };
+      const sent = await notifications.recordTicketEvent(db, ticket, {
+        kind: 'created',
+        actorId: user.id,
+        raisedFor: requesterId !== String(user.id),
+      });
+      afterCommit(() => notifications.publish(sent, ticket));
       return row;
     });
   } catch (err) {
@@ -216,9 +237,10 @@ async function createTicket(user, input, uploads) {
 // ---------- lifecycle actions ----------
 async function act(user, numberParam, action, body = {}) {
   const note = clean(body.note);
-  return inTransaction(async (db) => {
+  return inTransaction(async (db, afterCommit) => {
     const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
     const rule = lifecycle.assertAllowed(user, r, action);
+    let event = { kind: action, actorId: user.id, note };
     if (rule.noteRequired && note.length < 3) throw bad(rule.noteRequired, 'note_required');
     if (note.length > 5000) throw bad('Keep the note under 5000 characters.', 'note_too_long');
 
@@ -243,6 +265,12 @@ async function act(user, numberParam, action, body = {}) {
           previousEngineerName: r.assigned_engineer?.name || null,
         },
       });
+      event = {
+        ...event,
+        engineerId,
+        engineerName: engineer.name,
+        previousEngineerId: r.assigned_engineer_id ? String(r.assigned_engineer_id) : null,
+      };
     } else {
       const to = lifecycle.nextStatus(action, r.status);
       await repo.updateStatus(db, r.id, {
@@ -260,6 +288,8 @@ async function act(user, numberParam, action, body = {}) {
         data: { action },
       });
     }
+    const sent = await notifications.recordTicketEvent(db, r, event);
+    afterCommit(() => notifications.publish(sent, r, event.engineerId ? [event.engineerId] : []));
     const fresh = await repo.getByNumber(db, r.number);
     return toDetail(db, user, fresh);
   });
@@ -267,8 +297,9 @@ async function act(user, numberParam, action, body = {}) {
 
 // Super Admin triage: priority / category.
 async function triage(user, numberParam, { priority, categoryId }) {
-  return inTransaction(async (db) => {
+  return inTransaction(async (db, afterCommit) => {
     const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
+    afterCommit(() => notifications.publish([], r)); // no one is notified; open lists refresh
     if (!lifecycle.canEditTriage(user, r)) {
       if (user.activeRole === 'SUPER_ADMIN') throw new HttpError(409, 'This ticket is closed.', 'wrong_status');
       throw notFound();
@@ -307,7 +338,7 @@ async function comment(user, numberParam, body, uploads) {
 
   const written = { requestId: null, files: [] };
   try {
-    return await inTransaction(async (db) => {
+    return await inTransaction(async (db, afterCommit) => {
       const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
       if (!lifecycle.canComment(user, r)) {
         throw new HttpError(409, 'This ticket is closed — comments are no longer possible.', 'wrong_status');
@@ -326,7 +357,8 @@ async function comment(user, numberParam, body, uploads) {
 
       // The requester answered "Waiting for you" → back to In progress (decision 5).
       const isRequesterSide = String(user.id) === String(r.requester_id) || String(user.id) === String(r.raised_by_id);
-      if (r.status === 'WAITING_FOR_USER' && isRequesterSide && !internal) {
+      const requesterReplied = r.status === 'WAITING_FOR_USER' && isRequesterSide && !internal;
+      if (requesterReplied) {
         await repo.updateStatus(db, r.id, { status: 'IN_PROGRESS' });
         await repo.insertEvent(db, {
           requestId: r.id,
@@ -339,6 +371,15 @@ async function comment(user, numberParam, body, uploads) {
       } else {
         await repo.touch(db, r.id);
       }
+      const sent = await notifications.recordTicketEvent(db, r, {
+        kind: 'comment',
+        actorId: user.id,
+        note: text,
+        internal,
+        hasPhotos: written.files.length > 0,
+        requesterReplied,
+      });
+      afterCommit(() => notifications.publish(sent, r));
       return toDetail(db, user, await repo.getByNumber(db, r.number));
     });
   } catch (err) {

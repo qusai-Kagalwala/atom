@@ -85,7 +85,7 @@ function createAuthRouter() {
       return res.status(403).json({ message: 'You do not have that role.', code: 'role_not_granted' });
     }
     const user = { ...req.user, activeRole: role };
-    return res.json({ token: signSession(user.id, role), user });
+    return res.json({ token: signSession(user.id, role, req.sessionVersion), user });
   });
 
   // ---------- Preferences ----------
@@ -119,7 +119,9 @@ function createAuthRouter() {
     body('newPassword').isString(),
     (req, res, next) =>
       invalid(req) ? res.status(400).json({ message: 'Enter your current and new password.' }) : next(),
-    handle((req) => changePassword(req.user, req.body.currentPassword, req.body.newPassword))
+    handle((req) =>
+      changePassword(req.user, req.body.currentPassword, req.body.newPassword, { keepSocketId: req.get('X-Socket-Id') })
+    )
   );
 
   // ---------- Forgot / reset (public) ----------

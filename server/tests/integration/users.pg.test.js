@@ -240,12 +240,19 @@ maybe('users admin API on real PostgreSQL', () => {
   });
 
   test('password reset by Super Admin: employee-ID only, old password stops working, outstanding links die', async () => {
+    const before = await request(app).post('/Atom/api/auth/login').send({ identifier: '1002', password: 'legacy-pw' });
+    expect(before.status).toBe(200);
+    const oldToken = before.body.token;
     await pool.query(
       `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, repeat('a', 64), now() + interval '30 min')`,
       [ids.emp]
     );
     const r = await admin.post(`/${ids.emp}/password`, { newPassword: 'brand-new-1' });
-    expect(r.body.message).toBe('Password reset. Tell the user their new password.');
+    expect(r.body.message).toBe('Password reset. The user is signed out everywhere — tell them their new password.');
+    // Phase 7.1: a login from before the reset no longer works.
+    const me = await request(app).get('/Atom/api/auth/me').set('Authorization', `Bearer ${oldToken}`);
+    expect(me.status).toBe(401);
+    expect(me.body.code).toBe('password_changed');
     expect((await request(app).post('/Atom/api/auth/login').send({ identifier: '1002', password: 'legacy-pw' })).status).toBe(401);
     expect((await request(app).post('/Atom/api/auth/login').send({ identifier: '1002', password: 'brand-new-1' })).status).toBe(200);
     expect((await q('SELECT used_at FROM password_reset_tokens'))[0].used_at).not.toBeNull();

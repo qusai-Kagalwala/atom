@@ -26,7 +26,7 @@ async function findItsUser(itsNumber) {
 async function loadSessionUser(userId) {
   const { rows } = await pool.query(
     `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic, u.name_language,
-            u.email, u.is_active,
+            u.email, u.is_active, u.session_version,
             COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id

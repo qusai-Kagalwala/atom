@@ -38,6 +38,11 @@ export function saveSession(token, user) {
   write(USER_KEY, JSON.stringify(user));
 }
 
+// Replaces only the token (e.g. after a password change; the user is unchanged).
+export function saveToken(token) {
+  write(TOKEN_KEY, token);
+}
+
 export function saveUser(user) {
   write(USER_KEY, JSON.stringify(user));
 }

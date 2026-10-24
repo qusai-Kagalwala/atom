@@ -8,11 +8,14 @@
 //     details come from the Idarah view.
 //   - Super Admin password reset: employee-ID users only; the Super Admin types the new password.
 //   - Every change is logged (status → user_status_log, everything else → user_change_log).
+//   - Role removal, deactivation and password reset drop the user's live (Socket.IO) connections
+//     after the commit; reconnecting re-runs the full session check (Phase 13).
 const pool = require('../../db/pool');
 const repo = require('./users.repo');
 const passwordsRepo = require('../auth/passwords.repo');
 const unitsRepo = require('../serviceUnits/serviceUnits.repo');
 const { HttpError, notFound } = require('../../utils/httpError');
+const realtime = require('../../realtime');
 
 const LOCK_KEY = 727303; // user administration
 const ROLES = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
@@ -217,6 +220,9 @@ async function removeRole(id, role, actor) {
     }
     await repo.logChange(db, id, 'role_removed', detail, actor.id);
     return getUserDetail(id, db);
+  }).then((result) => {
+    realtime.disconnectUser(id);
+    return result;
   });
 }
 
@@ -270,6 +276,9 @@ async function setStatus(id, active, reason, actor) {
     await repo.logStatus(db, id, active, why, actor.id);
     // Phase 10 adds: on deactivation, flag the user's assets "to recover".
     return getUserDetail(id, db);
+  }).then((result) => {
+    if (!active) realtime.disconnectUser(id);
+    return result;
   });
 }
 
@@ -288,7 +297,10 @@ async function resetPassword(id, newPassword, actor) {
     await passwordsRepo.setEmployeePassword(id, newPassword, db);
     await passwordsRepo.expireResetTokens(id, db);
     await repo.logChange(db, id, 'password_reset', null, actor.id);
-    return { message: 'Password reset. Tell the user their new password.' };
+    return { message: 'Password reset. The user is signed out everywhere — tell them their new password.' };
+  }).then((result) => {
+    realtime.disconnectUser(id);
+    return result;
   });
 }
 

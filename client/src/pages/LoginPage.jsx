@@ -11,6 +11,7 @@ const URL_ERRORS = {
   session_expired: 'Your session has expired. Please sign in again.',
   removed: 'Your ATOM access has been removed.',
   role_changed: 'Your role has changed. Please sign in again.',
+  password_changed: 'Your password was changed. Please sign in again.',
 };
 
 export default function LoginPage() {
