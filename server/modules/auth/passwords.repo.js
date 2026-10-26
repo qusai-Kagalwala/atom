@@ -13,13 +13,15 @@ async function getEmployeePassword(userId) {
 }
 
 // Also bumps session_version, which signs the user out on every device (tokens carry the old one).
+// mustChange: the user has to choose their own password at the next sign-in (Super Admin reset).
 // → the new session_version, or null if no such employee-ID user.
-async function setEmployeePassword(userId, newPassword, db = pool) {
+async function setEmployeePassword(userId, newPassword, db = pool, { mustChange = false } = {}) {
   const { rows } = await db.query(
-    `UPDATE users SET legacy_password = $2::text, session_version = session_version + 1
+    `UPDATE users SET legacy_password = $2::text, session_version = session_version + 1,
+                      must_change_password = $3::boolean
       WHERE id = $1::bigint AND login_type = 'EMPLOYEE_ID'
       RETURNING session_version`,
-    [userId, newPassword]
+    [userId, newPassword, mustChange]
   );
   return rows[0] ? rows[0].session_version : null;
 }
@@ -65,7 +67,7 @@ async function expireResetTokens(userId, db = pool) {
 // Locks a valid (unused, unexpired) token for an active employee-ID user. Use inside a transaction.
 async function lockValidResetToken(tokenHash, client) {
   const { rows } = await client.query(
-    `SELECT t.id, t.user_id, u.legacy_password, u.is_active
+    `SELECT t.id, t.user_id, u.legacy_password, u.employee_id, u.is_active
        FROM password_reset_tokens t
        JOIN users u ON u.id = t.user_id
       WHERE t.token_hash = $1::text

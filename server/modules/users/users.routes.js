@@ -8,7 +8,7 @@
 //   POST   /:id/service-units { serviceUnitId }                            → { user }
 //   DELETE /:id/service-units/:serviceUnitId                               → { user }
 //   POST   /:id/status     { active, reason }                              → { user }
-//   POST   /:id/password   { newPassword }      (employee-ID users only)   → { message }
+//   POST   /:id/password   { newPassword, requireChange? (default true) }  (employee-ID users only) → { message }
 // SECURITY: never log req.body (passwords).
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
@@ -16,7 +16,7 @@ const { requireAuth, requireRole } = require('../../middleware/requireAuth');
 const svc = require('./users.service');
 
 const ROLES = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
-const SOURCES = ['idarah', 'legacy', 'manual'];
+const SOURCES = ['idarah', 'hr', 'legacy', 'manual'];
 
 // '' / whitespace → null, otherwise trimmed.
 const blankToNull = (v) => {
@@ -155,7 +155,12 @@ function createUsersRouter() {
   router.post(
     '/:id/password',
     body('newPassword').isString().withMessage('Enter a new password.'),
-    validated(async (req, res) => res.json(await svc.resetPassword(req.params.id, req.body.newPassword, req.user)))
+    body('requireChange').optional().isBoolean().withMessage('Bad option.'),
+    validated(async (req, res) =>
+      res.json(
+        await svc.resetPassword(req.params.id, req.body.newPassword, req.user, { requireChange: req.body.requireChange !== false })
+      )
+    )
   );
 
   return router;

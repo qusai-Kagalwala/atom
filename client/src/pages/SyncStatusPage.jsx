@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
-import { listSyncRuns, runIdarahSync } from '../api/users';
+import { LoaderCircle, RefreshCw, TriangleAlert, UserX } from 'lucide-react';
+import { listOldAccounts, listSyncRuns, runSync } from '../api/users';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import Modal from '../components/Modal';
+import { Tabs } from '../components/RequestList';
 import { formatDateTime, formatDuration } from '../utils/format';
 
 const STATUS = {
@@ -19,22 +21,58 @@ const SKIP_LABELS = {
   invalid_ejamaat_no: 'invalid ITS number',
   no_person_id: 'no ITS / employee ID',
   employee_id_not_in_atom: 'employee ID not in ATOM',
+  no_department: 'no department',
+  invalid_user_id: 'invalid user ID',
+};
+
+// Two syncs (Phase 3.1): the Idarah view (ITS people, posts) and the HR employee list
+// (employee-ID staff, department locations). Both run in the same scheduled job.
+const JOBS = {
+  idarah: {
+    tab: 'Idarah view',
+    text: 'ITS people, their posts and departments, from the Idarah view.',
+    peopleLabel: 'People in view',
+    people: (s) => s?.users?.inView,
+  },
+  hr: {
+    tab: 'HR employee list',
+    text: 'Employee-ID staff and department locations, from the HR employee list. New staff get their Employee ID as a temporary password.',
+    peopleLabel: 'Staff in list',
+    people: (s) => s?.staff?.inView,
+  },
 };
 
 function RunSummary({ run }) {
   const s = run.summary;
-  if (!s?.users) return <span className="text-ink-2">{run.message || '—'}</span>;
+  if (!s?.users && !s?.staff) return <span className="text-ink-2">{run.message || '—'}</span>;
   const skipped = Object.entries(s.skipped || {}).filter(([, n]) => n > 0);
   return (
     <div className="space-y-0.5">
-      <p>
-        People {s.users.inView} · new {s.users.created} · updated {s.users.updated} · back {s.users.reactivated} · left{' '}
-        {s.users.deactivated}
-      </p>
-      <p className="text-ink-2">
-        Departments {s.departments.total} · posts {s.posts.upserted}
-        {s.columnsAdded?.length > 0 && ` · new columns: ${s.columnsAdded.join(', ')}`}
-      </p>
+      {s.users && (
+        <>
+          <p>
+            People {s.users.inView} · new {s.users.created} · updated {s.users.updated} · back {s.users.reactivated} · left{' '}
+            {s.users.deactivated}
+          </p>
+          <p className="text-ink-2">
+            Departments {s.departments.total} · posts {s.posts.upserted}
+            {s.columnsAdded?.length > 0 && ` · new columns: ${s.columnsAdded.join(', ')}`}
+          </p>
+        </>
+      )}
+      {s.staff && (
+        <>
+          <p>
+            Staff {s.staff.inView} · new {s.staff.created} · renamed {s.staff.updated} · back {s.staff.reactivated} · left{' '}
+            {s.staff.deactivated}
+          </p>
+          <p className="text-ink-2">
+            Departments {s.departments.total} ({s.departments.withLocation} with location) · imported accounts matched{' '}
+            {s.staff.legacyMatched}
+            {s.columnsAdded?.length > 0 && ` · new columns: ${s.columnsAdded.join(', ')}`}
+          </p>
+        </>
+      )}
       {skipped.length > 0 && (
         <p className="text-xs text-ink-3">Skipped: {skipped.map(([k, n]) => `${n} ${SKIP_LABELS[k] || k}`).join(', ')}</p>
       )}
@@ -43,13 +81,58 @@ function RunSummary({ run }) {
   );
 }
 
+// Imported Login_Master accounts that are active in ATOM but not in the HR list (Super Admin decides).
+function OldAccounts() {
+  const query = useQuery({ queryKey: ['sync', 'old-accounts'], queryFn: listOldAccounts });
+  if (query.isPending) return null;
+  if (query.isError) return <Alert tone="error">Could not load the old accounts.</Alert>;
+  const { checkedAt, accounts } = query.data;
+  if (!checkedAt) return null;
+
+  return (
+    <div className="card p-0">
+      <div className="border-b border-line px-4 py-3">
+        <h2 className="flex items-center gap-2 text-xl">
+          <UserX size={20} className="text-ink-3" aria-hidden="true" /> Old accounts not in the HR list ({accounts.length})
+        </h2>
+        <p className="mt-1 font-ui text-sm text-ink-2">
+          Imported from the old login table but not active employees. They can still sign in. Open each one and deactivate it, or
+          keep it.
+        </p>
+      </div>
+      {accounts.length === 0 ? (
+        <p className="px-4 py-3 font-ui text-sm text-ink-3">None. Every imported account is in the HR list.</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {accounts.map((a) => (
+            <li key={a.id}>
+              <Link to={`/users/${a.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 font-ui text-sm hover:bg-gold-muted">
+                <span className="font-medium tabular-nums text-ink">Employee ID {a.employee_id}</span>
+                <span className="min-w-0 flex-1 truncate text-ink-2">{a.name || 'No name on file'}</span>
+                <span className="text-xs text-ink-3">{a.last_ticket_at ? `Last ticket ${formatDateTime(a.last_ticket_at)}` : 'No tickets'}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function SyncStatusPage() {
   const queryClient = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const job = params.get('job') === 'hr' ? 'hr' : 'idarah';
+  const meta = JOBS[job];
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState(null); // { tone, message }
+  const [result, setResult] = useState(null); // { tone, message, blocked }
   const [confirmForce, setConfirmForce] = useState(false);
 
-  const runs = useQuery({ queryKey: ['sync', 'runs'], queryFn: () => listSyncRuns(20), refetchInterval: running ? 2000 : false });
+  const runs = useQuery({
+    queryKey: ['sync', 'runs', job],
+    queryFn: () => listSyncRuns(job, 20),
+    refetchInterval: running ? 2000 : false,
+  });
   const last = runs.data?.[0];
   const lastGood = runs.data?.find((r) => r.status === 'success');
 
@@ -58,7 +141,7 @@ export default function SyncStatusPage() {
     setRunning(true);
     setResult(null);
     try {
-      const r = await runIdarahSync(force);
+      const r = await runSync(job, force);
       const tone = r.status === 'success' ? 'success' : r.status === 'busy' ? 'info' : 'error';
       const message =
         r.status === 'success'
@@ -69,7 +152,7 @@ export default function SyncStatusPage() {
       setResult({ tone: 'error', message: errorMessage(err, 'Could not start the sync.') });
     } finally {
       setRunning(false);
-      queryClient.invalidateQueries({ queryKey: ['sync', 'runs'] });
+      queryClient.invalidateQueries({ queryKey: ['sync'] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
     }
   }
@@ -80,15 +163,23 @@ export default function SyncStatusPage() {
         <div>
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
           <h1 className="mt-1 text-3xl">Sync status</h1>
-          <p className="mt-1 font-ui text-sm text-ink-2">
-            People and departments from the Idarah view. Runs automatically about every 10 minutes once ATOM is on the server.
-          </p>
+          <p className="mt-1 font-ui text-sm text-ink-2">Both syncs run automatically about every 10 minutes once ATOM is on the server.</p>
         </div>
         <button type="button" className="btn-primary" onClick={() => syncNow(false)} disabled={running}>
           <RefreshCw size={18} className={running ? 'animate-spin' : ''} aria-hidden="true" />
-          {running ? 'Syncing…' : 'Sync now'}
+          {running ? 'Syncing…' : `Sync ${meta.tab} now`}
         </button>
       </div>
+
+      <Tabs
+        tabs={Object.entries(JOBS).map(([k, j]) => [k, j.tab])}
+        value={job}
+        onChange={(v) => {
+          setResult(null);
+          setParams(v === 'idarah' ? {} : { job: v });
+        }}
+      />
+      <p className="font-ui text-sm text-ink-2">{meta.text}</p>
 
       {result && (
         <Alert tone={result.tone}>
@@ -112,10 +203,12 @@ export default function SyncStatusPage() {
           <p className="mt-1 font-ui text-sm text-ink">{lastGood ? formatDateTime(lastGood.started_at) : 'None yet'}</p>
         </div>
         <div className="card p-4">
-          <p className="font-ui text-xs uppercase tracking-wider text-ink-3">People in view</p>
-          <p className="mt-1 font-display text-2xl text-brown">{lastGood?.summary?.users?.inView ?? '—'}</p>
+          <p className="font-ui text-xs uppercase tracking-wider text-ink-3">{meta.peopleLabel}</p>
+          <p className="mt-1 font-display text-2xl text-brown">{meta.people(lastGood?.summary) ?? '—'}</p>
         </div>
       </div>
+
+      {job === 'hr' && <OldAccounts />}
 
       {runs.isError && <Alert tone="error">{errorMessage(runs.error, 'Could not load sync runs.')}</Alert>}
       {runs.isPending && (
@@ -123,6 +216,7 @@ export default function SyncStatusPage() {
           <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Loading…
         </p>
       )}
+      {runs.isSuccess && runs.data.length === 0 && <p className="font-ui text-sm text-ink-3">No runs yet.</p>}
 
       {runs.data?.length > 0 && (
         <div className="card p-0">
@@ -161,8 +255,8 @@ export default function SyncStatusPage() {
           }
         >
           <p className="font-ui text-sm text-ink-2">
-            The view returned far fewer people than last time. Running anyway will <strong>deactivate everyone missing</strong> from
-            it. Only do this if you know the change is real (for example, after the Hijri year postings were updated).
+            The {meta.tab.toLowerCase()} returned far fewer people than last time. Running anyway will{' '}
+            <strong>deactivate everyone missing</strong> from it. Only do this if you know the change is real.
           </p>
         </Modal>
       )}

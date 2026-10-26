@@ -16,6 +16,7 @@ export function formatDuration(start, end) {
 
 export const SOURCE_LABELS = {
   idarah: 'Synced',
+  hr: 'HR list',
   legacy: 'Imported',
   manual: 'Added by hand',
 };

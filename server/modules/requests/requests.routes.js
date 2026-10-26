@@ -1,6 +1,7 @@
 // /Atom/api/requests — tickets (Phase 6). Every route needs login; scope is checked per ticket
 // (out of scope = 404). :number accepts "T-1001" or "1001".
 //   GET    /categories                                         → { categories }
+//   GET    /default-location?for=<userId>   "Where?" prefill from the department (for = Super Admin only) → { location }
 //   GET    /mine?status=open|closed|all&page=&pageSize=        → { requests, total, page, pageSize }
 //   POST   /               multipart: title, description, categoryId, priority, location,
 //                          requesterId (Super Admin only), photos[] (≤ 5)      → 201 { request }
@@ -39,6 +40,12 @@ function createRequestsRouter() {
   router.use(requireAuth);
 
   router.get('/categories', handle(async (req, res) => res.json({ categories: await svc.listCategories() })));
+
+  router.get(
+    '/default-location',
+    query('for').optional({ values: 'falsy' }).matches(/^\d{1,18}$/).withMessage('Bad person.'),
+    handle(async (req, res) => res.json(await svc.defaultLocation(req.user, req.query.for)))
+  );
 
   router.get(
     '/mine',

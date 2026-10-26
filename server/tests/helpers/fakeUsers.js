@@ -26,6 +26,7 @@ function createFakeUsers() {
       legacy_password: user.legacy_password ?? null,
       is_active: user.is_active ?? true,
       session_version: user.session_version ?? 0,
+      must_change_password: user.must_change_password ?? false,
     });
     roles.set(id, new Set(userRoles));
     return id;
@@ -77,6 +78,7 @@ function createFakeUsers() {
       const u = users.get(String(params[0]));
       if (!u || u.login_type !== 'EMPLOYEE_ID') return { rowCount: 0, rows: [] };
       u.legacy_password = params[1];
+      u.must_change_password = Boolean(params[2]);
       u.session_version += 1; // signs the user out everywhere (Phase 7.1)
       return { rowCount: 1, rows: [{ session_version: u.session_version }] };
     }
@@ -106,7 +108,7 @@ function createFakeUsers() {
       );
       const u = t && users.get(t.user_id);
       if (!t || !u || u.login_type !== 'EMPLOYEE_ID') return { rows: [] };
-      return { rows: [{ id: t.id, user_id: t.user_id, legacy_password: u.legacy_password, is_active: u.is_active }] };
+      return { rows: [{ id: t.id, user_id: t.user_id, legacy_password: u.legacy_password, employee_id: u.employee_id, is_active: u.is_active }] };
     }
 
     throw new Error(`fakeUsers: unhandled query: ${text.slice(0, 80)}`);

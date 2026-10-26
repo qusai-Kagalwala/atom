@@ -1,6 +1,9 @@
 import http from './http';
 
 export const listCategories = () => http.get('/requests/categories').then((r) => r.data.categories);
+// "Where?" prefill from the department (forUserId: Super Admin raising for someone).
+export const getDefaultLocation = (forUserId) =>
+  http.get('/requests/default-location', { params: forUserId ? { for: forUserId } : {} }).then((r) => r.data.location);
 export const listMyRequests = (params) => http.get('/requests/mine', { params }).then((r) => r.data);
 export const getTicket = (number) => http.get(`/requests/${number}`).then((r) => r.data.request);
 

@@ -16,6 +16,7 @@ const passwordsRepo = require('../auth/passwords.repo');
 const unitsRepo = require('../serviceUnits/serviceUnits.repo');
 const { HttpError, notFound } = require('../../utils/httpError');
 const realtime = require('../../realtime');
+const { locationLabel } = require('../sync/hrPlan');
 
 const LOCK_KEY = 727303; // user administration
 const ROLES = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
@@ -83,6 +84,7 @@ function historyText(h) {
     case 'profile_updated':
       return `Details edited: ${(d.fields || []).join(', ')}`;
     case 'password_reset':
+      if (h.detail?.mustChange) return 'Password reset by a Super Admin (must change at next sign-in)';
       return 'Password reset by a Super Admin';
     default:
       return h.action;
@@ -90,7 +92,8 @@ function historyText(h) {
 }
 
 function byLabel(h) {
-  if (h.source === 'sync') return 'Idarah sync';
+  // The reason says which sync ("Added by HR sync", "No longer in Idarah view", …).
+  if (h.source === 'sync') return /\bHR\b/.test(h.reason || '') ? 'HR sync' : 'Idarah sync';
   if (h.source === 'import') return 'Employee-ID import';
   if (h.source === 'seed') return 'Dev seed';
   return h.by_name || (h.by_employee_id ? `Employee ${h.by_employee_id}` : h.by_its) || 'Super Admin';
@@ -98,17 +101,20 @@ function byLabel(h) {
 
 async function getUserDetail(id, db = pool) {
   const u = await mustGetUser(db, id);
-  const [roles, units, posts, history] = await Promise.all([
+  const [roles, units, posts, hrDepartments, history] = await Promise.all([
     repo.getRoles(db, id),
     repo.getServiceUnits(db, id),
     repo.getPosts(db, id),
+    repo.getHrDepartments(db, id),
     repo.getHistory(db, id),
   ]);
   return {
     ...toSummary({ ...u, roles }),
     mobile: u.mobile || null,
     createdAt: u.created_at,
-    editable: u.source !== 'idarah',
+    // Synced users' details come from their source view (Idarah or HR list).
+    editable: u.source !== 'idarah' && u.source !== 'hr',
+    mustChangePassword: u.login_type === 'EMPLOYEE_ID' ? Boolean(u.must_change_password) : false,
     serviceUnits: units.map((s) => ({ id: String(s.id), code: s.code, name: s.name, isActive: s.is_active })),
     posts: posts.map((p) => ({
       department: p.department,
@@ -116,6 +122,12 @@ async function getUserDetail(id, db = pool) {
       post: p.post || null,
       postTbq: p.post_tbq || null,
       isActive: p.is_active,
+    })),
+    hrDepartments: hrDepartments.map((d) => ({
+      department: d.department,
+      departmentArabic: d.department_arabic,
+      location: locationLabel({ building: d.building, floor: d.floor, roomNo: d.room_no }),
+      isActive: d.is_active,
     })),
     history: history.map((h) => ({
       at: h.created_at,
@@ -283,20 +295,28 @@ async function setStatus(id, active, reason, actor) {
 }
 
 // ---------- password reset (employee-ID users) ----------
-async function resetPassword(id, newPassword, actor) {
-  if (typeof newPassword !== 'string' || newPassword.length < MIN_PASSWORD) {
-    throw bad(`Password must be at least ${MIN_PASSWORD} characters.`, 'too_short');
+// requireChange (default true): the user must choose their own password at the next sign-in.
+// The password may be the employee ID only when requireChange is on (the "first password" pattern).
+async function resetPassword(id, newPassword, actor, { requireChange = true } = {}) {
+  if (typeof newPassword !== 'string' || newPassword.length > 256) {
+    throw bad('Password must be at most 256 characters.', 'too_long');
   }
-  if (newPassword.length > 256) throw bad('Password must be at most 256 characters.', 'too_long');
 
   return inTransaction(async (db) => {
     const u = await mustGetUser(db, id);
     if (u.login_type !== 'EMPLOYEE_ID') {
       throw bad('ITS users sign in through eJamaat; their password can\'t be set in ATOM.', 'its_user');
     }
-    await passwordsRepo.setEmployeePassword(id, newPassword, db);
+    const isEmployeeId = newPassword === u.employee_id;
+    if (isEmployeeId && !requireChange) {
+      throw bad('The Employee ID can only be a temporary password. Tick "must change at next sign-in".', 'employee_id_password');
+    }
+    if (!isEmployeeId && newPassword.length < MIN_PASSWORD) {
+      throw bad(`Password must be at least ${MIN_PASSWORD} characters (or the Employee ID as a temporary password).`, 'too_short');
+    }
+    await passwordsRepo.setEmployeePassword(id, newPassword, db, { mustChange: requireChange });
     await passwordsRepo.expireResetTokens(id, db);
-    await repo.logChange(db, id, 'password_reset', null, actor.id);
+    await repo.logChange(db, id, 'password_reset', requireChange ? { mustChange: true } : null, actor.id);
     return { message: 'Password reset. The user is signed out everywhere — tell them their new password.' };
   }).then((result) => {
     realtime.disconnectUser(id);

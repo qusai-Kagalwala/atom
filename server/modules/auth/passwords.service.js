@@ -21,6 +21,7 @@ const MSG = {
   tooShort: `Your new password must be at least ${MIN_LENGTH} characters.`,
   tooLong: `Your new password must be at most ${MAX_LENGTH} characters.`,
   sameAsCurrent: 'Your new password must be different from your current one.',
+  isEmployeeId: 'Your new password can\'t be your Employee ID.',
   changed: 'Your password has been changed.',
   sent: (masked) => `A reset link has been sent to ${masked}. It expires in ${config.passwordResetMinutes} minutes.`,
   noEmail: 'No email is on file for this Employee ID. Please contact a Super Admin to reset your password.',
@@ -46,13 +47,16 @@ function maskEmail(email) {
   return `${local.slice(0, 1)}***@${domain}`;
 }
 
-function checkNewPassword(newPassword, currentPassword) {
+function checkNewPassword(newPassword, currentPassword, employeeId) {
   if (typeof newPassword !== 'string' || newPassword.length < MIN_LENGTH) {
     throw new PasswordError(400, MSG.tooShort, 'too_short');
   }
   if (newPassword.length > MAX_LENGTH) throw new PasswordError(400, MSG.tooLong, 'too_long');
   if (currentPassword != null && safeCompare(newPassword, currentPassword)) {
     throw new PasswordError(400, MSG.sameAsCurrent, 'same_as_current');
+  }
+  if (employeeId && newPassword === String(employeeId)) {
+    throw new PasswordError(400, MSG.isEmployeeId, 'employee_id_password');
   }
 }
 
@@ -66,7 +70,7 @@ async function changePassword(user, currentPassword, newPassword, { keepSocketId
   if (!safeCompare(String(currentPassword ?? ''), stored)) {
     throw new PasswordError(400, MSG.wrongCurrent, 'wrong_current');
   }
-  checkNewPassword(newPassword, stored);
+  checkNewPassword(newPassword, stored, user.employeeId);
 
   const version = await repo.setEmployeePassword(user.id, newPassword);
   await repo.expireResetTokens(user.id); // any outstanding reset link is now useless
@@ -136,7 +140,7 @@ async function resetPassword(token, newPassword) {
       throw new PasswordError(400, MSG.badLink, 'bad_link');
     }
     try {
-      checkNewPassword(newPassword, row.legacy_password);
+      checkNewPassword(newPassword, row.legacy_password, row.employee_id);
     } catch (err) {
       await client.query('ROLLBACK'); // link stays valid so the user can try another password
       throw err;

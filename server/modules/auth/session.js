@@ -31,6 +31,8 @@ function toPublicUser(row, activeRole) {
     email: row.email || null,
     roles: row.roles,
     activeRole,
+    // Still on a temporary password (employee ID / Super Admin reset): only "Set your password" works.
+    mustChangePassword: row.login_type === 'EMPLOYEE_ID' && Boolean(row.must_change_password),
   };
 }
 

@@ -181,18 +181,26 @@ function StatusModal({ user, onClose, onSaved }) {
 function PasswordModal({ user, onClose }) {
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [requireChange, setRequireChange] = useState(true);
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
-  const errors = touched ? newPasswordErrors(next, confirm) : {};
+  // The Employee ID is allowed only as a temporary password (must be changed at next sign-in).
+  const check = () => {
+    if (requireChange && next === user.employeeId && confirm === next) return {};
+    const e = newPasswordErrors(next, confirm);
+    if (!requireChange && next === user.employeeId) e.next = 'The Employee ID can only be a temporary password.';
+    return e;
+  };
+  const errors = touched ? check() : {};
 
   async function submit(e) {
     e.preventDefault();
     setTouched(true);
-    if (Object.keys(newPasswordErrors(next, confirm)).length) return;
+    if (Object.keys(check()).length) return;
     setBusy(true);
     try {
-      const r = await resetUserPassword(user.id, next);
+      const r = await resetUserPassword(user.id, next, requireChange);
       setResult({ tone: 'success', message: r.message });
     } catch (err) {
       setResult({ tone: 'error', message: errorMessage(err, 'Could not reset the password.') });
@@ -231,12 +239,41 @@ function PasswordModal({ user, onClose }) {
           <p className="font-ui text-sm text-ink-2">
             Sets a new password for {loginIdLabel(user)}. Any emailed reset link stops working.
           </p>
-          <Field id="np" label="New password" hint={`At least ${MIN_PASSWORD} characters.`} error={errors.next}>
+          <Field
+            id="np"
+            label="New password"
+            hint={`At least ${MIN_PASSWORD} characters${requireChange ? ', or the Employee ID as a temporary password' : ''}.`}
+            error={errors.next}
+          >
             <PasswordInput id="np" autoComplete="new-password" value={next} error={errors.next} onChange={(e) => setNext(e.target.value)} />
           </Field>
           <Field id="np2" label="Confirm new password" error={errors.confirm}>
             <PasswordInput id="np2" autoComplete="new-password" value={confirm} error={errors.confirm} onChange={(e) => setConfirm(e.target.value)} />
           </Field>
+          <label className="flex min-h-tap items-start gap-3 font-ui text-sm text-ink">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-primary"
+              checked={requireChange}
+              onChange={(e) => setRequireChange(e.target.checked)}
+            />
+            <span>
+              Must change at next sign-in
+              <span className="block text-xs text-ink-3">Recommended. They choose their own password before using ATOM.</span>
+            </span>
+          </label>
+          {requireChange && (
+            <button
+              type="button"
+              className="font-ui text-sm text-primary hover:underline"
+              onClick={() => {
+                setNext(user.employeeId);
+                setConfirm(user.employeeId);
+              }}
+            >
+              Use the Employee ID ({user.employeeId}) as the temporary password
+            </button>
+          )}
         </form>
       )}
     </Modal>
@@ -318,6 +355,7 @@ export default function UserDetailPage() {
             <span aria-hidden="true">·</span>
             <span>{SOURCE_LABELS[u.source]}</span>
             <span className={u.isActive ? 'status-resolved' : 'status-closed'}>{u.isActive ? 'Active' : 'Inactive'}</span>
+            {u.mustChangePassword && <span className="badge bg-warning-bg text-warning">Temporary password</span>}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -356,7 +394,11 @@ export default function UserDetailPage() {
             <dd className="tabular-nums text-ink">{u.mobile || <span className="text-ink-3">Not on file</span>}</dd>
           </div>
         </dl>
-        {!u.editable && <p className="mt-3 font-ui text-xs text-ink-3">Name, email and mobile come from the Idarah view.</p>}
+        {!u.editable && (
+          <p className="mt-3 font-ui text-xs text-ink-3">
+            {u.source === 'hr' ? 'Name comes from the HR employee list.' : 'Name, email and mobile come from the Idarah view.'}
+          </p>
+        )}
       </Section>
 
       <Section title="Roles">
@@ -404,7 +446,20 @@ export default function UserDetailPage() {
       )}
 
       <Section title="Departments & posts">
-        {u.posts.length === 0 ? (
+        {u.hrDepartments?.length > 0 && (
+          <ul className="mb-3 divide-y divide-line font-ui text-sm">
+            {u.hrDepartments.map((d, i) => (
+              <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className={d.isActive ? 'text-ink' : 'text-ink-3 line-through'}>{d.department}</span>
+                <span className="text-ink-2">
+                  {d.location || 'No location on file'}
+                  {!d.isActive && <span className="ml-2 text-xs text-ink-3">(past)</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {u.posts.length === 0 && u.hrDepartments?.length > 0 ? null : u.posts.length === 0 ? (
           <p className="font-ui text-sm text-ink-3">None.</p>
         ) : (
           <ul className="divide-y divide-line font-ui text-sm">

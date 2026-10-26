@@ -1,8 +1,16 @@
-// src.idarah_tafveez_current_yr — a plain copy of the view, columns generated from the view itself.
+// Plain copies of the SQL Server views in schema "src", columns generated from the view itself.
 // §4 rule 1: new column → added; removed, renamed or retyped column → run stops and says which.
-const MIRROR_SCHEMA = 'src';
-const MIRROR_TABLE = 'idarah_tafveez_current_yr';
-const MIRROR = `${MIRROR_SCHEMA}.${MIRROR_TABLE}`;
+//   src.idarah_tafveez_current_yr  ← dbo.Vw_Idarah_Tafveez_CurrentYR   (default, Idarah sync)
+//   src.user_department_details    ← dbo.Vw_User_Department_Details_New (HR staff sync)
+// Every function takes an optional mirror name (default: the Idarah mirror).
+const MIRROR = 'src.idarah_tafveez_current_yr';
+const HR_MIRROR = 'src.user_department_details';
+const MIRRORS = new Set([MIRROR, HR_MIRROR]);
+
+function mirrorName(name = MIRROR) {
+  if (!MIRRORS.has(name)) throw new Error(`Unknown mirror ${name}`);
+  return name;
+}
 
 const quoteIdent = (name) => `"${String(name).replace(/"/g, '""')}"`;
 
@@ -15,15 +23,16 @@ function canonicalType(t) {
 }
 
 // -> Map(column → type) or null when the table doesn't exist yet.
-async function readMirrorColumns(db) {
-  const { rows: exists } = await db.query('SELECT to_regclass($1::text) IS NOT NULL AS ok', [MIRROR]);
+async function readMirrorColumns(db, name) {
+  const table = mirrorName(name);
+  const { rows: exists } = await db.query('SELECT to_regclass($1::text) IS NOT NULL AS ok', [table]);
   if (!exists[0].ok) return null;
   const { rows } = await db.query(
     `SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type
        FROM pg_attribute a
       WHERE a.attrelid = $1::regclass AND a.attnum > 0 AND NOT a.attisdropped
       ORDER BY a.attnum`,
-    [MIRROR]
+    [table]
   );
   return new Map(rows.map((r) => [r.name, canonicalType(r.type)]));
 }
@@ -55,17 +64,18 @@ function compareColumns(sourceColumns, mirrorColumns) {
 }
 
 // Inside the sync transaction: create/extend the mirror, then replace its rows.
-async function loadMirror(client, { columns, toAdd, creating }, sourceRows) {
+async function loadMirror(client, { columns, toAdd, creating }, sourceRows, name) {
+  const table = mirrorName(name);
   if (creating) {
     const defs = columns.map((c) => `${quoteIdent(c.name)} ${c.pgType}`).join(', ');
-    await client.query(`CREATE TABLE ${MIRROR} (${defs})`);
+    await client.query(`CREATE TABLE ${table} (${defs})`);
   } else {
     for (const c of toAdd) {
-      await client.query(`ALTER TABLE ${MIRROR} ADD COLUMN ${quoteIdent(c.name)} ${c.pgType}`);
+      await client.query(`ALTER TABLE ${table} ADD COLUMN ${quoteIdent(c.name)} ${c.pgType}`);
     }
   }
 
-  await client.query(`TRUNCATE ${MIRROR}`);
+  await client.query(`TRUNCATE ${table}`);
   if (!sourceRows.length) return 0;
 
   // Source rows keep the view's original key spelling; map lower-case name → original key.
@@ -84,9 +94,9 @@ async function loadMirror(client, { columns, toAdd, creating }, sourceRows) {
       });
       return `(${ph.join(', ')})`;
     });
-    await client.query(`INSERT INTO ${MIRROR} (${colList}) VALUES ${tuples.join(', ')}`, params);
+    await client.query(`INSERT INTO ${table} (${colList}) VALUES ${tuples.join(', ')}`, params);
   }
   return sourceRows.length;
 }
 
-module.exports = { MIRROR, readMirrorColumns, compareColumns, loadMirror, canonicalType, quoteIdent };
+module.exports = { MIRROR, HR_MIRROR, readMirrorColumns, compareColumns, loadMirror, canonicalType, quoteIdent };

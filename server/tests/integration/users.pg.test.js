@@ -258,7 +258,7 @@ maybe('users admin API on real PostgreSQL', () => {
     expect((await q('SELECT used_at FROM password_reset_tokens'))[0].used_at).not.toBeNull();
 
     const hist = (await admin.get(`/${ids.emp}`)).body.user.history;
-    expect(hist[0].text).toBe('Password reset by a Super Admin');
+    expect(hist[0].text).toBe('Password reset by a Super Admin (must change at next sign-in)'); // default since Phase 3.1
     expect(JSON.stringify(hist)).not.toContain('brand-new-1');
 
     expect((await admin.post(`/${ids.raja}/password`, { newPassword: 'brand-new-1' })).body.code).toBe('its_user');

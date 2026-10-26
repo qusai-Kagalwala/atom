@@ -7,6 +7,7 @@ const lifecycle = require('./lifecycle');
 const files = require('./attachments');
 const notifications = require('../notifications/notifications.service');
 const invoices = require('../invoices/invoices.service');
+const { locationLabel } = require('../sync/hrPlan');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const { HttpError, notFound } = require('../../utils/httpError');
 
@@ -145,6 +146,15 @@ async function listCategories() {
   const unitId = await repo.defaultServiceUnitId(pool);
   if (!unitId) return [];
   return (await repo.listCategories(pool, unitId)).map((c) => ({ id: String(c.id), name: c.name }));
+}
+
+// "Where?" prefill: the requester's department location (Phase 3.1). Only a Super Admin may ask
+// for someone else (raise-for-someone); anyone else asking for another person gets 404.
+async function defaultLocation(user, forUserId) {
+  const target = forUserId ? String(forUserId) : String(user.id);
+  if (target !== String(user.id) && user.activeRole !== 'SUPER_ADMIN') throw notFound();
+  const d = await repo.departmentLocation(pool, target);
+  return { location: d ? locationLabel({ building: d.building, floor: d.floor, roomNo: d.room_no }) : null };
 }
 
 // ---------- photos (shared by create + comment) ----------
@@ -506,6 +516,7 @@ module.exports = {
   triage,
   comment,
   getAttachmentFile,
+  defaultLocation,
   eligibleEngineers,
   listWorkQueue,
   listAssignQueue,

@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import SetPasswordPage from './pages/SetPasswordPage';
 
 // Everything past login/home is loaded on first visit, so phones download less up front.
 // AppShell shows a spinner (Suspense) while a page loads.
@@ -41,6 +42,7 @@ export default function App() {
 
       {/* Signed in */}
       <Route element={<ProtectedRoute />}>
+        <Route path="/set-password" element={<SetPasswordPage />} />
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />

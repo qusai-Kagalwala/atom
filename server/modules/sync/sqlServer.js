@@ -1,11 +1,13 @@
-// Read-only SQL Server access for the syncs. Only two reads exist:
-//   1. SELECT * FROM dbo.Vw_Idarah_Tafveez_CurrentYR   (Idarah sync)
-//   2. SELECT User_Id, Password FROM dbo.Login_Master  (one-time employee-ID import)
+// Read-only SQL Server access for the syncs. Only these reads exist:
+//   1. SELECT * FROM dbo.Vw_Idarah_Tafveez_CurrentYR     (Idarah sync)
+//   2. SELECT * FROM dbo.Vw_User_Department_Details_New  (HR staff sync, Phase 3.1)
+//   3. SELECT User_Id, Password FROM dbo.Login_Master    (one-time employee-ID import)
 // Nothing here ever writes to SQL Server.
 const sql = require('mssql');
 const { config } = require('../../config/env');
 
 const IDARAH_VIEW = 'dbo.Vw_Idarah_Tafveez_CurrentYR';
+const HR_VIEW = 'dbo.Vw_User_Department_Details_New';
 
 // SQL Server type → PostgreSQL type for the mirror (ATOM_Decisions.md §4).
 function toPgType(column) {
@@ -70,9 +72,9 @@ async function withConnection(fn) {
 }
 
 // -> { columns: [{ name, pgType }], rows: [ { ColumnName: value, … } ] }
-async function readIdarahView() {
+function readView(view) {
   return withConnection(async (pool) => {
-    const result = await pool.request().query(`SELECT * FROM ${IDARAH_VIEW}`);
+    const result = await pool.request().query(`SELECT * FROM ${view}`);
     const meta = Object.values(result.recordset.columns).sort((a, b) => a.index - b.index);
     return {
       columns: meta.map((c) => ({ name: c.name, pgType: toPgType(c) })),
@@ -80,6 +82,9 @@ async function readIdarahView() {
     };
   });
 }
+
+const readIdarahView = () => readView(IDARAH_VIEW);
+const readHrView = () => readView(HR_VIEW);
 
 // -> [{ User_Id, Password }]  (only these two columns are ever read)
 async function readLoginMaster() {
@@ -89,4 +94,4 @@ async function readLoginMaster() {
   });
 }
 
-module.exports = { readIdarahView, readLoginMaster, toPgType, IDARAH_VIEW };
+module.exports = { readIdarahView, readHrView, readLoginMaster, toPgType, IDARAH_VIEW, HR_VIEW };

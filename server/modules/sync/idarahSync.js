@@ -75,24 +75,30 @@ async function applyDepartments(client, departments) {
               category        = COALESCE(EXCLUDED.category, departments.category),
               category_arabic = COALESCE(EXCLUDED.category_arabic, departments.category_arabic),
               email           = COALESCE(EXCLUDED.email, departments.email),
+              in_idarah_view  = TRUE,
               is_active       = TRUE
         WHERE (departments.name, departments.name_arabic, departments.category,
-               departments.category_arabic, departments.email, departments.is_active)
+               departments.category_arabic, departments.email, departments.in_idarah_view, departments.is_active)
               IS DISTINCT FROM
               (COALESCE(EXCLUDED.name, departments.name), COALESCE(EXCLUDED.name_arabic, departments.name_arabic),
                COALESCE(EXCLUDED.category, departments.category),
                COALESCE(EXCLUDED.category_arabic, departments.category_arabic),
-               COALESCE(EXCLUDED.email, departments.email), TRUE)`,
+               COALESCE(EXCLUDED.email, departments.email), TRUE, TRUE)`,
       [d.idarahId, d.name ?? null, d.nameArabic ?? null, d.category ?? null, d.categoryArabic ?? null, d.email ?? null]
     );
     if (!prev.has(d.idarahId)) created += 1;
     else if (prev.get(d.idarahId) === false) reactivated += 1;
   }
 
+  // Not in this view any more. A department stays active while the HR view still lists it (Phase 3.1).
+  await client.query(
+    `UPDATE departments SET in_idarah_view = FALSE
+      WHERE in_idarah_view AND NOT (idarah_id = ANY($1::text[]))`,
+    [departments.map((d) => d.idarahId)]
+  );
   const { rowCount: deactivated } = await client.query(
     `UPDATE departments SET is_active = FALSE
-      WHERE is_active AND NOT (idarah_id = ANY($1::text[]))`,
-    [departments.map((d) => d.idarahId)]
+      WHERE is_active AND NOT in_idarah_view AND NOT in_hr_view`
   );
 
   const { rows } = await client.query('SELECT id, idarah_id FROM departments');

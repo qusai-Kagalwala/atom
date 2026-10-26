@@ -29,6 +29,23 @@ async function getByNumber(db, number, { forUpdate = false } = {}) {
   return rows[0] || null;
 }
 
+// The person's department location (Idarah posts or HR list) — the one with a room first.
+async function departmentLocation(db, userId) {
+  if (!/^\d{1,18}$/.test(String(userId))) return null;
+  const { rows } = await db.query(
+    `SELECT d.building, d.floor, d.room_no
+       FROM departments d
+      WHERE d.is_active
+        AND d.id IN (SELECT p.department_id FROM user_posts p WHERE p.user_id = $1::bigint AND p.is_active
+                     UNION SELECT h.department_id FROM user_departments h WHERE h.user_id = $1::bigint AND h.is_active)
+        AND (d.building IS NOT NULL OR d.floor IS NOT NULL OR d.room_no IS NOT NULL)
+      ORDER BY (d.room_no IS NULL), (d.floor IS NULL), d.idarah_id
+      LIMIT 1`,
+    [userId]
+  );
+  return rows[0] || null;
+}
+
 async function defaultServiceUnitId(db) {
   const { rows } = await db.query(`SELECT id FROM service_units WHERE code = 'AVIT' AND is_active`);
   return rows[0]?.id ?? null;
@@ -306,5 +323,6 @@ module.exports = {
   countAttachments,
   insertAttachment,
   getAttachment,
+  departmentLocation,
   listMine,
 };

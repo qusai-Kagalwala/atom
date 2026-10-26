@@ -3,7 +3,11 @@
 const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
 
 const USER_COLUMNS = `u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic,
-  u.email, u.mobile, u.source, u.is_active, u.created_at`;
+  u.email, u.mobile, u.source, u.is_active, u.must_change_password, u.created_at`;
+
+// Active departments of user u: from Idarah posts and from the HR list (Phase 3.1).
+const USER_DEPT_IDS = `(SELECT p.department_id FROM user_posts p WHERE p.user_id = u.id AND p.is_active
+                        UNION SELECT h.department_id FROM user_departments h WHERE h.user_id = u.id AND h.is_active)`;
 
 // LIKE pattern from user input: escape the wildcards, match anywhere.
 const likePattern = (q) => `%${String(q).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -14,16 +18,16 @@ async function listUsers(db, { q, role, active, source, limit, offset }) {
     `SELECT ${USER_COLUMNS},
             COALESCE((SELECT array_agg(r.role::text ORDER BY r.role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles,
             COALESCE((SELECT array_agg(DISTINCT d.name ORDER BY d.name)
-                        FROM user_posts p JOIN departments d ON d.id = p.department_id
-                       WHERE p.user_id = u.id AND p.is_active AND d.name IS NOT NULL), '{}') AS departments,
+                        FROM departments d
+                       WHERE d.id IN ${USER_DEPT_IDS} AND d.name IS NOT NULL), '{}') AS departments,
             count(*) OVER () AS total
        FROM users u
       WHERE ($1::text IS NULL
              OR u.name ILIKE $1 OR u.name_arabic ILIKE $1
              OR u.its_number LIKE $1 OR u.employee_id LIKE $1
              OR ('Employee ' || u.employee_id) ILIKE $1
-             OR EXISTS (SELECT 1 FROM user_posts p JOIN departments d ON d.id = p.department_id
-                         WHERE p.user_id = u.id AND p.is_active
+             OR EXISTS (SELECT 1 FROM departments d
+                         WHERE d.id IN ${USER_DEPT_IDS}
                            AND (d.name ILIKE $1 OR d.name_arabic ILIKE $1)))
         AND ($2::app_role IS NULL OR EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = $2::app_role))
         AND ($3::boolean IS NULL OR u.is_active = $3::boolean)
@@ -62,6 +66,18 @@ async function getPosts(db, id) {
        FROM user_posts p JOIN departments d ON d.id = p.department_id
       WHERE p.user_id = $1::bigint
       ORDER BY p.is_active DESC, d.name, p.post`,
+    [id]
+  );
+  return rows;
+}
+
+// Departments from the HR list (Phase 3.1), with location.
+async function getHrDepartments(db, id) {
+  const { rows } = await db.query(
+    `SELECT d.name AS department, d.name_arabic AS department_arabic, d.building, d.floor, d.room_no, h.is_active
+       FROM user_departments h JOIN departments d ON d.id = h.department_id
+      WHERE h.user_id = $1::bigint
+      ORDER BY h.is_active DESC, d.name`,
     [id]
   );
   return rows;
@@ -199,6 +215,7 @@ module.exports = {
   getRoles,
   getServiceUnits,
   getPosts,
+  getHrDepartments,
   getHistory,
   idTaken,
   insertUser,

@@ -58,7 +58,8 @@ const login = (identifier, password, extra = {}) =>
 
 const noPasswordIn = (res) => {
   const text = JSON.stringify(res.body);
-  expect(text).not.toMatch(/password/i);
+  // No password field of any kind (the boolean flag mustChangePassword is the only allowed mention).
+  expect(text.replace(/"mustChangePassword":(true|false)/g, '')).not.toMatch(/password/i);
   expect(text).not.toContain(EMP_PASSWORD);
   expect(text).not.toContain(ITS_PASSWORD);
 };

@@ -41,6 +41,11 @@ http.interceptors.response.use(
       clearSession();
       window.location.replace(`${LOGIN_PATH}?error=${code}`);
     }
+    // Still on a temporary password (e.g. the stored user is out of date): go and set one.
+    if (status === 403 && error.response?.data?.code === 'must_change_password' && !redirecting) {
+      redirecting = true;
+      window.location.replace(`${import.meta.env.BASE_URL}set-password`);
+    }
     return Promise.reject(error);
   }
 );

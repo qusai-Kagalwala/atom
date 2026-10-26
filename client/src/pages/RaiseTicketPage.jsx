@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, LoaderCircle, Send, UserRound, X } from 'lucide-react';
-import { listCategories, raiseTicket } from '../api/requests';
+import { getDefaultLocation, listCategories, raiseTicket } from '../api/requests';
 import { listUsers } from '../api/users';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
@@ -82,6 +82,18 @@ export default function RaiseTicketPage() {
   const [form, setForm] = useState({ categoryId: '', title: '', description: '', location: '', priority: 'NORMAL' });
   const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [person, setPerson] = useState(null);
+  const [locationEdited, setLocationEdited] = useState(false);
+
+  // "Where?" starts as the requester's department location, until the person types their own.
+  const target = forSomeoneElse ? person?.id : 'me';
+  const defaultLocation = useQuery({
+    queryKey: ['requests', 'default-location', target],
+    queryFn: () => getDefaultLocation(forSomeoneElse ? person.id : undefined),
+    enabled: Boolean(target),
+    staleTime: 5 * 60_000,
+  });
+  const suggested = target ? defaultLocation.data ?? null : null;
+  const location = locationEdited ? form.location : suggested || '';
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -97,7 +109,7 @@ export default function RaiseTicketPage() {
     setBusy(true);
     setError('');
     try {
-      const t = await raiseTicket({ ...form, requesterId: forSomeoneElse ? person.id : undefined }, photos);
+      const t = await raiseTicket({ ...form, location, requesterId: forSomeoneElse ? person.id : undefined }, photos);
       navigate(`/tickets/${t.number}`, { replace: true, state: { notice: `Ticket ${t.number} raised.` } });
     } catch (err) {
       setError(errorMessage(err, 'Could not raise the ticket.'));
@@ -168,8 +180,24 @@ export default function RaiseTicketPage() {
           />
         </Field>
 
-        <Field id="location" label="Where?" hint="Building, floor, room — e.g. “Library, 2nd floor”">
-          <TextInput id="location" value={form.location} onChange={set('location')} maxLength={200} />
+        <Field
+          id="location"
+          label="Where?"
+          hint={
+            suggested && location === suggested
+              ? 'Filled in from the department. Change it if the problem is somewhere else.'
+              : 'Building, floor, room — e.g. “Library, 2nd floor”'
+          }
+        >
+          <TextInput
+            id="location"
+            value={location}
+            onChange={(e) => {
+              setLocationEdited(true);
+              set('location')(e);
+            }}
+            maxLength={200}
+          />
         </Field>
 
         <fieldset>

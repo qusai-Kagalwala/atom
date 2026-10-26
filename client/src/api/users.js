@@ -13,16 +13,19 @@ export const untagUnit = (id, serviceUnitId) =>
   http.delete(`/users/${id}/service-units/${serviceUnitId}`).then((r) => r.data.user);
 export const setUserStatus = (id, active, reason) =>
   http.post(`/users/${id}/status`, { active, reason }).then((r) => r.data.user);
-export const resetUserPassword = (id, newPassword) =>
-  http.post(`/users/${id}/password`, { newPassword }).then((r) => r.data);
+export const resetUserPassword = (id, newPassword, requireChange = true) =>
+  http.post(`/users/${id}/password`, { newPassword, requireChange }).then((r) => r.data);
 
 export const listServiceUnits = () => http.get('/service-units').then((r) => r.data.serviceUnits);
 
-export const listSyncRuns = (limit = 20) => http.get('/sync/runs', { params: { limit } }).then((r) => r.data.runs);
+// job: 'idarah' (Idarah view) | 'hr' (HR employee list, Phase 3.1)
+export const listSyncRuns = (job = 'idarah', limit = 20) =>
+  http.get('/sync/runs', { params: { job, limit } }).then((r) => r.data.runs);
+export const listOldAccounts = () => http.get('/sync/old-accounts').then((r) => r.data);
 // Resolves with the run result for success / blocked / busy / failed alike (they are all "answers").
-export const runIdarahSync = (force) =>
+export const runSync = (job, force) =>
   http
-    .post('/sync/idarah', { force })
+    .post(`/sync/${job}`, { force })
     .then((r) => r.data)
     .catch((err) => {
       if (err.response?.data?.status) return err.response.data;

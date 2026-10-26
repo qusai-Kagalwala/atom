@@ -7,6 +7,10 @@
 //   session_expired · removed · role_changed · password_changed
 //
 // checkSession() is the same check without Express — Socket.IO uses it for its handshake.
+//
+// Temporary password (Phase 3.1): while users.must_change_password is set, every route except
+// GET /auth/me and POST /auth/change-password answers 403 { code: 'must_change_password' }.
+const { config } = require('../config/env');
 const { verifySession } = require('../modules/auth/tokens');
 const { loadSessionUser } = require('../modules/auth/users.repo');
 const { toPublicUser } = require('../modules/auth/session');
@@ -19,6 +23,12 @@ const DENY = {
 };
 
 const deny = (res, code) => res.status(401).json({ message: DENY[code], code });
+
+const ALLOWED_WITH_TEMP_PASSWORD = new Set([
+  `GET ${config.basePath}/api/auth/me`,
+  `POST ${config.basePath}/api/auth/change-password`,
+]);
+const routeKey = (req) => `${req.method} ${`${req.baseUrl}${req.path}`.replace(/\/+$/, '')}`;
 
 // → { user, sessionVersion } or { code } (one of the DENY keys). Throws only on a DB error.
 async function checkSession(token) {
@@ -46,6 +56,12 @@ async function requireAuth(req, res, next) {
   try {
     const result = await checkSession(token);
     if (result.code) return deny(res, result.code);
+    if (result.user.mustChangePassword && !ALLOWED_WITH_TEMP_PASSWORD.has(routeKey(req))) {
+      return res.status(403).json({
+        message: 'Please set your own password before using ATOM.',
+        code: 'must_change_password',
+      });
+    }
     req.user = result.user;
     req.sessionVersion = result.sessionVersion;
     return next();
