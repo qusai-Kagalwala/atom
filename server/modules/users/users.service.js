@@ -82,6 +82,7 @@ function historyText(h) {
     case 'unit_untagged':
       return `Untagged from ${d.unit}`;
     case 'profile_updated':
+      if (d.source === 'contacts import') return `Contact details added from the HR sheet: ${(d.fields || []).join(', ')}`;
       return `Details edited: ${(d.fields || []).join(', ')}`;
     case 'password_reset':
       if (h.detail?.mustChange) return 'Password reset by a Super Admin (must change at next sign-in)';
@@ -96,6 +97,7 @@ function byLabel(h) {
   if (h.source === 'sync') return /\bHR\b/.test(h.reason || '') ? 'HR sync' : 'Idarah sync';
   if (h.source === 'import') return 'Employee-ID import';
   if (h.source === 'seed') return 'Dev seed';
+  if (h.detail?.source === 'contacts import') return 'Contacts import';
   return h.by_name || (h.by_employee_id ? `Employee ${h.by_employee_id}` : h.by_its) || 'Super Admin';
 }
 

@@ -31,7 +31,7 @@
   },
   "navByRole": {
     "EMPLOYEE": ["home", "assistant", "request", "track", "myAssets", "notifications"],
-    "ENGINEER": ["home", "assistant", "request", "track", "myAssets", "notifications", "workQueue", "invoices"],
+    "ENGINEER": ["home", "assistant", "request", "track", "myAssets", "notifications", "workQueue", "inventory", "invoices"],
     "SUPER_ADMIN": [
       "home", "assistant", "request", "track", "myAssets", "notifications", "workQueue",
       "assignQueue", "approvals", "allRequests", "inventory", "catalogue", "faqs", "invoices",

@@ -14,9 +14,13 @@ import SetPasswordPage from './pages/SetPasswordPage';
 // Everything past login/home is loaded on first visit, so phones download less up front.
 // AppShell shows a spinner (Suspense) while a page loads.
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
+const AssetPage = lazy(() => import('./pages/AssetPage'));
 const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
+const InventoryImportPage = lazy(() => import('./pages/InventoryImportPage'));
+const InventoryPage = lazy(() => import('./pages/InventoryPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
 const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
+const MyAssetsPage = lazy(() => import('./pages/MyAssetsPage'));
 const MyRequestsPage = lazy(() => import('./pages/MyRequestsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -29,7 +33,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'workQueue', 'assignQueue', 'allRequests']);
+const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -49,6 +53,7 @@ export default function App() {
           <Route path="/system-check" element={<SystemCheckPage />} />
           <Route path="/track" element={<MyRequestsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/my-assets" element={<MyAssetsPage />} />
           <Route path="/tickets/new" element={<RaiseTicketPage />} />
           <Route path="/tickets/:number" element={<TicketPage />} />
 
@@ -56,6 +61,8 @@ export default function App() {
             <Route path="/work-queue" element={<WorkQueuePage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/invoices/:number" element={<InvoicePage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/inventory/assets/:tag" element={<AssetPage />} />
           </Route>
 
           {/* Super Admin (UI guard only — the API returns 404 to anyone else) */}
@@ -65,6 +72,7 @@ export default function App() {
             <Route path="/users" element={<UsersPage />} />
             <Route path="/users/:id" element={<UserDetailPage />} />
             <Route path="/sync" element={<SyncStatusPage />} />
+            <Route path="/inventory/import" element={<InventoryImportPage />} />
           </Route>
 
           {PLACEHOLDERS.map(([key, item]) => (
