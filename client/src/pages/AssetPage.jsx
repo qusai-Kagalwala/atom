@@ -224,7 +224,7 @@ export default function AssetPage() {
             <CircleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>
               {a.serialNeedsCheck && 'The serial was lost in the Snipe-IT export (Excel changed it) — read it off the device and edit it here. '}
-              {a.holderUnknown && 'In use, but nobody in ATOM is recorded as holding it — assign the real person.'}
+              {a.holderUnknown && 'In use, but the person using it is not known yet — Snipe-IT had it checked out to the shared “Admin Marol” account. Assign the real person.'}
             </span>
           </span>
         </Alert>
@@ -241,7 +241,9 @@ export default function AssetPage() {
           <span className={statusClass(a.status)}>{statusLabel(a.status)}</span>
         </div>
         <dl className="mt-4 grid gap-x-6 gap-y-3 font-ui text-sm sm:grid-cols-2">
-          <Detail label="Held by">{a.holder ? `${a.holder.name} · ${loginIdLabel(a.holder)}` : a.holderUnknown ? 'Unknown (from Snipe-IT)' : null}</Detail>
+          <Detail label="Assigned to">
+            {a.holder ? `${a.holder.name} · ${loginIdLabel(a.holder)}` : a.holderUnknown ? 'Not known yet (was with “Admin Marol” in Snipe-IT)' : 'Nobody — not assigned to a person'}
+          </Detail>
           <Detail label="Place">
             {a.place && (
               <span className="flex items-start gap-1">
@@ -254,7 +256,7 @@ export default function AssetPage() {
             )}
           </Detail>
           {a.sitsHere?.length > 0 && (
-            <Detail label={a.place?.cubicle ? 'Sits here' : 'Sits in this room'}>
+            <Detail label={a.place?.cubicle ? 'Sitting at this place (intercom sheet)' : 'Sitting in this room (intercom sheet)'}>
               {a.sitsHere
                 .slice(0, 20)
                 .map((p) => `${p.name}${!a.place?.cubicle && p.cubicle ? ` (${p.cubicle})` : ''}`)
@@ -347,7 +349,7 @@ export default function AssetPage() {
           saveLabel="Return to store"
           onSave={() => action.run(() => assetAction(a.tag, 'return', { placeId: place?.id, note }), 'Returned to store.')}
         >
-          <p className="font-ui text-sm text-ink-2">It stops being held by {a.holder ? a.holder.name : 'anyone'} and goes back to “In store”.</p>
+          <p className="font-ui text-sm text-ink-2">It is no longer assigned to {a.holder ? a.holder.name : 'anyone'} and goes back to “In store”.</p>
           <PlacePicker value={place} onChange={setPlace} label="Store it at (optional — leave empty to keep the current place)" />
           <Field id="rt-note" label="Note (optional)">
             <TextInput id="rt-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />

@@ -135,7 +135,7 @@ function AssetsTab({ isAdmin }) {
       {attention.data?.total > 0 && f.attention !== 'any' && (
         <button type="button" onClick={() => set({ attention: 'any' })} className="w-full text-left">
           <Alert tone="info">
-            <strong>{attention.data.total} assets need attention</strong> — serial needs checking or holder unknown. Show them →
+            <strong>{attention.data.total} assets need attention</strong> — serial needs checking, or in use but the person is not known yet. Show them →
           </Alert>
         </button>
       )}
@@ -173,7 +173,7 @@ function AssetsTab({ isAdmin }) {
           <option value="">All assets</option>
           <option value="any">Needs attention</option>
           <option value="serial">Serial needs checking</option>
-          <option value="holder">Holder unknown</option>
+          <option value="holder">Person not known yet</option>
         </select>
         {f.room && (
           <button type="button" className="btn-secondary" onClick={() => set({ room: '' })}>
@@ -220,7 +220,7 @@ function AssetsTab({ isAdmin }) {
                   <span className={`${statusClass(a.status)} whitespace-nowrap`}>{statusLabel(a.status)}</span>
                   {(a.serialNeedsCheck || a.holderUnknown) && (
                     <span className="flex items-center gap-1 text-xs text-warning">
-                      <CircleAlert size={12} aria-hidden="true" /> {a.serialNeedsCheck ? 'Check serial' : 'Holder unknown'}
+                      <CircleAlert size={12} aria-hidden="true" /> {a.serialNeedsCheck ? 'Check serial' : 'Person not known'}
                     </span>
                   )}
                 </span>

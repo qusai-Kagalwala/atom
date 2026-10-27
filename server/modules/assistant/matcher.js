@@ -135,7 +135,12 @@ const MAX_ITEM_CHOICES = 12;
 
 function scoreFaq(e, q, lang) {
   let score = 0;
-  for (const p of e.phrases) if (containsSeq(q, p)) score += 2 + p.length;
+  for (const p of e.phrases) {
+    if (!containsSeq(q, p)) continue;
+    score += 2 + p.length;
+    // The whole question is a keyword (e.g. an FAQ made from a typed question): a clear match.
+    if (p.length === q.length) score += 4;
+  }
 
   let item = 0;
   for (const w of q) item = Math.max(item, bestSim(w, e.itemWords));
@@ -186,4 +191,27 @@ function match(index, text, lang = 'en') {
   return { kind: 'choices', hits: choices };
 }
 
-module.exports = { buildIndex, match, words, content, similarity, ANSWER_MIN, CHOICE_MIN };
+// Saved GPT answers (Phase 12 update): a question's key = its important words, unique, sorted.
+// "hall printer not working" and "printer not working in hall" → "hall not printer work".
+function matchKey(text) {
+  return [...new Set(content(text))].sort().join(' ').slice(0, 300);
+}
+
+// How alike two keys are (0–1): shared words / all words, a small typo counts as shared.
+function keySimilarity(a, b) {
+  const x = a ? a.split(' ') : [];
+  const y = b ? b.split(' ') : [];
+  if (!x.length || !y.length) return 0;
+  let shared = 0;
+  const used = new Set();
+  for (const w of x) {
+    const i = y.findIndex((v, k) => !used.has(k) && similarity(w, v) >= 0.85);
+    if (i >= 0) {
+      used.add(i);
+      shared += 1;
+    }
+  }
+  return shared / (x.length + y.length - shared);
+}
+
+module.exports = { buildIndex, match, words, content, similarity, matchKey, keySimilarity, ANSWER_MIN, CHOICE_MIN };

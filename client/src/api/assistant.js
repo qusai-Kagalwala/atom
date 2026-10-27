@@ -26,3 +26,7 @@ export function importFaqs(file, { commit = false, keepAtomEdits = true } = {}) 
 export const getAiSettings = () => http.get(`${base}/settings`).then((r) => r.data.settings);
 export const updateAiSettings = (body) => http.patch(`${base}/settings`, body).then((r) => r.data.settings);
 export const getAiUsage = (days = 30) => http.get(`${base}/usage`, { params: { days } }).then((r) => r.data);
+export const dismissQuestion = (key) => http.post(`${base}/unmatched/dismiss`, { key }).then((r) => r.data);
+export const listLearned = (includeOff) =>
+  http.get(`${base}/learned`, { params: includeOff ? { includeOff: 1 } : {} }).then((r) => r.data.learned);
+export const setLearned = (id, isActive) => http.patch(`${base}/learned/${id}`, { isActive }).then((r) => r.data.learned);

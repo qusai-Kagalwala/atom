@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileUp, LoaderCircle, Plus, Search, TriangleAlert } from 'lucide-react';
-import { getAiSettings, getAiUsage, importFaqs, listFaqs, updateAiSettings } from '../api/assistant';
+import { EyeOff, FileUp, LoaderCircle, Plus, Search, TriangleAlert } from 'lucide-react';
+import { dismissQuestion, getAiSettings, getAiUsage, importFaqs, listFaqs, listLearned, setLearned, updateAiSettings } from '../api/assistant';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import { Tabs } from '../components/RequestList';
@@ -290,6 +290,129 @@ function SettingsForm({ settings }) {
   );
 }
 
+// Typed questions that found no FAQ (last 90 days), same words grouped, most asked first.
+function Unmatched({ list }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  async function dismiss(key) {
+    setBusy(key);
+    setError('');
+    try {
+      await dismissQuestion(key);
+      await queryClient.invalidateQueries({ queryKey: ['assistant', 'usage'] });
+    } catch (err) {
+      setError(errorMessage(err, 'Could not dismiss it.'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="card space-y-2">
+      <h2 className="text-xl">Questions with no FAQ</h2>
+      <p className="font-ui text-sm text-ink-2">
+        Last 90 days, most asked first. Add an FAQ for the ones that keep coming up; dismiss junk. Once an FAQ answers a question, it leaves this list.
+      </p>
+      {error && <Alert tone="error">{error}</Alert>}
+      {list.length === 0 ? (
+        <p className="font-ui text-sm text-ink-3">None right now.</p>
+      ) : (
+        <ul className="divide-y divide-line font-ui text-sm">
+          {list.map((x) => (
+            <li key={x.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span className="min-w-0 flex-1">
+                <span dir="auto" className={`block ${x.language === 'ar' ? 'arabic text-base' : ''}`}>
+                  {x.text}
+                </span>
+                <span className="block text-xs text-ink-3">
+                  Asked {x.count} {x.count === 1 ? 'time' : 'times'} · last {formatDateTime(x.lastAt)}
+                  {x.suggestion?.category && ` · GPT suggests ${x.suggestion.category}`}
+                </span>
+              </span>
+              <span className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => navigate('/faqs/new', { state: { fromQuestion: x } })}
+                >
+                  <Plus size={16} aria-hidden="true" /> Add as FAQ
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => dismiss(x.key)} disabled={busy === x.key}>
+                  <EyeOff size={16} aria-hidden="true" /> Dismiss
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// GPT answers saved for reuse. Switch one off when it is wrong: GPT is asked again next time.
+function SavedAnswers() {
+  const queryClient = useQueryClient();
+  const [showOff, setShowOff] = useState(false);
+  const [error, setError] = useState('');
+  const learned = useQuery({ queryKey: ['assistant', 'learned', showOff], queryFn: () => listLearned(showOff) });
+
+  async function toggle(l) {
+    setError('');
+    try {
+      await setLearned(l.id, !l.isActive);
+      await queryClient.invalidateQueries({ queryKey: ['assistant', 'learned'] });
+    } catch (err) {
+      setError(errorMessage(err, 'Could not change it.'));
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="font-ui text-sm text-ink-2">
+        Questions GPT has already sorted. The same question (same words, any order, small typos allowed) is answered from here — no GPT call, no
+        tokens. Switch one off if it points to the wrong FAQ; GPT is asked again the next time.
+      </p>
+      <label className="flex min-h-tap items-center gap-2 font-ui text-sm text-ink-2">
+        <input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5 rounded border-line text-primary" />
+        Show switched-off answers
+      </label>
+      {error && <Alert tone="error">{error}</Alert>}
+      {learned.isPending && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
+      {learned.isError && <Alert tone="error">Could not load saved answers.</Alert>}
+      {learned.isSuccess && !learned.data.length && <div className="card text-center font-ui text-sm text-ink-2">No saved answers yet. They appear after GPT is used.</div>}
+      {learned.data?.length > 0 && (
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white font-ui text-sm">
+          {learned.data.map((l) => (
+            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <span className="min-w-0 flex-1">
+                <span dir="auto" className={`block font-medium text-ink ${l.language === 'ar' ? 'arabic text-base' : ''}`}>
+                  {l.text}
+                </span>
+                <span className="block text-xs text-ink-2">
+                  →{' '}
+                  {l.faqs.length
+                    ? l.faqs.map((f) => `${f.item} · ${f.subItem}${f.isActive ? '' : ' (FAQ off)'}`).join(' / ')
+                    : `No FAQ — ticket${l.suggestion?.category ? ` (${l.suggestion.category}${l.suggestion.priority === 'URGENT' ? ', urgent' : ''})` : ''}`}
+                </span>
+                <span className="block text-xs text-ink-3">
+                  Reused {l.hits} {l.hits === 1 ? 'time' : 'times'}
+                  {l.lastUsedAt && ` · last ${formatDateTime(l.lastUsedAt)}`} · saved {formatDateTime(l.createdAt)}
+                </span>
+              </span>
+              <button type="button" className="btn-secondary shrink-0" onClick={() => toggle(l)}>
+                {l.isActive ? 'Switch off' : 'Switch on'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function AiTab() {
   const usage = useQuery({ queryKey: ['assistant', 'usage'], queryFn: () => getAiUsage(30) });
   const settings = useQuery({ queryKey: ['assistant', 'settings'], queryFn: getAiSettings });
@@ -325,28 +448,13 @@ function AiTab() {
           </p>
         </div>
         <p className="font-ui text-xs text-ink-3">
-          Answer found by: buttons {s.via.browse} · “did you mean” {s.via.choice} · search {s.via.search} · GPT {s.via.gpt} · no FAQ {s.via.none}
+          Answer found by: buttons {s.via.browse} · “did you mean” {s.via.choice} · search {s.via.search} · saved answers {s.via.learned} · GPT{' '}
+          {s.via.gpt} · no FAQ {s.via.none}
         </p>
+        <p className="font-ui text-xs text-ink-3">GPT calls saved by reusing earlier answers: {s.savedAnswersUsed}</p>
       </div>
 
-      <div className="card space-y-2">
-        <h2 className="text-xl">Questions with no FAQ</h2>
-        <p className="font-ui text-sm text-ink-2">Write FAQs for the ones that keep coming up.</p>
-        {u.unmatched.length === 0 ? (
-          <p className="font-ui text-sm text-ink-3">None yet.</p>
-        ) : (
-          <ul className="divide-y divide-line font-ui text-sm">
-            {u.unmatched.map((x, i) => (
-              <li key={i} className="flex items-baseline justify-between gap-3 py-2">
-                <span dir="auto" className={x.language === 'ar' ? 'arabic' : ''}>
-                  {x.text}
-                </span>
-                <span className="shrink-0 text-xs text-ink-3">{formatDateTime(x.at)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <Unmatched list={u.unmatched} />
 
       <div className="card overflow-x-auto p-0">
         <h2 className="border-b border-line px-4 py-3 text-xl">Daily GPT use</h2>
@@ -405,7 +513,8 @@ function AiTab() {
 const TABS = [
   ['faqs', 'FAQs'],
   ['import', 'Import'],
-  ['ai', 'AI settings & usage'],
+  ['saved', 'Saved answers'],
+  ['ai', 'AI & usage'],
 ];
 
 // Super Admin: the FAQ bank the assistant answers from, and the GPT switch / limits / spend.
@@ -422,6 +531,7 @@ export default function FaqsPage() {
       <Tabs tabs={TABS} value={tab} onChange={(v) => setParams(v === 'faqs' ? {} : { tab: v })} />
       {tab === 'faqs' && <FaqList />}
       {tab === 'import' && <ImportTab />}
+      {tab === 'saved' && <SavedAnswers />}
       {tab === 'ai' && <AiTab />}
     </section>
   );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, LoaderCircle, Save } from 'lucide-react';
 import { createFaq, getFaq, updateFaq } from '../api/assistant';
@@ -19,11 +19,24 @@ const selectClass =
   'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const lines = (v) => String(v || '').split('\n').map((s) => s.trim()).filter(Boolean);
 
-function toForm(faq) {
+// from: a "Question with no FAQ" (Add as FAQ) — its text becomes the question (in the language it
+// was asked) and a keyword, so the same question matches this FAQ from now on.
+function toForm(faq, from) {
   const answers = {};
   for (const [code] of LANGS) {
     const a = faq?.answers?.[code] || {};
     answers[code] = { question: a.question || '', steps: (a.steps || []).join('\n'), raise_ticket: a.raise_ticket || '' };
+  }
+  if (!faq && from?.text) {
+    const lang = answers[from.language] ? from.language : 'en';
+    answers[lang].question = from.text;
+    return {
+      category: '', item: '', subItem: '',
+      ticketCategoryId: from.suggestion?.categoryId || '',
+      directTicket: false, isActive: true,
+      keywords: from.text.toLowerCase().replace(/,/g, ' '),
+      detailsEn: '', ticketInfo: '', answers,
+    };
   }
   return {
     category: faq?.category || '',
@@ -39,12 +52,12 @@ function toForm(faq) {
   };
 }
 
-function Editor({ faq }) {
+function Editor({ faq, from }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories, staleTime: 10 * 60_000 });
-  const [f, setF] = useState(() => toForm(faq));
-  const [lang, setLang] = useState('en');
+  const [f, setF] = useState(() => toForm(faq, from));
+  const [lang, setLang] = useState(from?.language && from.language !== 'en' ? from.language : 'en');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -190,6 +203,7 @@ function Editor({ faq }) {
 export default function FaqEditPage() {
   const { id } = useParams();
   const isNew = !id;
+  const from = useLocation().state?.fromQuestion || null;
   const faq = useQuery({ queryKey: ['assistant', 'faq', id], queryFn: () => getFaq(id), enabled: !isNew });
   return (
     <section className="mx-auto max-w-3xl space-y-4">
@@ -199,7 +213,13 @@ export default function FaqEditPage() {
       <h1 className="text-3xl">{isNew ? 'Add an FAQ' : faq.data ? `${faq.data.item} · ${faq.data.subItem}` : 'FAQ'}</h1>
       {!isNew && faq.isPending && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
       {!isNew && faq.isError && <Alert tone="error">{errorMessage(faq.error, 'Could not load the FAQ.')}</Alert>}
-      {(isNew || faq.data) && <Editor key={faq.data?.id || 'new'} faq={isNew ? null : faq.data} />}
+      {isNew && from && (
+        <Alert tone="info">
+          From a question asked {from.count} {from.count === 1 ? 'time' : 'times'}. Fill in the category, item, problem and the steps
+          {from.language !== 'en' ? ', and the English question (required)' : ''}.
+        </Alert>
+      )}
+      {(isNew || faq.data) && <Editor key={faq.data?.id || 'new'} faq={isNew ? null : faq.data} from={isNew ? from : null} />}
     </section>
   );
 }

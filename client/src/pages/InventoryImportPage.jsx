@@ -54,7 +54,7 @@ function Report({ r }) {
       </p>
       <p className="font-ui text-sm text-ink-2">
         Flagged: <strong>{r.flagged.serialNeedsCheck}</strong> serials to check (damaged by Excel, left blank) ·{' '}
-        <strong>{r.flagged.holderUnknown}</strong> in use with holder unknown
+        <strong>{r.flagged.holderUnknown}</strong> in use, person not known yet
       </p>
       {r.overwroteAtomEdits > 0 && (
         <Alert tone="error">{r.overwroteAtomEdits} assets changed in ATOM since the last import will be overwritten with the Snipe-IT values.</Alert>

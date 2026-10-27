@@ -113,7 +113,7 @@ maybe('AI assistant on real PostgreSQL', () => {
   });
 
   beforeEach(async () => {
-    await pool.query(`TRUNCATE assistant_gpt_calls, assistant_events, assistant_sessions, assistant_settings_log, faqs,
+    await pool.query(`TRUNCATE assistant_dismissed, assistant_learned, assistant_gpt_calls, assistant_events, assistant_sessions, assistant_settings_log, faqs,
                       notifications, request_attachments, request_events, requests, user_change_log, user_service_units,
                       user_posts, user_status_log, user_roles, password_reset_tokens, users RESTART IDENTITY CASCADE`);
     await pool.query('INSERT INTO assistant_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING');
@@ -358,6 +358,80 @@ maybe('AI assistant on real PostgreSQL', () => {
     expect((await admin.post('/faqs', { category: 'x' })).status).toBe(400);
     expect((await admin.get('/faqs')).body.faqs).toHaveLength(6);
     expect((await admin.get('/faqs?includeInactive=1')).body.faqs).toHaveLength(7);
+  });
+
+  test('saved GPT answers: same question (any word order, small typo) is answered from the DB, no GPT', async () => {
+    await admin.patch('/settings', { gptEnabled: true });
+    const lan = String((await pool.query(`SELECT id FROM faqs WHERE item = 'Lan'`)).rows[0].id);
+    classify.mockResolvedValue(gptReply({ faqIds: [lan], category: 'Network / Internet', priority: 'NORMAL', title: 'WiFi down' }));
+    const a = await chat(alice);
+    expect((await alice.post(`/sessions/${a}/ask`, { text: 'wifi gaya office me' })).body).toMatchObject({ type: 'answer', via: 'gpt' });
+
+    const b = await chat(bob);
+    expect((await bob.post(`/sessions/${b}/ask`, { text: 'offfice me wifi gaya' })).body).toMatchObject({ type: 'answer', via: 'learned', faq: { item: 'Lan' } });
+    expect(classify).toHaveBeenCalledTimes(1);
+    expect((await pool.query('SELECT matched_by, used_gpt FROM assistant_sessions WHERE id = $1', [b])).rows[0]).toEqual({ matched_by: 'learned', used_gpt: false });
+
+    const learned = (await admin.get('/learned')).body.learned;
+    expect(learned).toHaveLength(1);
+    expect(learned[0]).toMatchObject({ text: 'wifi gaya office me', hits: 1, isActive: true, faqs: [{ id: lan, item: 'Lan' }] });
+    const u = (await admin.get('/usage')).body.sessions;
+    expect(u).toMatchObject({ savedAnswersUsed: 1, via: { learned: 1, gpt: 1 } });
+
+    // Switched off → GPT is asked again, and the saved answer is refreshed and back on.
+    expect((await admin.patch(`/learned/${learned[0].id}`, { isActive: false })).body.learned.isActive).toBe(false);
+    expect((await admin.get('/learned')).body.learned).toHaveLength(0);
+    const c2 = await chat(bob);
+    expect((await bob.post(`/sessions/${c2}/ask`, { text: 'wifi gaya office me' })).body.via).toBe('gpt');
+    expect(classify).toHaveBeenCalledTimes(2);
+    expect((await admin.get('/learned')).body.learned[0]).toMatchObject({ hits: 0, isActive: true });
+
+    // Its FAQ switched off → the saved answer is ignored, GPT again.
+    await admin.patch(`/faqs/${lan}`, { isActive: false });
+    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Network / Internet', priority: 'URGENT', title: 'WiFi down in office' }));
+    const c3 = await chat(bob);
+    expect((await bob.post(`/sessions/${c3}/ask`, { text: 'wifi gaya office me' })).body).toEqual({ type: 'none' });
+    expect(classify).toHaveBeenCalledTimes(3);
+    expect((await pool.query('SELECT count(*)::int AS n FROM assistant_learned')).rows[0].n).toBe(1);
+    expect((await admin.patch('/learned/999999', { isActive: true })).status).toBe(404);
+    expect((await alice.get('/learned')).status).toBe(404);
+  });
+
+  test('saved "no FAQ" answer: no GPT next time, and the ticket draft still gets GPT’s category / priority / title', async () => {
+    await admin.patch('/settings', { gptEnabled: true });
+    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Projector / Display', priority: 'URGENT', title: 'Hall B projector no picture' }));
+    const a = await chat(alice);
+    await alice.post(`/sessions/${a}/ask`, { text: 'hall b projector dead' });
+    const b = await chat(bob);
+    expect((await bob.post(`/sessions/${b}/ask`, { text: 'projector dead hall b' })).body).toEqual({ type: 'none' });
+    expect(classify).toHaveBeenCalledTimes(1);
+    const d = (await bob.get(`/sessions/${b}/draft`)).body.draft;
+    expect(d).toMatchObject({ priority: 'URGENT', title: 'Hall B projector no picture', description: 'projector dead hall b' });
+    expect(d.categoryId).toBeTruthy();
+  });
+
+  test('questions with no FAQ: grouped with a count, dismiss hides them, an FAQ made from one hides it', async () => {
+    for (const [who, t] of [[alice, 'conference room projector remote missing'], [bob, 'projector remote missing conference room'], [alice, 'asdf qwer']]) {
+      const id = await chat(who);
+      await who.post(`/sessions/${id}/ask`, { text: t });
+    }
+    let list = (await admin.get('/usage')).body.unmatched;
+    expect(list.map((q) => [q.text, q.count])).toEqual([['projector remote missing conference room', 2], ['asdf qwer', 1]]);
+
+    await admin.post('/unmatched/dismiss', { key: list[1].key });
+    list = (await admin.get('/usage')).body.unmatched;
+    expect(list.map((q) => q.text)).toEqual(['projector remote missing conference room']);
+
+    // "Add as FAQ": the form saves the question as the English question and as a keyword.
+    await admin.post('/faqs', {
+      category: 'Telecommunication', item: 'Projector Remote', subItem: 'Missing', keywords: ['projector remote missing conference room'],
+      answers: { en: { question: 'projector remote missing conference room', steps: ['Check the cable.'] } },
+    });
+    expect((await admin.get('/usage')).body.unmatched).toEqual([]);
+    const id = await chat(alice);
+    expect((await alice.post(`/sessions/${id}/ask`, { text: 'conference room projector remote missing' })).body).toMatchObject({ type: 'answer', faq: { item: 'Projector Remote' } });
+    expect((await admin.post('/unmatched/dismiss', {})).status).toBe(400);
+    expect((await alice.post('/unmatched/dismiss', { key: 'x' })).status).toBe(404);
   });
 
   (process.env.FAQ_JSON ? test : test.skip)('real FAQ file imports and answers', async () => {

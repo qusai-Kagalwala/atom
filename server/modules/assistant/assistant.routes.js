@@ -10,7 +10,9 @@
 //     GET  /faqs?includeInactive=1 · GET /faqs/:id · POST /faqs · PATCH /faqs/:id
 //     POST /faqs/import   multipart: file (.json), commit?, keepAtomEdits?   → report
 //     GET  /settings · PATCH /settings     GPT switch, model, temperature, token limits, prices
-//     GET  /usage?days=30                   tokens, cost, sessions, unanswered questions
+//     GET  /usage?days=30                   tokens, cost, sessions, unanswered questions (grouped)
+//     POST /unmatched/dismiss  { key }      hide a question from "Questions with no FAQ"
+//     GET  /learned?includeOff=1 · PATCH /learned/:id { isActive }   saved GPT answers
 // Sessions belong to their user; anyone else's = 404. Out of role = 404.
 const express = require('express');
 const multer = require('multer');
@@ -81,6 +83,9 @@ function createAssistantRouter() {
   );
   router.get('/settings', admin, handle(async (req, res) => res.json({ settings: await svc.getSettings() })));
   router.patch('/settings', admin, handle(async (req, res) => res.json({ settings: await svc.updateSettings(req.user, req.body || {}) })));
+  router.post('/unmatched/dismiss', admin, handle(async (req, res) => res.json(await svc.dismissQuestion(req.user, req.body || {}))));
+  router.get('/learned', admin, handle(async (req, res) => res.json({ learned: await svc.listLearned({ includeOff: yes(req.query.includeOff) }) })));
+  router.patch('/learned/:id', admin, handle(async (req, res) => res.json({ learned: await svc.setLearned(req.user, req.params.id, req.body || {}) })));
   router.get('/usage', admin, handle(async (req, res) => res.json(await svc.usage({ days: req.query.days }))));
 
   return router;

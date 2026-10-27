@@ -12,11 +12,11 @@ export const statusClass = (s) => ASSET_STATUS[s]?.cls || 'badge';
 // "Asset name" or "Manufacturer Model"
 export const assetTitle = (a) => a.name || [a.manufacturer, a.model].filter(Boolean).join(' ') || a.tag;
 
-// Who / where: "Alice Hamid", "Holder unknown · AV Store Room", "MCR-Video"
+// Who / where: "Alice Hamid", "Person not known yet · AV Store Room", "MCR-Video"
 export function assetWhere(a) {
   const parts = [];
   if (a.holder) parts.push(a.holder.name);
-  else if (a.holderUnknown) parts.push('Holder unknown');
+  else if (a.holderUnknown) parts.push('Person not known yet');
   if (a.place) parts.push(a.place.name);
   return parts.join(' · ') || 'No place';
 }

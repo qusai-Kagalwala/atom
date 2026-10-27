@@ -2,13 +2,14 @@
 //   1. browse buttons (category → item → problem)       no AI
 //   2. typed text → local matching (matcher.js)           no AI
 //   3. GPT picks an FAQ — only if 1–2 found nothing, GPT is switched on, and under every limit
+//   (2½) saved GPT answers: a question GPT already sorted is answered from the database, no tokens
 // Answers are always the FAQ's own text. "Did this solve it?" → yes: solved, no: pre-filled ticket.
 // Every session, step and GPT call is recorded; the session is linked to the ticket if one is raised.
 const defaultPool = require('../../db/pool');
 const { config } = require('../../config/env');
 const { HttpError, notFound } = require('../../utils/httpError');
 const { LANGS, clean } = require('./faqData');
-const { buildIndex, match } = require('./matcher');
+const { buildIndex, match, matchKey, keySimilarity } = require('./matcher');
 const gpt = require('./gpt');
 
 const bad = (message, code) => new HttpError(400, message, code);
@@ -225,7 +226,16 @@ async function ask(user, sessionId, body = {}) {
     return { type: 'choices', via: 'search', faqs: ids.map((id) => brief(c.byId.get(id), lang)) };
   }
 
-  // Nothing local. GPT, if allowed.
+  // Nothing local. A saved GPT answer for the same question?
+  const key = matchKey(text);
+  const saved = await findLearned(db, key, c);
+  if (saved) {
+    await db.query('UPDATE assistant_learned SET hits = hits + 1, last_used_at = now() WHERE id = $1::bigint', [saved.row.id]);
+    await addEvent(db, session.id, 'learned', { data: { learnedId: String(saved.row.id), suggestion: saved.row.suggestion } });
+    return respond(db, session, c, saved.ids, 'learned', text);
+  }
+
+  // GPT, if allowed.
   const s = await settingsRow(db);
   const blocked = await gptBlocked(db, s, user, session);
   if (blocked) {
@@ -266,21 +276,62 @@ async function ask(user, sessionId, body = {}) {
   }
 
   const sug = result.suggestion;
-  const categoryId = cats.find((x) => x.name === sug.category)?.id || null;
+  const suggestion = { category: sug.category, categoryId: cats.find((x) => x.name === sug.category)?.id || null, priority: sug.priority, title: sug.title };
   await db.query('UPDATE assistant_sessions SET used_gpt = TRUE WHERE id = $1::bigint', [session.id]);
-  await addEvent(db, session.id, 'gpt', { data: { callId, suggestion: { ...sug, categoryId } } });
+  await addEvent(db, session.id, 'gpt', { data: { callId, suggestion } });
 
   const ids = sug.faqIds.filter((id) => c.byId.has(id));
+  // Save it, so the same question never goes to GPT again (unless a Super Admin switches it off).
+  if (key) {
+    await db.query(
+      `INSERT INTO assistant_learned (match_key, sample_text, language, faq_ids, suggestion, source_call_id)
+       VALUES ($1::text, $2::text, $3::text, $4::bigint[], $5::jsonb, $6::bigint)
+       ON CONFLICT (match_key) DO UPDATE
+          SET faq_ids = EXCLUDED.faq_ids, suggestion = EXCLUDED.suggestion, source_call_id = EXCLUDED.source_call_id,
+              sample_text = EXCLUDED.sample_text, language = EXCLUDED.language, is_active = TRUE, hits = 0, last_used_at = NULL`,
+      [key, text, lang, ids, JSON.stringify(suggestion), callId]
+    );
+  }
+  return respond(db, session, c, ids, 'gpt', text);
+}
+
+// Show the FAQ(s) found by a saved answer or by GPT.
+async function respond(db, session, c, ids, via, text) {
+  const lang = session.language;
   if (ids.length === 1) {
-    await setShown(db, session, ids[0], 'gpt');
-    return { type: 'answer', via: 'gpt', faq: full(c.byId.get(ids[0]), lang) };
+    await setShown(db, session, ids[0], via);
+    return { type: 'answer', via, faq: full(c.byId.get(ids[0]), lang) };
   }
   if (ids.length > 1) {
-    await addEvent(db, session.id, 'choices', { data: { faqIds: ids, via: 'gpt' } });
-    return { type: 'choices', via: 'gpt', faqs: ids.map((id) => brief(c.byId.get(id), lang)) };
+    await addEvent(db, session.id, 'choices', { data: { faqIds: ids, via } });
+    return { type: 'choices', via, faqs: ids.map((id) => brief(c.byId.get(id), lang)) };
   }
   await addEvent(db, session.id, 'no_match', { text });
   return { type: 'none' };
+}
+
+// Saved GPT answer for this question: same key, or the same words with a small typo.
+// A saved answer whose FAQs have all been switched off is ignored (GPT is asked again).
+const LEARNED_SIMILARITY = 0.8;
+async function findLearned(db, key, c) {
+  if (!key) return null;
+  let { rows } = await db.query('SELECT * FROM assistant_learned WHERE match_key = $1::text AND is_active', [key]);
+  if (!rows[0]) {
+    const { rows: keys } = await db.query(
+      `SELECT id, match_key FROM assistant_learned WHERE is_active ORDER BY last_used_at DESC NULLS LAST, id DESC LIMIT 2000`
+    );
+    let best = null;
+    for (const k of keys) {
+      const sim = keySimilarity(key, k.match_key);
+      if (sim >= LEARNED_SIMILARITY && (!best || sim > best.sim)) best = { id: k.id, sim };
+    }
+    if (!best) return null;
+    ({ rows } = await db.query('SELECT * FROM assistant_learned WHERE id = $1::bigint', [best.id]));
+  }
+  const row = rows[0];
+  const ids = (row.faq_ids || []).map(String).filter((id) => c.byId.has(id));
+  if (row.faq_ids.length && !ids.length) return null;
+  return { row, ids };
 }
 
 // A problem picked from the browse buttons or from "Did you mean…".
@@ -315,7 +366,7 @@ async function buildDraft(db, session) {
   const c = await faqCache();
   const faq = session.faq_id ? c.byId.get(String(session.faq_id)) : null;
   const { rows: g } = await db.query(
-    `SELECT data FROM assistant_events WHERE session_id = $1::bigint AND kind = 'gpt' AND data ? 'suggestion'
+    `SELECT data FROM assistant_events WHERE session_id = $1::bigint AND kind IN ('gpt', 'learned') AND data ? 'suggestion'
       ORDER BY id DESC LIMIT 1`,
     [session.id]
   );
@@ -478,13 +529,14 @@ async function usage({ days = 30 } = {}) {
             count(*) FILTER (WHERE matched_by = 'choice')::int AS by_choice,
             count(*) FILTER (WHERE matched_by = 'search')::int AS by_search,
             count(*) FILTER (WHERE matched_by = 'gpt')::int AS by_gpt,
+            count(*) FILTER (WHERE matched_by = 'learned')::int AS by_learned,
             count(*) FILTER (WHERE faq_id IS NULL)::int AS no_faq
        FROM assistant_sessions WHERE created_at >= now() - make_interval(days => $1::int)`,
     [span]
   );
-  const { rows: unmatched } = await db.query(
-    `SELECT e.text, e.created_at AS at, s.language FROM assistant_events e JOIN assistant_sessions s ON s.id = e.session_id
-      WHERE e.kind = 'no_match' ORDER BY e.id DESC LIMIT 25`
+  const { rows: reused } = await db.query(
+    `SELECT count(*)::int AS n FROM assistant_events WHERE kind = 'learned' AND created_at >= now() - make_interval(days => $1::int)`,
+    [span]
   );
   const { rows: recent } = await db.query(
     `SELECT g.id::text AS id, g.created_at AS at, g.model, g.status, g.total_tokens, g.cost_usd, g.error, u.name AS user_name
@@ -503,14 +555,102 @@ async function usage({ days = 30 } = {}) {
       ticket: x.ticket,
       leftOpen: x.left_open,
       usedGpt: x.used_gpt,
-      via: { browse: x.by_browse, choice: x.by_choice, search: x.by_search, gpt: x.by_gpt, none: x.no_faq },
+      via: { browse: x.by_browse, choice: x.by_choice, search: x.by_search, learned: x.by_learned, gpt: x.by_gpt, none: x.no_faq },
+      savedAnswersUsed: reused[0].n,
     },
-    unmatched: unmatched.map((u) => ({ text: u.text, at: u.at, language: u.language })),
+    unmatched: await unmatchedQuestions(db),
     recentCalls: recent.map((r) => ({ id: r.id, at: r.at, model: r.model, status: r.status, tokens: r.total_tokens, costUsd: Number(r.cost_usd), error: r.error, user: r.user_name })),
   };
 }
 
+// ---------- Super Admin: questions with no FAQ, saved GPT answers ----------
+// Typed questions that found no FAQ in the last 90 days, grouped by key (same words, any order),
+// most asked first. Hidden: dismissed ones, and ones an FAQ now answers.
+async function unmatchedQuestions(db = deps.pool, { limit = 30 } = {}) {
+  const c = await faqCache();
+  const { rows } = await db.query(
+    `SELECT e.text, e.created_at AS at, s.language,
+            (SELECT g.data->'suggestion' FROM assistant_events g
+              WHERE g.session_id = e.session_id AND g.kind IN ('gpt', 'learned') AND g.id < e.id AND g.data ? 'suggestion'
+              ORDER BY g.id DESC LIMIT 1) AS suggestion
+       FROM assistant_events e JOIN assistant_sessions s ON s.id = e.session_id
+      WHERE e.kind = 'no_match' AND e.text IS NOT NULL AND e.created_at >= now() - interval '90 days'
+      ORDER BY e.id DESC LIMIT 2000`
+  );
+  const { rows: off } = await db.query('SELECT match_key FROM assistant_dismissed');
+  const dismissed = new Set(off.map((d) => d.match_key));
+  const groups = new Map();
+  for (const r of rows) {
+    const key = matchKey(r.text);
+    if (!key || dismissed.has(key)) continue;
+    const g = groups.get(key);
+    if (g) {
+      g.count += 1;
+      if (!g.suggestion && r.suggestion) g.suggestion = r.suggestion;
+    } else {
+      groups.set(key, { key, text: r.text, language: r.language, lastAt: r.at, count: 1, suggestion: r.suggestion || null });
+    }
+  }
+  return [...groups.values()]
+    .filter((g) => match(c.index, g.text, g.language).kind !== 'answer')
+    .sort((a, b) => b.count - a.count || new Date(b.lastAt) - new Date(a.lastAt))
+    .slice(0, limit);
+}
+
+async function dismissQuestion(user, body = {}) {
+  const key = matchKey(body.key || body.text || '');
+  if (!key) throw bad('Nothing to dismiss.', 'empty');
+  await deps.pool.query(
+    'INSERT INTO assistant_dismissed (match_key, dismissed_by) VALUES ($1::text, $2::bigint) ON CONFLICT (match_key) DO NOTHING',
+    [key, user.id]
+  );
+  return { dismissed: key };
+}
+
+function toLearned(r) {
+  return {
+    id: String(r.id),
+    text: r.sample_text,
+    language: r.language,
+    faqs: r.faqs || [],
+    suggestion: r.suggestion,
+    hits: r.hits,
+    lastUsedAt: r.last_used_at,
+    isActive: r.is_active,
+    createdAt: r.created_at,
+  };
+}
+
+async function listLearned({ includeOff = false } = {}) {
+  const { rows } = await deps.pool.query(
+    `SELECT l.*,
+            (SELECT COALESCE(json_agg(json_build_object('id', f.id::text, 'item', f.item, 'subItem', f.sub_item, 'isActive', f.is_active)
+                                      ORDER BY array_position(l.faq_ids, f.id)), '[]')
+               FROM faqs f WHERE f.id = ANY (l.faq_ids)) AS faqs
+       FROM assistant_learned l
+      ${includeOff ? '' : 'WHERE l.is_active'}
+      ORDER BY l.hits DESC, l.created_at DESC LIMIT 500`
+  );
+  return rows.map(toLearned);
+}
+
+// Switch a saved answer off (GPT is asked again next time) or back on. Never deleted.
+async function setLearned(user, id, body = {}) {
+  if (!isId(id)) throw notFound();
+  if (typeof body.isActive !== 'boolean') throw bad('Bad status value.', 'invalid');
+  const { rows } = await deps.pool.query(
+    'UPDATE assistant_learned SET is_active = $2::boolean, changed_by = $3::bigint WHERE id = $1::bigint RETURNING id',
+    [id, body.isActive, user.id]
+  );
+  if (!rows[0]) throw notFound();
+  return (await listLearned({ includeOff: true })).find((l) => l.id === String(id));
+}
+
 module.exports = {
+  unmatchedQuestions,
+  dismissQuestion,
+  listLearned,
+  setLearned,
   getConfig,
   startSession,
   ask,

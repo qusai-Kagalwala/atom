@@ -1,6 +1,6 @@
 // Phase 12: FAQ file reading, local matching and the GPT call (pure; OpenAI mocked with a fake fetch).
 const { parseFaqFile, ticketCategoryName, normaliseFaq } = require('../modules/assistant/faqData');
-const { buildIndex, match, words } = require('../modules/assistant/matcher');
+const { buildIndex, match, words, matchKey, keySimilarity } = require('../modules/assistant/matcher');
 const gpt = require('../modules/assistant/gpt');
 const { config } = require('../config/env');
 
@@ -201,5 +201,18 @@ describe('GPT fallback', () => {
     });
     const down = jest.fn().mockRejectedValue(new Error('ENOTFOUND'));
     await expect(gpt.classify({ text: 'x', faqs: FAQS, categories: CATS, model: 'm', temperature: 0.4, fetchImpl: down })).rejects.toThrow(/Could not reach OpenAI/);
+  });
+});
+
+describe('saved-answer keys', () => {
+  test('same important words in any order give the same key; filler words and plurals ignored', () => {
+    expect(matchKey('Hall printer is not working')).toBe(matchKey('printers not working in the hall'));
+    expect(matchKey('hi please help')).toBe('');
+    expect(matchKey('وای فای لا يعمل')).toBe(matchKey('لا يعمل وای فای'));
+  });
+  test('a small typo still counts as the same question; a different word does not', () => {
+    expect(keySimilarity(matchKey('wifi gaya office'), matchKey('wifi gaya offfice'))).toBe(1);
+    expect(keySimilarity(matchKey('wifi gaya office'), matchKey('wifi gaya hall'))).toBeLessThan(0.8);
+    expect(keySimilarity('', 'a')).toBe(0);
   });
 });

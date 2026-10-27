@@ -35,7 +35,7 @@ export default {
         display: ['Amiri', 'Cormorant Garamond', 'Georgia', 'serif'],
         sans: ['Amiri', 'Inter', 'Lato', 'Helvetica', 'Arial', 'sans-serif'],
         arabic: ['Amiri', 'Kanz-al-Marjaan', 'Arial Unicode MS', 'serif'],
-        ui: ['Inter', 'Lato', 'Helvetica', 'Arial', 'sans-serif'],
+        ui: ['Inter', 'Amiri', 'Lato', 'Helvetica', 'Arial', 'sans-serif'],
       },
       borderRadius: { card: '12px', btn: '8px' },
       boxShadow: {
