@@ -253,6 +253,15 @@ export default function AssetPage() {
               </span>
             )}
           </Detail>
+          {a.sitsHere?.length > 0 && (
+            <Detail label={a.place?.cubicle ? 'Sits here' : 'Sits in this room'}>
+              {a.sitsHere
+                .slice(0, 20)
+                .map((p) => `${p.name}${!a.place?.cubicle && p.cubicle ? ` (${p.cubicle})` : ''}`)
+                .join(', ')}
+              {a.sitsHere.length > 20 && ' and more'}
+            </Detail>
+          )}
           <Detail label="Manufacturer / model">{[a.manufacturer, a.model, a.modelNo].filter(Boolean).join(' · ')}</Detail>
           <Detail label="Serial" mono>
             {a.serial}

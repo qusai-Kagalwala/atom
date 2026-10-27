@@ -22,7 +22,7 @@
     "allRequests": { "label": "All tickets & requests", "path": "/all", "icon": "Ticket" },
     "inventory": { "label": "Inventory", "path": "/inventory", "icon": "Package" },
     "catalogue": { "label": "Catalogue", "path": "/catalogue", "icon": "ShoppingCart" },
-    "faqs": { "label": "FAQs", "path": "/faqs", "icon": "CircleHelp" },
+    "faqs": { "label": "FAQs & AI", "path": "/faqs", "icon": "CircleHelp" },
     "onboarding": { "label": "Onboarding / Offboarding", "path": "/onboarding", "icon": "PackagePlus" },
     "users": { "label": "Users & roles", "path": "/users", "icon": "Users" },
     "analytics": { "label": "Analytics", "path": "/analytics", "icon": "BarChart3" },

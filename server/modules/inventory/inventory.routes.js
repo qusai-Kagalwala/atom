@@ -1,6 +1,6 @@
 // /Atom/api/inventory — Phase 8.
 //   Everyone (signed in):
-//     GET  /mine                                   → { assets }   assets assigned to me
+//     GET  /mine                                   → { assets, seats, roomAssets }   assigned to me + at my seat
 //   Engineer + Super Admin (read):
 //     GET  /assets?q=&categoryId=&placeId=&room=&status=(IN_STORE|IN_USE|IN_REPAIR|RETIRED|all)
 //                 &attention=(serial|holder|any)&page=&pageSize=   → { assets, total, page, pageSize }
@@ -72,7 +72,7 @@ function createInventoryRouter() {
   const router = express.Router();
   router.use(requireAuth);
 
-  router.get('/mine', handle(async (req, res) => res.json({ assets: await svc.myAssets(req.user) })));
+  router.get('/mine', handle(async (req, res) => res.json(await svc.myAssets(req.user))));
 
   const read = requireRole('ENGINEER', 'SUPER_ADMIN');
   const admin = requireRole('SUPER_ADMIN');

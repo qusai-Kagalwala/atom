@@ -1,7 +1,8 @@
 // /Atom/api/sync/*  — Super Admin only (out of role = 404).
-//   GET  /runs?job=idarah|hr&limit=20  → { runs }   latest runs of one sync, newest first (default idarah)
+//   GET  /runs?job=idarah|hr|occupancy&limit=20  → { runs }   latest runs of one sync, newest first (default idarah)
 //   POST /idarah  { force? }           → result of runIdarahSync ("Sync now")
 //   POST /hr      { force? }           → result of runHrSync ("Sync now", Phase 3.1)
+//   POST /occupancy { force? }         → result of runOccupancySync ("Sync now", Phase 8.2)
 //   GET  /old-accounts                 → { checkedAt, accounts } | { checkedAt: null, accounts: [] }
 //        imported Login_Master accounts that are active but not in the HR employee list
 const express = require('express');
@@ -10,11 +11,12 @@ const pool = require('../../db/pool');
 const { requireAuth, requireRole } = require('../../middleware/requireAuth');
 const { runIdarahSync } = require('./idarahSync');
 const { runHrSync, oldAccountsNotInHr } = require('./hrSync');
+const { runOccupancySync } = require('./occupancySync');
 
 const STATUS_HTTP = { success: 200, busy: 409, blocked: 409, failed: 502 };
-const JOBS = ['idarah', 'hr'];
+const JOBS = ['idarah', 'hr', 'occupancy'];
 
-function createSyncRouter({ run = runIdarahSync, runHr = runHrSync } = {}) {
+function createSyncRouter({ run = runIdarahSync, runHr = runHrSync, runOccupancy = runOccupancySync } = {}) {
   const router = express.Router();
   router.use(requireAuth, requireRole('SUPER_ADMIN'));
 
@@ -49,6 +51,7 @@ function createSyncRouter({ run = runIdarahSync, runHr = runHrSync } = {}) {
   };
   router.post('/idarah', body('force').optional().isBoolean(), syncNow(run));
   router.post('/hr', body('force').optional().isBoolean(), syncNow(runHr));
+  router.post('/occupancy', body('force').optional().isBoolean(), syncNow(runOccupancy));
 
   router.get('/old-accounts', async (req, res, next) => {
     try {

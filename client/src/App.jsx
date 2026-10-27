@@ -15,7 +15,10 @@ import SetPasswordPage from './pages/SetPasswordPage';
 // AppShell shows a spinner (Suspense) while a page loads.
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
 const AssetPage = lazy(() => import('./pages/AssetPage'));
+const AssistantPage = lazy(() => import('./pages/AssistantPage'));
 const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
+const FaqEditPage = lazy(() => import('./pages/FaqEditPage'));
+const FaqsPage = lazy(() => import('./pages/FaqsPage'));
 const InventoryImportPage = lazy(() => import('./pages/InventoryImportPage'));
 const InventoryPage = lazy(() => import('./pages/InventoryPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -33,7 +36,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests']);
+const BUILT = new Set(['home', 'assistant', 'faqs', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -54,6 +57,7 @@ export default function App() {
           <Route path="/track" element={<MyRequestsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/my-assets" element={<MyAssetsPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/tickets/new" element={<RaiseTicketPage />} />
           <Route path="/tickets/:number" element={<TicketPage />} />
 
@@ -73,23 +77,16 @@ export default function App() {
             <Route path="/users/:id" element={<UserDetailPage />} />
             <Route path="/sync" element={<SyncStatusPage />} />
             <Route path="/inventory/import" element={<InventoryImportPage />} />
+            <Route path="/faqs" element={<FaqsPage />} />
+            <Route path="/faqs/new" element={<FaqEditPage />} />
+            <Route path="/faqs/:id" element={<FaqEditPage />} />
           </Route>
 
           {PLACEHOLDERS.map(([key, item]) => (
             <Route
               key={key}
               path={item.path}
-              element={
-                key === 'assistant' ? (
-                  <ComingSoonPage
-                    title={item.label}
-                    text="The AI assistant is coming soon. For now, raise a ticket and AVIT will help."
-                    action={{ to: '/tickets/new', label: 'Raise a ticket' }}
-                  />
-                ) : (
-                  <ComingSoonPage title={item.label} />
-                )
-              }
+              element={<ComingSoonPage title={item.label} />}
             />
           ))}
           <Route path="*" element={<NotFoundPage />} />

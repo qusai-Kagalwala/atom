@@ -7,6 +7,7 @@ const lifecycle = require('./lifecycle');
 const files = require('./attachments');
 const notifications = require('../notifications/notifications.service');
 const invoices = require('../invoices/invoices.service');
+const assistant = require('../assistant/assistant.service');
 const { locationLabel } = require('../sync/hrPlan');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const { HttpError, notFound } = require('../../utils/httpError');
@@ -118,6 +119,8 @@ async function toDetail(db, user, r) {
       })),
     // Invoices: Super Admins and the assigned engineer only (requesters never see them).
     invoices: seeInternal ? await invoices.forRequest(db, r.id) : undefined,
+    // What happened in the AI assistant before this ticket (Phase 12).
+    assistant: await assistant.forRequest(db, r.id),
     permissions: {
       canLinkInvoices: seeInternal && (user.activeRole === 'SUPER_ADMIN' || user.activeRole === 'ENGINEER'),
       canUnlinkInvoices: user.activeRole === 'SUPER_ADMIN',
@@ -232,6 +235,10 @@ async function createTicket(user, input, uploads) {
       });
       written.requestId = row.id;
       written.files = await savePhotos(db, row, uploads, user.id, null);
+      // Raised from the AI assistant: link the chat (only the requester's own open chat).
+      if (input.assistantSessionId && String(requesterId) === String(user.id)) {
+        await assistant.linkTicket(db, user, input.assistantSessionId, row.id);
+      }
 
       const ticket = { ...row, type: 'TICKET', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null };
       const sent = await notifications.recordTicketEvent(db, ticket, {

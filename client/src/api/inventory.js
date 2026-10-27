@@ -8,7 +8,7 @@ export const getAsset = (tag) => http.get(`${base}/assets/${enc(tag)}`).then((r)
 export const createAsset = (body) => http.post(`${base}/assets`, body).then((r) => r.data.asset);
 export const updateAsset = (tag, body) => http.patch(`${base}/assets/${enc(tag)}`, body).then((r) => r.data.asset);
 export const assetAction = (tag, action, body) => http.post(`${base}/assets/${enc(tag)}/${action}`, body).then((r) => r.data.asset);
-export const myAssets = () => http.get(`${base}/mine`).then((r) => r.data.assets);
+export const myAssets = () => http.get(`${base}/mine`).then((r) => r.data); // { assets, seats, roomAssets }
 
 export const listAssetCategories = () => http.get(`${base}/categories`).then((r) => r.data.categories);
 export const createAssetCategory = (name) => http.post(`${base}/categories`, { name }).then((r) => r.data.category);

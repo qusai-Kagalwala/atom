@@ -40,7 +40,7 @@ export default function MyRequestsPage() {
           <h1 className="mt-1 text-3xl">My tickets &amp; requests</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">Everything you've raised, and anything raised on your behalf.</p>
         </div>
-        <Link to="/tickets/new" className="btn-primary">
+        <Link to="/assistant" className="btn-primary">
           <Plus size={18} aria-hidden="true" /> Raise a ticket
         </Link>
       </div>

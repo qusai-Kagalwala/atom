@@ -63,6 +63,21 @@ const config = {
     from: env.SMTP_FROM || env.SMTP_USER || '',
   },
   passwordResetMinutes: 30,
+  // AI assistant (Phase 12). Model, temperature, on/off and token limits are Super Admin settings
+  // in the database; only the key and the timeout live here.
+  openai: {
+    apiKey: env.OPENAI_API_KEY || '',
+    baseUrl: String(env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
+    timeoutMs: Number(env.OPENAI_TIMEOUT_MS) || 15_000,
+  },
+  // Days and months for token limits and usage start at midnight in this time zone.
+  timeZone: env.APP_TIME_ZONE || 'Asia/Kolkata',
+  // Room occupancy sheet (Phase 8.2): a Google Sheet shared "anyone with the link can view".
+  occupancy: {
+    sheetId: env.OCCUPANCY_SHEET_ID || '',
+    tabs: String(env.OCCUPANCY_SHEET_TABS || 'ADMIN BLDG').split(',').map((t) => t.trim()).filter(Boolean),
+    timeoutMs: Number(env.OCCUPANCY_TIMEOUT_MS) || 20_000,
+  },
   // Photos and invoices. Must be OUTSIDE the web root in production (e.g. D:\ATOM-data\attachments).
   // Dev default: <project>/attachments (git-ignored).
   attachmentDir: path.resolve(env.ATTACHMENT_DIR || path.join(__dirname, '..', '..', 'attachments')),

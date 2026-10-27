@@ -23,6 +23,7 @@ const SKIP_LABELS = {
   employee_id_not_in_atom: 'employee ID not in ATOM',
   no_department: 'no department',
   invalid_user_id: 'invalid user ID',
+  no_room: 'no room number',
 };
 
 // Two syncs (Phase 3.1): the Idarah view (ITS people, posts) and the HR employee list
@@ -40,11 +41,19 @@ const JOBS = {
     peopleLabel: 'Staff in list',
     people: (s) => s?.staff?.inView,
   },
+  occupancy: {
+    tab: 'Room occupancy',
+    text: 'Who sits in which room / cubicle, from the occupancy Google Sheet. Equipment at a seat shows on that person’s My assets.',
+    peopleLabel: 'People with a seat',
+    people: (s) => s?.seats?.people,
+    schedule: 'Runs automatically once a day once ATOM is on the server.',
+    forceText: 'returned far fewer seats than last time. Running anyway will end the seats of everyone missing from it.',
+  },
 };
 
 function RunSummary({ run }) {
   const s = run.summary;
-  if (!s?.users && !s?.staff) return <span className="text-ink-2">{run.message || '—'}</span>;
+  if (!s?.users && !s?.staff && !s?.seats) return <span className="text-ink-2">{run.message || '—'}</span>;
   const skipped = Object.entries(s.skipped || {}).filter(([, n]) => n > 0);
   return (
     <div className="space-y-0.5">
@@ -71,6 +80,27 @@ function RunSummary({ run }) {
             {s.staff.legacyMatched}
             {s.columnsAdded?.length > 0 && ` · new columns: ${s.columnsAdded.join(', ')}`}
           </p>
+        </>
+      )}
+      {s.seats && (
+        <>
+          <p>
+            Seats {s.seats.seats} for {s.seats.people} people · new {s.seats.created} · ended {s.seats.ended}
+            {s.source === 'file' && ' · from a CSV file'}
+          </p>
+          {(s.seats.unknownPeople > 0 || s.seats.inactivePeople > 0) && (
+            <p className="text-ink-2">
+              Not in ATOM: {s.seats.unknownPeople}
+              {s.seats.unknownSample?.length > 0 && ` (${s.seats.unknownSample.join(', ')}${s.seats.unknownPeople > s.seats.unknownSample.length ? ', …' : ''})`}
+              {s.seats.inactivePeople > 0 && ` · inactive users: ${s.seats.inactivePeople}`}
+            </p>
+          )}
+          {s.seats.roomsWithoutPlace > 0 && (
+            <p className="text-ink-2">
+              Rooms with no place in Inventory: {s.seats.roomsWithoutPlace} ({s.seats.roomSample.join(', ')}
+              {s.seats.roomsWithoutPlace > s.seats.roomSample.length ? ', …' : ''})
+            </p>
+          )}
         </>
       )}
       {skipped.length > 0 && (
@@ -122,7 +152,7 @@ function OldAccounts() {
 export default function SyncStatusPage() {
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const job = params.get('job') === 'hr' ? 'hr' : 'idarah';
+  const job = JOBS[params.get('job')] ? params.get('job') : 'idarah';
   const meta = JOBS[job];
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null); // { tone, message, blocked }
@@ -163,7 +193,7 @@ export default function SyncStatusPage() {
         <div>
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
           <h1 className="mt-1 text-3xl">Sync status</h1>
-          <p className="mt-1 font-ui text-sm text-ink-2">Both syncs run automatically about every 10 minutes once ATOM is on the server.</p>
+          <p className="mt-1 font-ui text-sm text-ink-2">{meta.schedule || 'The people syncs run automatically about every 10 minutes once ATOM is on the server.'}</p>
         </div>
         <button type="button" className="btn-primary" onClick={() => syncNow(false)} disabled={running}>
           <RefreshCw size={18} className={running ? 'animate-spin' : ''} aria-hidden="true" />
@@ -255,8 +285,15 @@ export default function SyncStatusPage() {
           }
         >
           <p className="font-ui text-sm text-ink-2">
-            The {meta.tab.toLowerCase()} returned far fewer people than last time. Running anyway will{' '}
-            <strong>deactivate everyone missing</strong> from it. Only do this if you know the change is real.
+            {meta.forceText ? (
+              <>The {meta.tab.toLowerCase()} sheet {meta.forceText} </>
+            ) : (
+              <>
+                The {meta.tab.toLowerCase()} returned far fewer people than last time. Running anyway will{' '}
+                <strong>deactivate everyone missing</strong> from it.{' '}
+              </>
+            )}
+            Only do this if you know the change is real.
           </p>
         </Modal>
       )}

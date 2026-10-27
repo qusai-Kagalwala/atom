@@ -148,6 +148,7 @@ async function toDetail(db, user, a) {
     editedInAtomAt: a.edited_in_atom_at,
     createdAt: a.created_at,
     history: events.map((e) => ({ id: String(e.id), type: e.type, note: e.note, data: e.data, at: e.created_at, actor: e.actor })),
+    sitsHere: await placeOccupants(db, a.place),
     permissions: { canManage: user.activeRole === 'SUPER_ADMIN' },
   };
 }
@@ -158,9 +159,52 @@ async function getAsset(user, tag) {
   return toDetail(pool, user, a);
 }
 
+// My assets: assigned to me, plus (Phase 8.2) equipment at my seat from the occupancy sheet —
+// at my cubicle, or shared in my room (a place with that room number and no cubicle).
+// Equipment someone else holds is left out.
+const toSeat = (o) => ({
+  roomNo: o.room_no, cubicle: o.cubicle || null, building: o.building, floor: o.floor,
+  department: o.department, intercom: o.intercom, didNo: o.did_no,
+});
+
+async function mySeats(db, userId) {
+  const { rows } = await db.query(
+    `SELECT * FROM place_occupants WHERE user_id = $1::bigint AND is_active ORDER BY room_no, cubicle`,
+    [userId]
+  );
+  return rows;
+}
+
 async function myAssets(user) {
   const { rows } = await pool.query(`${ASSET_SELECT} WHERE a.holder_user_id = $1::bigint AND a.status <> 'RETIRED' ORDER BY c.name, a.asset_tag`, [user.id]);
-  return rows.map(toSummary);
+  const seats = await mySeats(pool, user.id);
+  let roomAssets = [];
+  if (seats.length) {
+    const { rows: atSeat } = await pool.query(
+      `${ASSET_SELECT}
+        WHERE a.status <> 'RETIRED' AND (a.holder_user_id IS NULL)
+          AND EXISTS (SELECT 1 FROM place_occupants o
+                       WHERE o.user_id = $1::bigint AND o.is_active AND o.room_no = p.room_no
+                         AND COALESCE(p.cubicle, '') IN ('', o.cubicle))
+        ORDER BY p.room_no, p.cubicle NULLS FIRST, c.name, a.asset_tag`,
+      [user.id]
+    );
+    roomAssets = atSeat.map((a) => ({ ...toSummary(a), shared: !a.place?.cubicle }));
+  }
+  return { assets: rows.map(toSummary), seats: seats.map(toSeat), roomAssets };
+}
+
+// Who sits where this asset is (asset page). A cubicle → its occupants; a whole room → everyone in it.
+async function placeOccupants(db, place) {
+  if (!place?.room_no) return [];
+  const { rows } = await db.query(
+    `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name, u.its_number, u.employee_id, o.cubicle
+       FROM place_occupants o JOIN users u ON u.id = o.user_id
+      WHERE o.is_active AND u.is_active AND o.room_no = $1::text AND ($2::text = '' OR o.cubicle = $2::text)
+      ORDER BY o.cubicle, u.name LIMIT 21`,
+    [place.room_no, place.cubicle || '']
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name, itsNumber: r.its_number, employeeId: r.employee_id, cubicle: r.cubicle || null }));
 }
 
 // ---------- assets: change (Super Admin) ----------

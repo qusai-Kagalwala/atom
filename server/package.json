@@ -12,6 +12,7 @@
     "migrate": "node db/migrate.js",
     "seed:dev": "node db/seeds/001_dev_users.js",
     "sync:idarah": "node ../sync/run-idarah-sync.js",
+    "sync:occupancy": "node ../sync/run-occupancy-sync.js",
     "import:employees": "node ../sync/import-employee-ids.js",
     "check": "node scripts/check.js"
   },

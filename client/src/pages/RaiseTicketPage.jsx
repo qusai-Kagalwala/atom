@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, LoaderCircle, Send, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Bot, LoaderCircle, Send, UserRound, X } from 'lucide-react';
 import { getDefaultLocation, listCategories, raiseTicket } from '../api/requests';
 import { listUsers } from '../api/users';
 import { errorMessage } from '../api/http';
@@ -76,10 +76,18 @@ function PersonPicker({ value, onChange }) {
 export default function RaiseTicketPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Pre-filled from the AI assistant (Phase 12): category, title, what was said and tried.
+  const draft = useLocation().state?.draft || null;
   const isAdmin = user.activeRole === 'SUPER_ADMIN';
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories, staleTime: 10 * 60_000 });
 
-  const [form, setForm] = useState({ categoryId: '', title: '', description: '', location: '', priority: 'NORMAL' });
+  const [form, setForm] = useState({
+    categoryId: draft?.categoryId || '',
+    title: draft?.title || '',
+    description: draft?.description || '',
+    location: '',
+    priority: draft?.priority || 'NORMAL',
+  });
   const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [person, setPerson] = useState(null);
   const [locationEdited, setLocationEdited] = useState(false);
@@ -109,7 +117,15 @@ export default function RaiseTicketPage() {
     setBusy(true);
     setError('');
     try {
-      const t = await raiseTicket({ ...form, location, requesterId: forSomeoneElse ? person.id : undefined }, photos);
+      const t = await raiseTicket(
+        {
+          ...form,
+          location,
+          requesterId: forSomeoneElse ? person.id : undefined,
+          assistantSessionId: !forSomeoneElse ? draft?.assistantSessionId : undefined,
+        },
+        photos
+      );
       navigate(`/tickets/${t.number}`, { replace: true, state: { notice: `Ticket ${t.number} raised.` } });
     } catch (err) {
       setError(errorMessage(err, 'Could not raise the ticket.'));
@@ -124,6 +140,18 @@ export default function RaiseTicketPage() {
       </Link>
       <h1 className="mt-3 text-3xl">Raise a ticket</h1>
       <p className="mt-1 font-ui text-sm text-ink-2">Something not working? Tell AVIT what's wrong and where.</p>
+      {draft ? (
+        <div className="mt-4">
+          <Alert tone="info">
+            Filled in from the AI assistant — check it and add anything missing.
+            {draft.info?.length > 0 && ` Please include: ${draft.info.join(', ')}.`}
+          </Alert>
+        </div>
+      ) : (
+        <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+          <Bot size={16} aria-hidden="true" /> Try the AI assistant first — many problems are fixed in a minute
+        </Link>
+      )}
 
       {error && (
         <div className="mt-4">

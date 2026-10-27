@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Lock, LoaderCircle, MapPin, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Bot, Lock, LoaderCircle, MapPin, MessageSquare, Send } from 'lucide-react';
 import { addComment, eligibleEngineers, getTicket, listCategories, ticketAction, triageTicket } from '../api/requests';
 import { errorMessage } from '../api/http';
 import AuthImage from '../components/AuthImage';
@@ -20,6 +20,8 @@ import {
   statusBadge,
   statusLabel,
 } from '../utils/requests';
+
+const ASSISTANT_LANG = { en: 'English', ar: 'Arabic', hi: 'Hindi', gu: 'Gujarati' };
 
 const selectClass =
   'block min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
@@ -336,6 +338,17 @@ export default function TicketPage() {
         </dl>
 
         <p className="mt-4 whitespace-pre-wrap font-ui text-sm text-ink">{t.description}</p>
+
+        {t.assistant && (
+          <p className="mt-3 flex items-start gap-2 rounded-btn bg-primary-tint px-3 py-2 font-ui text-xs text-primary">
+            <Bot size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              Raised from the AI assistant ({ASSISTANT_LANG[t.assistant.language] || t.assistant.language})
+              {t.assistant.faq ? ` after trying “${t.assistant.faq.item} · ${t.assistant.faq.subItem}”` : ' — no FAQ matched'}
+              {t.assistant.usedGpt ? ' · GPT was used' : ''}.
+            </span>
+          </p>
+        )}
 
         {withTicket.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
