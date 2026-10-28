@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { CircleAlert, FileUp, LoaderCircle, Package, Plus, Search } from 'lucide-react';
-import { createAsset, listAssetCategories, listAssets } from '../api/inventory';
+import { CircleAlert, Download, FileUp, LoaderCircle, Package, Plus, Search } from 'lucide-react';
+import { createAsset, exportInventory, listAssetCategories, listAssets } from '../api/inventory';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import { CategoriesTab, PlacesTab, PlacePicker } from '../components/InventorySetup';
@@ -89,6 +89,8 @@ function AssetsTab({ isAdmin }) {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const [adding, setAdding] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState(null);
   const f = {
     q: params.get('q') || '',
     status: params.get('status') || '',
@@ -188,12 +190,38 @@ function AssetsTab({ isAdmin }) {
           {query.isSuccess && `${query.data.total} ${query.data.total === 1 ? 'asset' : 'assets'}`}
         </p>
         {isAdmin && (
-          <button type="button" className="btn-secondary" onClick={() => setAdding(true)}>
-            <Plus size={16} aria-hidden="true" /> Add asset
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true);
+                setExportMsg(null);
+                try {
+                  const r = await exportInventory({
+                    q: f.q || undefined, status: f.status || undefined, categoryId: f.categoryId || undefined,
+                    attention: f.attention || undefined, room: f.room || undefined,
+                  });
+                  setExportMsg({ tone: 'success', text: `${r.name} downloaded${r.rows != null ? ` (${r.rows} assets)` : ''}. Edit the white columns, then use “Import inventory file”.` });
+                } catch (err) {
+                  setExportMsg({ tone: 'error', text: errorMessage(err, 'Could not export.') });
+                } finally {
+                  setExporting(false);
+                }
+              }}
+            >
+              {exporting ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Export
+              {query.isSuccess && ` (${query.data.total})`}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => setAdding(true)}>
+              <Plus size={16} aria-hidden="true" /> Add asset
+            </button>
+          </div>
         )}
       </div>
 
+      {exportMsg && <Alert tone={exportMsg.tone}>{exportMsg.text}</Alert>}
       {query.isError && <Alert tone="error">Could not load assets.</Alert>}
       {query.isSuccess && !items.length && (
         <div className="card text-center">
@@ -266,9 +294,14 @@ export default function InventoryPage() {
           </p>
         </div>
         {isAdmin && (
-          <Link to="/inventory/import" className="btn-primary">
-            <FileUp size={18} aria-hidden="true" /> Import from Snipe-IT
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/inventory/import-file" className="btn-secondary">
+              <FileUp size={18} aria-hidden="true" /> Import inventory file
+            </Link>
+            <Link to="/inventory/import" className="btn-primary">
+              <FileUp size={18} aria-hidden="true" /> Import from Snipe-IT
+            </Link>
+          </div>
         )}
       </div>
       <Tabs tabs={TABS} value={tab} onChange={(v) => setParams(v === 'assets' ? {} : { tab: v })} />

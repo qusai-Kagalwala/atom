@@ -29,3 +29,27 @@ export function importSnipeit(file, { commit = false, keepAtomEdits = false, ski
   return http.post(`${base}/import`, form, { timeout: 300000 }).then((r) => r.data);
 }
 export const listImports = () => http.get(`${base}/imports`).then((r) => r.data.imports);
+
+// Inventory file (Super Admin): export the filtered list as .xlsx, edit it, import it back.
+export async function exportInventory(params) {
+  const r = await http.get(`${base}/export`, { params, responseType: 'blob', timeout: 300000 });
+  const name = /filename="([^"]+)"/.exec(r.headers['content-disposition'] || '')?.[1] || 'ATOM-inventory.xlsx';
+  const url = URL.createObjectURL(r.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return { name, rows: Number(r.headers['x-atom-rows']) || null };
+}
+export function importInventoryFile(file, { commit = false, overwrite = false, allowNew = true, skipErrors = false } = {}) {
+  const form = new FormData();
+  form.append('commit', String(commit));
+  form.append('overwrite', String(overwrite));
+  form.append('allowNew', String(allowNew));
+  form.append('skipErrors', String(skipErrors));
+  form.append('file', file);
+  return http.post(`${base}/import-file`, form, { timeout: 300000 }).then((r) => r.data);
+}

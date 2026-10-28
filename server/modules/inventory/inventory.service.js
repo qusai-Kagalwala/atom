@@ -76,7 +76,8 @@ function toSummary(a) {
   };
 }
 
-async function listAssets(f) {
+// WHERE clause for the asset list filters (shared with the inventory export).
+function assetFilter(f) {
   const params = [];
   const add = (v) => {
     params.push(v);
@@ -102,7 +103,11 @@ async function listAssets(f) {
   else if (f.attention === 'holder') where.push('a.holder_unknown');
   else if (f.attention === 'any') where.push('(a.serial_needs_check OR a.holder_unknown)');
 
-  const filter = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return { filter: where.length ? `WHERE ${where.join(' AND ')}` : '', params, add };
+}
+
+async function listAssets(f) {
+  const { filter, params, add } = assetFilter(f);
   const countParams = [...params];
   const limit = add(f.limit);
   const offset = add(f.offset);
@@ -533,6 +538,13 @@ async function listImports() {
 
 module.exports = {
   STATUSES,
+  ASSET_SELECT,
+  assetFilter,
+  readFields,
+  TEXT_FIELDS,
+  inTransaction,
+  markEdited,
+  addEvent,
   placeDetail,
   listAssets,
   getAsset,

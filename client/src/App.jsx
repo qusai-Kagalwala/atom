@@ -21,6 +21,7 @@ const CataloguePage = lazy(() => import('./pages/CataloguePage'));
 const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
 const FaqEditPage = lazy(() => import('./pages/FaqEditPage'));
 const FaqsPage = lazy(() => import('./pages/FaqsPage'));
+const InventoryFilePage = lazy(() => import('./pages/InventoryFilePage'));
 const InventoryImportPage = lazy(() => import('./pages/InventoryImportPage'));
 const InventoryPage = lazy(() => import('./pages/InventoryPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -83,6 +84,7 @@ export default function App() {
             <Route path="/sync" element={<SyncStatusPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/inventory/import" element={<InventoryImportPage />} />
+            <Route path="/inventory/import-file" element={<InventoryFilePage />} />
             <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/catalogue" element={<CataloguePage />} />
             <Route path="/faqs" element={<FaqsPage />} />

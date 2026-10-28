@@ -18,6 +18,8 @@
 //     POST  /places {…} · PATCH /places/:id {…, isActive?}
 //     POST  /import   multipart: file (.csv), commit?, keepAtomEdits?, skipErrors?   → report
 //     GET   /imports                                                              → { imports }
+//     GET   /export?q=&status=&categoryId=&attention=&room=   → .xlsx (filtered list; edit and import back)
+//     POST  /import-file  multipart: file (.xlsx from /export), commit?, overwrite?, allowNew?, skipErrors? → report
 // Out of role = 404.
 const express = require('express');
 const multer = require('multer');
@@ -27,6 +29,7 @@ const { HttpError } = require('../../utils/httpError');
 const { MAX_BYTES } = require('../../utils/csv');
 const svc = require('./inventory.service');
 const { runSnipeitImport } = require('./snipeitImport');
+const inventoryFile = require('./inventoryFile');
 
 const handle = (fn) => async (req, res, next) => {
   const err = validationResult(req).array({ onlyFirstError: true })[0];
@@ -53,6 +56,21 @@ function csvField(req, res, next) {
     if (!err) return next();
     if (err instanceof HttpError) return next(err);
     if (err.code === 'LIMIT_FILE_SIZE') return next(new HttpError(400, 'The CSV must be 20 MB or smaller.', 'file_too_large'));
+    return next(new HttpError(400, 'Could not read the upload.', 'bad_upload'));
+  });
+}
+
+const xlsxUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_BYTES, files: 1, fields: 10 },
+  fileFilter: (req, file, cb) =>
+    /\.xlsx$/i.test(file.originalname || '') ? cb(null, true) : cb(new HttpError(400, 'Choose the .xlsx file exported from ATOM.', 'bad_file_type')),
+});
+function xlsxField(req, res, next) {
+  xlsxUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof HttpError) return next(err);
+    if (err.code === 'LIMIT_FILE_SIZE') return next(new HttpError(400, 'The file must be 20 MB or smaller.', 'file_too_large'));
     return next(new HttpError(400, 'Could not read the upload.', 'bad_upload'));
   });
 }
@@ -138,6 +156,46 @@ function createInventoryRouter() {
         userId: req.user.id,
       });
       res.json(report);
+    })
+  );
+  // Inventory file: export (Super Admin) → edit → import back.
+  router.get(
+    '/export',
+    admin,
+    query('status').optional({ values: 'falsy' }).isIn([...svc.STATUSES, 'all']).withMessage('Bad status.'),
+    query('attention').optional({ values: 'falsy' }).isIn(['serial', 'holder', 'any']).withMessage('Bad filter.'),
+    query('categoryId').optional({ values: 'falsy' }).matches(/^\d{1,18}$/).withMessage('Bad category.'),
+    query('room').optional({ values: 'falsy' }).isLength({ max: 20 }).withMessage('Bad room.'),
+    query('q').optional().isString().isLength({ max: 100 }).withMessage('Search is too long.'),
+    handle(async (req, res) => {
+      const filters = {};
+      for (const k of ['q', 'status', 'categoryId', 'attention', 'room']) if (req.query[k]) filters[k] = String(req.query[k]);
+      const out = await inventoryFile.exportInventory(req.user, filters);
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${out.fileName}"`,
+        'Cache-Control': 'no-store',
+        'X-Atom-Rows': String(out.rows),
+      });
+      res.send(out.buffer);
+    })
+  );
+  router.post(
+    '/import-file',
+    admin,
+    xlsxField,
+    handle(async (req, res) => {
+      if (!req.file) throw new HttpError(400, 'Choose the inventory .xlsx file exported from ATOM.', 'no_file');
+      res.json(
+        await inventoryFile.importInventory(req.file.buffer, {
+          commit: yes(req.body?.commit),
+          overwrite: yes(req.body?.overwrite),
+          allowNew: req.body?.allowNew !== 'false',
+          skipErrors: yes(req.body?.skipErrors),
+          fileName: String(req.file.originalname || '').slice(0, 200),
+          userId: req.user.id,
+        })
+      );
     })
   );
   router.get('/imports', admin, handle(async (req, res) => res.json({ imports: await svc.listImports() })));
