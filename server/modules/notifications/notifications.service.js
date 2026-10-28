@@ -6,6 +6,9 @@
 //   start / wait_user / wait_equipment / resume → the requester
 //   resolve           → the requester · Super Admins ("ready to close")
 //   close / reject    → the requester · the assigned engineer
+//   Service requests (Phase 9):
+//   items_decided     → the requester (how many items approved / rejected)
+//   item_delivered    → the requester ("Headset delivered")
 //   public comment    → the requester wrote it: the engineer (or Super Admins if none yet)
 //                       anyone else wrote it:   the requester (+ the engineer if someone else wrote it)
 //   internal note     → the engineer, when someone else wrote it. Never the requester.
@@ -38,7 +41,7 @@ function planTicket(ticket, e) {
 
   switch (e.kind) {
     case 'created':
-      toAdmins(`New ticket ${num}`, short(ticket.title));
+      toAdmins(ticket.type === 'SERVICE_REQUEST' ? `New request ${num} to approve` : `New ticket ${num}`, short(ticket.title));
       if (e.raisedFor) toRequester(`${num} was raised for you`, short(ticket.title));
       break;
     case 'assign':
@@ -61,8 +64,22 @@ function planTicket(ticket, e) {
       toRequester(`Work resumed on ${num}`, short(ticket.title));
       break;
     case 'resolve':
-      toRequester(`${num} is resolved`, short(e.note) || short(ticket.title));
-      toAdmins(`${num} resolved, ready to close`, short(ticket.title));
+      if (ticket.type === 'SERVICE_REQUEST') {
+        toRequester(`${num} is delivered`, short(ticket.title));
+        toAdmins(`${num} delivered, ready to close`, short(ticket.title));
+      } else {
+        toRequester(`${num} is resolved`, short(e.note) || short(ticket.title));
+        toAdmins(`${num} resolved, ready to close`, short(ticket.title));
+      }
+      break;
+    case 'items_decided':
+      toRequester(
+        e.approved ? `${num}: ${e.approved} approved${e.rejected ? `, ${e.rejected} not approved` : ''}` : `${num} was not approved`,
+        short(e.note) || short(ticket.title)
+      );
+      break;
+    case 'item_delivered':
+      toRequester(`${num}: ${short(e.itemName, 60)} delivered`, short(e.note));
       break;
     case 'close':
       toRequester(`${num} is closed`, short(ticket.title));

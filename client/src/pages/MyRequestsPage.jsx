@@ -40,9 +40,14 @@ export default function MyRequestsPage() {
           <h1 className="mt-1 text-3xl">My tickets &amp; requests</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">Everything you've raised, and anything raised on your behalf.</p>
         </div>
-        <Link to="/assistant" className="btn-primary">
-          <Plus size={18} aria-hidden="true" /> Raise a ticket
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/request" className="btn-secondary">
+            <Plus size={18} aria-hidden="true" /> Request something
+          </Link>
+          <Link to="/assistant" className="btn-primary">
+            <Plus size={18} aria-hidden="true" /> Raise a ticket
+          </Link>
+        </div>
       </div>
 
       <div className="mt-5 flex gap-1 border-b border-line" role="tablist">
@@ -95,7 +100,7 @@ export default function MyRequestsPage() {
                     </p>
                     <p className="mt-0.5 truncate font-ui font-medium text-ink">{t.title}</p>
                   </div>
-                  <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester: forMe })}</span>
+                  <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester: forMe, type: t.type })}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-ui text-xs text-ink-2">
                   {t.priority !== 'NORMAL' && <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>}

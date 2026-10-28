@@ -41,7 +41,7 @@ export default function RequestList({ query, emptyText = 'Nothing here.', render
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {t.priority !== 'NORMAL' && <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>}
-                <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester: false })}</span>
+                <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester: false, type: t.type })}</span>
               </div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-ui text-xs text-ink-2">

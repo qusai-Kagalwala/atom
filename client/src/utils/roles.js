@@ -3,7 +3,9 @@ import {
   BarChart3,
   Bell,
   Bot,
+  Boxes,
   CircleHelp,
+  ClipboardList,
   FileDown,
   House,
   Package,
@@ -12,7 +14,10 @@ import {
   RefreshCw,
   ShieldCheck,
   ShoppingCart,
+  Store,
   Ticket,
+  Tickets,
+  UserCheck,
   Users,
 } from 'lucide-react';
 import rolesData from '@shared/roles.json';
@@ -20,8 +25,8 @@ import rolesData from '@shared/roles.json';
 export const ROLES = rolesData.roles;
 
 const ICONS = {
-  BarChart3, Bell, Bot, CircleHelp, FileDown, House, Package, PackagePlus,
-  Receipt, RefreshCw, ShieldCheck, ShoppingCart, Ticket, Users,
+  BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, House, Package, PackagePlus,
+  Receipt, RefreshCw, ShieldCheck, ShoppingCart, Store, Ticket, Tickets, UserCheck, Users,
 };
 
 // Nav items for the ACTIVE role, in order. UI only — the server decides access.
@@ -30,6 +35,20 @@ export function navForRole(role) {
     const item = rolesData.navItems[key];
     return { key, ...item, Icon: ICONS[item.icon] || CircleHelp };
   });
+}
+
+// Sidebar sections (28 Oct 2026): Engineers and Super Admins get "Personal" (their own tickets,
+// requests, assets) and "Work" (queues and admin pages), each collapsible. Employees: one plain list.
+const PERSONAL = new Set(rolesData.navPersonal);
+export function navSectionsForRole(role) {
+  const items = navForRole(role);
+  const personal = items.filter((i) => PERSONAL.has(i.key));
+  const work = items.filter((i) => !PERSONAL.has(i.key));
+  if (!work.length) return [{ key: null, label: null, items }];
+  return [
+    { key: 'personal', label: 'Personal', items: personal },
+    { key: 'work', label: 'Work', items: work },
+  ];
 }
 
 export function roleLabel(role) {

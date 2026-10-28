@@ -34,3 +34,12 @@ export const listEngineers = () => http.get('/requests/engineers').then((r) => r
 export const listWorkQueue = (params) => http.get('/requests/queue/work', { params }).then((r) => r.data);
 export const listAssignQueue = (params) => http.get('/requests/queue/assign', { params }).then((r) => r.data);
 export const listAllRequests = (params) => http.get('/requests/all', { params }).then((r) => r.data);
+
+// Phase 9: catalogue + service requests.
+export const listCatalogue = (includeInactive) =>
+  http.get('/requests/catalogue', { params: includeInactive ? { includeInactive: 1 } : {} }).then((r) => r.data.items);
+export const createCatalogueItem = (body) => http.post('/requests/catalogue', body).then((r) => r.data.item);
+export const updateCatalogueItem = (id, body) => http.patch(`/requests/catalogue/${id}`, body).then((r) => r.data.item);
+export const raiseServiceRequest = (body) => http.post('/requests/service', body).then((r) => r.data.request);
+export const decideItems = (number, decisions) => http.post(`/requests/${number}/items/decide`, { decisions }).then((r) => r.data.request);
+export const deliverItem = (number, itemId, body) => http.post(`/requests/${number}/items/${itemId}/deliver`, body).then((r) => r.data.request);

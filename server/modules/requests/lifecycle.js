@@ -4,6 +4,10 @@
 //   OPEN → ASSIGNED → IN_PROGRESS ⇄ WAITING_FOR_USER / WAITING_FOR_EQUIPMENT → RESOLVED → CLOSED
 //   REJECTED from any non-final stage (note required). CLOSED and REJECTED are final — no reopening.
 //
+//   Service requests (Phase 9) start at PENDING_APPROVAL: the Super Admin approves / rejects each
+//   item (any approved → OPEN, all rejected → REJECTED). They are not "resolved" by hand: the
+//   request becomes RESOLVED ("Delivered") when the last approved item is delivered.
+//
 //   Super Admin (active role): everything.
 //   Engineer (active role) assigned to the ticket: start, wait, resume, resolve.
 //   Everyone in scope: comment (until final). Only Super Admin assigns, closes, rejects,
@@ -24,7 +28,7 @@ const ACTIONS = {
   resume: { to: 'IN_PROGRESS', from: new Set(['WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT']), who: 'worker' },
   resolve: { to: 'RESOLVED', from: WORKING, who: 'worker', noteRequired: 'Describe the fix.' },
   close: { to: 'CLOSED', from: new Set(['RESOLVED']), who: 'admin' },
-  reject: { to: 'REJECTED', from: new Set([...ASSIGNABLE, 'RESOLVED']), who: 'admin', noteRequired: 'Enter a rejection note.' },
+  reject: { to: 'REJECTED', from: new Set(['PENDING_APPROVAL', ...ASSIGNABLE, 'RESOLVED']), who: 'admin', noteRequired: 'Enter a rejection note.' },
 };
 
 const ACTION_KEYS = Object.keys(ACTIONS);
@@ -36,6 +40,7 @@ const isAssignedEngineer = (user, req) => user?.activeRole === 'ENGINEER' && sam
 function canDo(user, req, action) {
   const rule = ACTIONS[action];
   if (!rule || !rule.from.has(req.status)) return false;
+  if (action === 'resolve' && req.type === 'SERVICE_REQUEST') return false; // delivered item by item
   if (isAdmin(user)) return true;
   return rule.who === 'worker' && isAssignedEngineer(user, req);
 }
@@ -47,12 +52,19 @@ function allowedActions(user, req) {
 const canComment = (user, req) => !FINAL.has(req.status) && Boolean(user);
 const canSeeInternal = (user, req) => isAdmin(user) || isAssignedEngineer(user, req);
 const canEditTriage = (user, req) => isAdmin(user) && !FINAL.has(req.status); // priority / category
+// Service requests: decide items (Super Admin, while waiting for approval) · deliver approved items.
+const canDecideItems = (user, req) => req.type === 'SERVICE_REQUEST' && isAdmin(user) && req.status === 'PENDING_APPROVAL';
+const canDeliverItems = (user, req) =>
+  req.type === 'SERVICE_REQUEST' && WORKING.has(req.status) && (isAdmin(user) || isAssignedEngineer(user, req));
 
 // Throws 409 for a wrong stage (the ticket moved on), 404 when the role can't act at all.
 function assertAllowed(user, req, action) {
   const rule = ACTIONS[action];
   if (!rule) throw new HttpError(400, 'Unknown action.', 'bad_action');
   if (canDo(user, req, action)) return rule;
+  if (action === 'resolve' && req.type === 'SERVICE_REQUEST') {
+    throw new HttpError(409, 'A service request is delivered item by item.', 'deliver_items');
+  }
   if (!rule.from.has(req.status) && (isAdmin(user) || (rule.who === 'worker' && isAssignedEngineer(user, req)))) {
     throw new HttpError(409, 'This ticket has moved on — refresh to see its current status.', 'wrong_status');
   }
@@ -75,5 +87,7 @@ module.exports = {
   canComment,
   canSeeInternal,
   canEditTriage,
+  canDecideItems,
+  canDeliverItems,
   nextStatus,
 };

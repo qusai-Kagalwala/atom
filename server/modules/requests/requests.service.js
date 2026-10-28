@@ -3,6 +3,7 @@
 // Phase 13: notifications are written in the same transaction and pushed after COMMIT.
 const pool = require('../../db/pool');
 const repo = require('./requests.repo');
+const itemsRepo = require('./requestItems.repo');
 const lifecycle = require('./lifecycle');
 const files = require('./attachments');
 const notifications = require('../notifications/notifications.service');
@@ -119,6 +120,8 @@ async function toDetail(db, user, r) {
       })),
     // Invoices: Super Admins and the assigned engineer only (requesters never see them).
     invoices: seeInternal ? await invoices.forRequest(db, r.id) : undefined,
+    // Service requests (Phase 9): the items and their decisions / deliveries.
+    items: r.type === 'SERVICE_REQUEST' ? (await itemsRepo.listItems(db, r.id)).map(itemsRepo.toItem) : undefined,
     // What happened in the AI assistant before this ticket (Phase 12).
     assistant: await assistant.forRequest(db, r.id),
     permissions: {
@@ -128,6 +131,8 @@ async function toDetail(db, user, r) {
       canComment: lifecycle.canComment(user, r),
       canAddInternalNote: seeInternal && lifecycle.canComment(user, r),
       canEditTriage: lifecycle.canEditTriage(user, r),
+      canDecideItems: lifecycle.canDecideItems(user, r),
+      canDeliverItems: lifecycle.canDeliverItems(user, r),
       canAddPhotos: lifecycle.canComment(user, r) && attachments.length < files.MAX_FILES_PER_TICKET,
       photosLeft: Math.max(0, files.MAX_FILES_PER_TICKET - attachments.length),
     },
@@ -420,7 +425,8 @@ async function getAttachmentFile(user, numberParam, attachmentId) {
 
 // ---------- queues & "All tickets" (Phase 7) ----------
 const STATUS_GROUPS = {
-  open: ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED'],
+  approval: ['PENDING_APPROVAL'],
+  open: ['PENDING_APPROVAL', 'OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED'],
   unassigned: ['OPEN'],
   active: ['ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT'],
   to_start: ['ASSIGNED'],
@@ -478,12 +484,14 @@ async function listAll(user, f) {
   if (f.categoryId && !/^\d{1,18}$/.test(f.categoryId)) throw bad('Unknown category.', 'bad_category');
   if (f.engineerId && f.engineerId !== 'none' && !/^\d{1,18}$/.test(f.engineerId)) throw bad('Unknown engineer.', 'bad_engineer');
   if (f.sort && !['updated', 'priority', 'oldest'].includes(f.sort)) throw bad('Unknown sort.', 'bad_sort');
+  if (f.type && !['TICKET', 'SERVICE_REQUEST'].includes(f.type)) throw bad('Unknown type.', 'bad_type');
 
   const { rows, total } = await repo.listRequests(pool, recordScopeSql(user, 'r', 1), {
     statuses: STATUS_GROUPS[f.status || 'open'],
     priority: f.priority || null,
     categoryId: f.categoryId || null,
     engineerId: f.engineerId || null,
+    type: f.type || null,
     q: f.q ? String(f.q).trim().slice(0, 100) : null,
     sort: f.sort || 'updated',
     limit: f.limit,
@@ -497,7 +505,7 @@ async function queueCounts(user) {
   if (!['ENGINEER', 'SUPER_ADMIN'].includes(user.activeRole)) return {};
   const c = await repo.queueCounts(pool, user.id);
   return user.activeRole === 'SUPER_ADMIN'
-    ? { workQueue: c.work, assignQueue: c.unassigned, toClose: c.to_close }
+    ? { workQueue: c.work, assignQueue: c.unassigned, toClose: c.to_close, approvals: c.approvals }
     : { workQueue: c.work };
 }
 
@@ -515,6 +523,11 @@ async function eligibleEngineers(user, numberParam) {
 }
 
 module.exports = {
+  inTransaction,
+  loadInScope,
+  toDetail,
+  ALL_PRIORITIES,
+  REQUESTER_PRIORITIES,
   getTicket,
   listMine,
   listCategories,

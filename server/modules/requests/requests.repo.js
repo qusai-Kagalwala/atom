@@ -241,7 +241,7 @@ const SORTS = {
 
 async function listRequests(db, scope, f) {
   const params = [...scope.params];
-  const where = [scope.clause, `r.type = 'TICKET'`];
+  const where = [scope.clause];
   // Every "?" in `sql` becomes the same new placeholder.
   const add = (sql, value) => {
     params.push(value);
@@ -249,6 +249,7 @@ async function listRequests(db, scope, f) {
   };
 
   if (f.statuses?.length) add('r.status = ANY(?::request_status[])', f.statuses);
+  if (f.type) add('r.type = ?::request_type', f.type);
   if (f.priority) add('r.priority = ?::request_priority', f.priority);
   if (f.categoryId) add('r.category_id = ?::bigint', f.categoryId);
   if (f.engineerId === 'none') where.push('r.assigned_engineer_id IS NULL');
@@ -294,8 +295,9 @@ async function queueCounts(db, userId) {
        count(*) FILTER (WHERE assigned_engineer_id = $1::bigint
                           AND status IN ('ASSIGNED','IN_PROGRESS','WAITING_FOR_USER','WAITING_FOR_EQUIPMENT'))::int AS work,
        count(*) FILTER (WHERE status = 'OPEN')::int AS unassigned,
-       count(*) FILTER (WHERE status = 'RESOLVED')::int AS to_close
-       FROM requests WHERE type = 'TICKET'`,
+       count(*) FILTER (WHERE status = 'RESOLVED')::int AS to_close,
+       count(*) FILTER (WHERE status = 'PENDING_APPROVAL')::int AS approvals
+       FROM requests`,
     [userId]
   );
   return rows[0];

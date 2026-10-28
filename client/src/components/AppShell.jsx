@@ -1,14 +1,14 @@
 import { Suspense, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { LoaderCircle, Menu, X } from 'lucide-react';
+import { ChevronDown, LoaderCircle, Menu, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
 import useAuth from '../hooks/useAuth';
 import useLiveUpdates from '../hooks/useLiveUpdates';
 import useUnreadCount from '../hooks/useUnreadCount';
 import NotificationBell from './NotificationBell';
 import Toasts from './Toasts';
-import { navForRole } from '../utils/roles';
+import { navSectionsForRole } from '../utils/roles';
 import UserMenu from './UserMenu';
 
 const linkClass = ({ isActive }) =>
@@ -32,20 +32,64 @@ function useNavCounts(role) {
   return { ...(enabled && data ? data : {}), notifications };
 }
 
-function SideNav({ items, counts, onNavigate }) {
+const SECTIONS_KEY = 'atom.nav.sections';
+function readOpen() {
+  try {
+    return { personal: true, work: true, ...JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') };
+  } catch {
+    return { personal: true, work: true };
+  }
+}
+
+function NavItems({ items, counts, onNavigate }) {
+  return items.map(({ key, label, path, Icon }) => (
+    <NavLink key={key} to={path} end={path === '/'} className={linkClass} onClick={onNavigate}>
+      <Icon size={20} aria-hidden="true" className="shrink-0" />
+      <span className="truncate">{label}</span>
+      {counts[key] > 0 && (
+        <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} ${key === 'notifications' ? 'unread' : 'waiting'}`}>
+          {counts[key] > 99 ? '99+' : counts[key]}
+        </span>
+      )}
+    </NavLink>
+  ));
+}
+
+// Engineers / Super Admins: "Personal" and "Work", each opens and closes on its own (both can be
+// open); remembered on this device. A closed section shows the total of its counts.
+function SideNav({ sections, counts, onNavigate, open, onToggle }) {
   return (
     <nav aria-label="Main" className="flex flex-col gap-1 p-3">
-      {items.map(({ key, label, path, Icon }) => (
-        <NavLink key={key} to={path} end={path === '/'} className={linkClass} onClick={onNavigate}>
-          <Icon size={20} aria-hidden="true" className="shrink-0" />
-          <span className="truncate">{label}</span>
-          {counts[key] > 0 && (
-            <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} ${key === 'notifications' ? 'unread' : 'waiting'}`}>
-              {counts[key] > 99 ? '99+' : counts[key]}
-            </span>
-          )}
-        </NavLink>
-      ))}
+      {sections.map((sec) => {
+        if (!sec.key) return <NavItems key="all" items={sec.items} counts={counts} onNavigate={onNavigate} />;
+        const isOpen = open[sec.key] !== false;
+        const total = sec.items.reduce((n, i) => n + (counts[i.key] > 0 ? counts[i.key] : 0), 0);
+        const id = `nav-${sec.key}`;
+        return (
+          <div key={sec.key} className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => onToggle(sec.key)}
+              aria-expanded={isOpen}
+              aria-controls={id}
+              className="mt-1 flex min-h-tap items-center gap-2 rounded-btn px-3 font-ui text-xs font-semibold uppercase tracking-wider text-gold-light hover:bg-white/5"
+            >
+              <span>{sec.label}</span>
+              {!isOpen && total > 0 && (
+                <span className="rounded-full bg-gold px-2 py-0.5 text-xs font-bold normal-case text-gold-on" aria-label={`${total} waiting`}>
+                  {total > 99 ? '99+' : total}
+                </span>
+              )}
+              <ChevronDown size={16} aria-hidden="true" className={`ml-auto transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+            </button>
+            {isOpen && (
+              <div id={id} className="flex flex-col gap-1">
+                <NavItems items={sec.items} counts={counts} onNavigate={onNavigate} />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -54,8 +98,19 @@ function SideNav({ items, counts, onNavigate }) {
 export default function AppShell() {
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const items = navForRole(user.activeRole);
+  const sections = navSectionsForRole(user.activeRole);
   const counts = useNavCounts(user.activeRole);
+  const [open, setOpen] = useState(readOpen);
+  const toggle = (key) =>
+    setOpen((o) => {
+      const next = { ...o, [key]: o[key] === false };
+      try {
+        localStorage.setItem(SECTIONS_KEY, JSON.stringify(next));
+      } catch {
+        /* storage blocked */
+      }
+      return next;
+    });
   useLiveUpdates();
   const year = new Date().getFullYear();
 
@@ -68,7 +123,7 @@ export default function AppShell() {
           <span className="font-display text-2xl font-bold leading-none text-white">ATOM</span>
         </div>
         <div className="scrollbar-nav min-h-0 flex-1 overflow-y-auto">
-          <SideNav items={items} counts={counts} />
+          <SideNav sections={sections} counts={counts} open={open} onToggle={toggle} />
         </div>
       </aside>
 
@@ -93,7 +148,7 @@ export default function AppShell() {
                 <X size={20} />
               </button>
             </div>
-            <SideNav items={items} counts={counts} onNavigate={() => setDrawerOpen(false)} />
+            <SideNav sections={sections} counts={counts} open={open} onToggle={toggle} onNavigate={() => setDrawerOpen(false)} />
           </aside>
         </div>
       )}

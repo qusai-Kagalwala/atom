@@ -12,6 +12,13 @@
     }
   },
   "requestStatuses": {
+    "PENDING_APPROVAL": {
+      "key": "PENDING_APPROVAL",
+      "label": "Waiting for approval",
+      "order": 0,
+      "final": false,
+      "badge": "status-waiting"
+    },
     "OPEN": {
       "key": "OPEN",
       "label": "Open",

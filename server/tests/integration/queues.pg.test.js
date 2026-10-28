@@ -131,7 +131,7 @@ maybe('queues and All tickets on real PostgreSQL', () => {
 
   test('counts for sidebar badges follow the active role', async () => {
     await admin.act('T-1001', 'assign', { engineerId: ids.eng1 });
-    expect((await admin.get('/counts')).body.counts).toEqual({ workQueue: 0, assignQueue: 3, toClose: 0 });
+    expect((await admin.get('/counts')).body.counts).toEqual({ workQueue: 0, assignQueue: 3, toClose: 0, approvals: 0 });
     expect((await eng1.get('/counts')).body.counts).toEqual({ workQueue: 1 });
     expect((await alice.get('/counts')).body.counts).toEqual({});
   });

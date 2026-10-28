@@ -17,13 +17,20 @@
 //   GET    /engineers                      Super Admin: engineers tagged to AVIT
 //   GET    /queue/work?group=active|to_start|in_progress|waiting|resolved   Engineer / Super Admin: assigned to me
 //   GET    /queue/assign?view=unassigned|to_close                          Super Admin
-//   GET    /all?q=&status=&priority=&categoryId=&engineerId=(id|none)&sort=  Super Admin
+//   GET    /all?q=&status=&priority=&categoryId=&engineerId=(id|none)&type=TICKET|SERVICE_REQUEST&sort=  Super Admin
+// Phase 9 (service requests):
+//   GET    /catalogue?includeInactive=1          catalogue (inactive: Super Admin)          → { items }
+//   POST   /catalogue · PATCH /catalogue/:id     Super Admin                                → { item }
+//   POST   /service   { items: [{ catalogueItemId? | name, quantity, reason }], location?, priority?, requesterId? } → 201 { request }
+//   POST   /:number/items/decide   { decisions: [{ itemId, decision: approve|reject, note? }] }  Super Admin → { request }
+//   POST   /:number/items/:itemId/deliver   { note?, assetTags? }   assigned engineer / Super Admin → { request }
 const express = require('express');
 const { query, validationResult } = require('express-validator');
-const { requireAuth } = require('../../middleware/requireAuth');
+const { requireAuth, requireRole } = require('../../middleware/requireAuth');
 const { photosField } = require('./attachments');
 const lifecycle = require('./lifecycle');
 const svc = require('./requests.service');
+const sr = require('./serviceRequests.service');
 
 const handle = (fn) => async (req, res, next) => {
   const err = validationResult(req).array({ onlyFirstError: true })[0];
@@ -105,8 +112,8 @@ function createRequestsRouter() {
     ...paging,
     handle(async (req, res) => {
       const p = pageOf(req);
-      const { q, status, priority, categoryId, engineerId, sort } = req.query;
-      const result = await svc.listAll(req.user, { q, status, priority, categoryId, engineerId, sort, ...p });
+      const { q, status, priority, categoryId, engineerId, type, sort } = req.query;
+      const result = await svc.listAll(req.user, { q, status, priority, categoryId, engineerId, type, sort, ...p });
       res.json({ ...result, page: p.page, pageSize: p.pageSize });
     })
   );
@@ -118,6 +125,18 @@ function createRequestsRouter() {
       const request = await svc.createTicket(req.user, req.body || {}, req.files || []);
       res.status(201).json({ request });
     })
+  );
+
+  // ---------- Phase 9: catalogue + service requests ----------
+  const admin = requireRole('SUPER_ADMIN');
+  router.get('/catalogue', handle(async (req, res) => res.json({ items: await sr.listCatalogue(req.user, { includeInactive: req.query.includeInactive === '1' }) })));
+  router.post('/catalogue', admin, handle(async (req, res) => res.status(201).json({ item: await sr.createCatalogueItem(req.user, req.body || {}) })));
+  router.patch('/catalogue/:id', admin, handle(async (req, res) => res.json({ item: await sr.updateCatalogueItem(req.user, req.params.id, req.body || {}) })));
+  router.post('/service', handle(async (req, res) => res.status(201).json({ request: await sr.createServiceRequest(req.user, req.body || {}) })));
+  router.post('/:number/items/decide', handle(async (req, res) => res.json({ request: await sr.decideItems(req.user, req.params.number, req.body || {}) })));
+  router.post(
+    '/:number/items/:itemId/deliver',
+    handle(async (req, res) => res.json({ request: await sr.deliverItem(req.user, req.params.number, req.params.itemId, req.body || {}) }))
   );
 
   router.get('/:number', handle(async (req, res) => res.json({ request: await svc.getTicket(req.user, req.params.number) })));

@@ -9,6 +9,7 @@ import { Alert, Field } from '../components/FormControls';
 import Modal from '../components/Modal';
 import PhotoPicker from '../components/PhotoPicker';
 import TicketInvoices from '../components/TicketInvoices';
+import ServiceItems from '../components/ServiceItems';
 import useAuth from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
 import {
@@ -176,6 +177,7 @@ function CommentBox({ ticket, onDone }) {
 }
 
 function Triage({ ticket, onDone }) {
+  const isService = ticket.type === 'SERVICE_REQUEST';
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories, staleTime: 10 * 60_000 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -203,15 +205,17 @@ function Triage({ ticket, onDone }) {
           ))}
         </select>
       </Field>
-      <Field id="tri-category" label="Category">
-        <select id="tri-category" className={selectClass} value={ticket.categoryId || ''} disabled={busy} onChange={(e) => change({ categoryId: e.target.value })}>
-          {(categories.data || []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {!isService && (
+        <Field id="tri-category" label="Category">
+          <select id="tri-category" className={selectClass} value={ticket.categoryId || ''} disabled={busy} onChange={(e) => change({ categoryId: e.target.value })}>
+            {(categories.data || []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       {error && (
         <div className="sm:col-span-2">
           <Alert tone="error">{error}</Alert>
@@ -238,6 +242,7 @@ function Photo({ a, onOpen }) {
 const BACK_LABELS = [
   ['/work-queue', 'My work queue'],
   ['/assign', 'Assign queue'],
+  ['/approvals', 'Approvals'],
   ['/all', 'All tickets & requests'],
   ['/notifications', 'Notifications'],
   ['/invoices', 'Invoices'],
@@ -301,12 +306,12 @@ export default function TicketPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-ui text-xs tabular-nums text-ink-3">
-              {t.number} · {t.category || 'No category'}
+              {t.number} · {t.type === 'SERVICE_REQUEST' ? 'Service request' : t.category || 'No category'}
             </p>
             <h1 className="mt-1 text-2xl sm:text-3xl">{t.title}</h1>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester })}</span>
+            <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester, type: t.type })}</span>
             <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>
           </div>
         </div>
@@ -361,7 +366,7 @@ export default function TicketPage() {
         {t.status === 'RESOLVED' && t.resolution && (
           <div className="mt-4">
             <Alert tone="success">
-              <strong>Fix:</strong> {t.resolution}
+              <strong>{t.type === 'SERVICE_REQUEST' ? 'Delivered:' : 'Fix:'}</strong> {t.resolution}
             </Alert>
           </div>
         )}
@@ -383,6 +388,8 @@ export default function TicketPage() {
           </div>
         )}
       </header>
+
+      {t.items && <ServiceItems ticket={t} onDone={done} />}
 
       {t.invoices && (
         <TicketInvoices
