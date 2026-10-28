@@ -1,6 +1,6 @@
 // SQL for Super Admin user management. Every function takes `db` (the pool or a transaction client).
 // Never selects legacy_password.
-const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
+const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
 
 const USER_COLUMNS = `u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic,
   u.email, u.mobile, u.source, u.is_active, u.must_change_password, u.created_at`;
@@ -12,16 +12,20 @@ const USER_DEPT_IDS = `(SELECT p.department_id FROM user_posts p WHERE p.user_id
 // LIKE pattern from user input: escape the wildcards, match anywhere.
 const likePattern = (q) => `%${String(q).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-async function listUsers(db, { q, role, active, source, limit, offset }) {
+async function listUsers(db, { q, role, active, source, companyId, limit, offset }) {
   const pattern = q ? likePattern(q) : null;
   const { rows } = await db.query(
     `SELECT ${USER_COLUMNS},
             COALESCE((SELECT array_agg(r.role::text ORDER BY r.role) FROM user_roles r WHERE r.user_id = u.id), '{}') AS roles,
+            sc.code AS company_code, sc.name AS company_name, o.name AS occupation_name,
             COALESCE((SELECT array_agg(DISTINCT d.name ORDER BY d.name)
                         FROM departments d
                        WHERE d.id IN ${USER_DEPT_IDS} AND d.name IS NOT NULL), '{}') AS departments,
             count(*) OVER () AS total
        FROM users u
+       LEFT JOIN user_company uc ON uc.user_id = u.id
+       LEFT JOIN service_units sc ON sc.id = uc.service_unit_id
+       LEFT JOIN occupations o ON o.id = uc.occupation_id
       WHERE ($1::text IS NULL
              OR u.name ILIKE $1 OR u.name_arabic ILIKE $1
              OR u.its_number LIKE $1 OR u.employee_id LIKE $1
@@ -32,9 +36,10 @@ async function listUsers(db, { q, role, active, source, limit, offset }) {
         AND ($2::app_role IS NULL OR EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = $2::app_role))
         AND ($3::boolean IS NULL OR u.is_active = $3::boolean)
         AND ($4::user_source IS NULL OR u.source = $4::user_source)
+        AND ($7::bigint IS NULL OR uc.service_unit_id = $7::bigint)
       ORDER BY u.name IS NULL, lower(u.name), length(u.employee_id), u.employee_id, u.its_number, u.id
       LIMIT $5::int OFFSET $6::int`,
-    [pattern, role || null, active ?? null, source || null, limit, offset]
+    [pattern, role || null, active ?? null, source || null, limit, offset, companyId || null]
   );
   return { rows, total: rows.length ? Number(rows[0].total) : 0 };
 }
@@ -50,14 +55,47 @@ async function getRoles(db, id) {
   return ROLE_ORDER.filter((r) => have.has(r));
 }
 
-async function getServiceUnits(db, id) {
+// The one company the user works for as Admin / Staff, with their occupation (or null).
+async function getUserCompany(db, id) {
   const { rows } = await db.query(
-    `SELECT s.id, s.code, s.name, s.is_active
-       FROM user_service_units t JOIN service_units s ON s.id = t.service_unit_id
-      WHERE t.user_id = $1::bigint ORDER BY s.id`,
+    `SELECT uc.service_unit_id AS company_id, s.code AS company_code, s.name AS company_name,
+            uc.occupation_id, o.name AS occupation_name
+       FROM user_company uc JOIN service_units s ON s.id = uc.service_unit_id
+       LEFT JOIN occupations o ON o.id = uc.occupation_id
+      WHERE uc.user_id = $1::bigint`,
     [id]
   );
-  return rows;
+  return rows[0] || null;
+}
+
+async function setUserCompany(db, id, companyId, occupationId, by) {
+  await db.query(
+    `INSERT INTO user_company (user_id, service_unit_id, occupation_id, granted_by)
+     VALUES ($1::bigint, $2::bigint, $3::bigint, $4::bigint)
+     ON CONFLICT (user_id) DO UPDATE SET service_unit_id = EXCLUDED.service_unit_id, occupation_id = EXCLUDED.occupation_id`,
+    [id, companyId, occupationId ?? null, by]
+  );
+}
+
+async function setOccupation(db, id, occupationId) {
+  await db.query('UPDATE user_company SET occupation_id = $2::bigint WHERE user_id = $1::bigint', [id, occupationId ?? null]);
+}
+
+// Leaves the company (no Admin / Staff role left). The change log keeps the history.
+async function clearUserCompany(db, id) {
+  await db.query('DELETE FROM user_company WHERE user_id = $1::bigint', [id]);
+}
+
+async function getCompany(db, id) {
+  if (!/^\d{1,18}$/.test(String(id ?? ''))) return null;
+  const { rows } = await db.query('SELECT id, code, name, is_active FROM service_units WHERE id = $1::bigint', [id]);
+  return rows[0] || null;
+}
+
+async function getOccupation(db, id) {
+  if (!/^\d{1,18}$/.test(String(id ?? ''))) return null;
+  const { rows } = await db.query('SELECT id, service_unit_id, name, is_active FROM occupations WHERE id = $1::bigint', [id]);
+  return rows[0] || null;
 }
 
 async function getPosts(db, id) {
@@ -161,34 +199,6 @@ async function countActiveSuperAdmins(db) {
   return rows[0].n;
 }
 
-async function addUnitTag(db, id, unitId, by) {
-  const { rowCount } = await db.query(
-    `INSERT INTO user_service_units (user_id, service_unit_id, granted_by) VALUES ($1::bigint, $2::bigint, $3::bigint)
-     ON CONFLICT (user_id, service_unit_id) DO NOTHING`,
-    [id, unitId, by]
-  );
-  return rowCount === 1;
-}
-
-async function removeUnitTag(db, id, unitId) {
-  const { rowCount } = await db.query(
-    'DELETE FROM user_service_units WHERE user_id = $1::bigint AND service_unit_id = $2::bigint',
-    [id, unitId]
-  );
-  return rowCount === 1;
-}
-
-// -> codes of the removed tags
-async function removeAllUnitTags(db, id) {
-  const { rows } = await db.query(
-    `DELETE FROM user_service_units t USING service_units s
-      WHERE t.user_id = $1::bigint AND s.id = t.service_unit_id
-      RETURNING s.code`,
-    [id]
-  );
-  return rows.map((r) => r.code);
-}
-
 async function setActive(db, id, isActive) {
   await db.query('UPDATE users SET is_active = $2::boolean WHERE id = $1::bigint', [id, isActive]);
 }
@@ -213,7 +223,12 @@ module.exports = {
   listUsers,
   getUser,
   getRoles,
-  getServiceUnits,
+  getUserCompany,
+  setUserCompany,
+  setOccupation,
+  clearUserCompany,
+  getCompany,
+  getOccupation,
   getPosts,
   getHrDepartments,
   getHistory,
@@ -223,9 +238,6 @@ module.exports = {
   addRole,
   removeRole,
   countActiveSuperAdmins,
-  addUnitTag,
-  removeUnitTag,
-  removeAllUnitTags,
   setActive,
   logStatus,
   logChange,

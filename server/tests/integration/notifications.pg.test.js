@@ -23,6 +23,7 @@ const maybe = enabled ? describe : describe.skip;
 maybe('notifications on real PostgreSQL', () => {
   const request = require('supertest');
   const pool = require('../../db/pool');
+  const { staffOf, adminOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const realtime = require('../../realtime');
   const { runMigrations } = require('../../db/migrate');
@@ -66,6 +67,9 @@ maybe('notifications on real PostgreSQL', () => {
 
   let admin;
   let admin2;
+  let superAdmin;
+  let siyAdmin;
+  let avit;
   let adminAsEmployee;
   let alice;
   let eng1;
@@ -101,37 +105,50 @@ maybe('notifications on real PostgreSQL', () => {
     });
     realtime._setIo({ to: target, in: target });
 
-    ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE', 'SUPER_ADMIN']);
-    ids.admin2 = await addUser('30328702', 'Second Admin', ['EMPLOYEE', 'SUPER_ADMIN']);
+    // The company's Admins are told about company work (not the Super Admin, who isn't an Admin here).
+    ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE']);
+    ids.admin2 = await addUser('30328702', 'Second Admin', ['EMPLOYEE']);
+    await adminOf(pool, ids.admin);
+    await adminOf(pool, ids.admin2);
+    ids.sa = await addUser('30328709', 'Super', ['EMPLOYEE', 'SUPER_ADMIN']);
+    ids.siyAdmin = await addUser('30328708', 'Siyanaat Admin', ['EMPLOYEE']);
+    await adminOf(pool, ids.siyAdmin, 'SIYANAAT');
     ids.alice = await addUser('40000001', 'Alice Hamid', ['EMPLOYEE']);
     ids.eng1 = await addUser('40000003', 'Eng One', ['EMPLOYEE', 'ENGINEER']);
-    const avit = (await pool.query(`SELECT id FROM service_units WHERE code='AVIT'`)).rows[0].id;
-    await pool.query('INSERT INTO user_service_units (user_id, service_unit_id) VALUES ($1, $2)', [ids.eng1, avit]);
+    avit = String((await pool.query(`SELECT id FROM service_units WHERE code='AVIT'`)).rows[0].id);
+    await staffOf(pool, ids.eng1);
     cat = String((await pool.query(`SELECT id FROM categories WHERE name='Printer / Scanner'`)).rows[0].id);
 
-    admin = as(await login('30328701', 'SUPER_ADMIN'));
-    admin2 = as(await login('30328702', 'SUPER_ADMIN'));
+    admin = as(await login('30328701', 'ADMIN'));
+    admin2 = as(await login('30328702', 'ADMIN'));
+    superAdmin = as(await login('30328709', 'SUPER_ADMIN'));
+    siyAdmin = as(await login('30328708', 'ADMIN'));
     adminAsEmployee = as(await login('30328701', 'EMPLOYEE'));
     alice = as(await login('40000001'));
     eng1 = as(await login('40000003', 'ENGINEER'));
     eng1AsEmployee = as(await login('40000003', 'EMPLOYEE'));
   });
 
-  test('raise → every Super Admin is told, in the Super Admin role only; pushed live', async () => {
+  test('raise → every Admin of the company is told, in the Admin role only; pushed live', async () => {
     expect((await alice.raise({ title: 'Printer jams', description: 'x', categoryId: cat })).status).toBe(201);
 
     expect(await titles(admin)).toEqual(['New ticket T-1001']);
     expect(await titles(admin2)).toEqual(['New ticket T-1001']);
     expect(await titles(adminAsEmployee)).toEqual([]); // access follows the active role
     expect(await titles(alice)).toEqual([]); // the actor is never told
+    expect(await titles(siyAdmin)).toEqual([]); // another company's Admin
+    expect(await titles(superAdmin)).toEqual([]); // the Super Admin isn't told about company work
 
     const n = (await admin.list()).body.notifications[0];
-    expect(n).toMatchObject({ type: 'ticket.created', body: 'Printer jams', link: '/tickets/T-1001', role: 'SUPER_ADMIN', read: false });
+    expect(n).toMatchObject({
+      type: 'ticket.created', body: 'Printer jams', link: '/tickets/T-1001', role: 'ADMIN', read: false,
+      company: { id: avit, code: 'AVIT', name: 'AVIT' },
+    });
 
     expect(pushed.map(([room, event]) => `${room} ${event}`)).toEqual([
-      `user:${ids.admin}:SUPER_ADMIN notification:new`,
-      `user:${ids.admin2}:SUPER_ADMIN notification:new`,
-      'role:SUPER_ADMIN requests:changed',
+      `user:${ids.admin}:ADMIN notification:new`,
+      `user:${ids.admin2}:ADMIN notification:new`,
+      `co:${avit}:admins requests:changed`,
       `user:${ids.alice} requests:changed`,
     ]);
   });
@@ -159,8 +176,8 @@ maybe('notifications on real PostgreSQL', () => {
       { role: 'ENGINEER', title: 'T-1001 was closed' },
     ]);
     expect(await rowsFor(ids.admin2)).toEqual([
-      { role: 'SUPER_ADMIN', title: 'New ticket T-1001' },
-      { role: 'SUPER_ADMIN', title: 'T-1001 resolved, ready to close' },
+      { role: 'ADMIN', title: 'New ticket T-1001' },
+      { role: 'ADMIN', title: 'T-1001 resolved, ready to close' },
     ]);
     // The internal note never reached the requester.
     expect(JSON.stringify(await rowsFor(ids.alice))).not.toContain('fuser');
@@ -239,7 +256,7 @@ maybe('notifications on real PostgreSQL', () => {
   });
 
   test('deactivating a user or removing a role drops their live connections', async () => {
-    const users = (p) => request(app)[p.m](`/Atom/api/users${p.path}`).set('Authorization', `Bearer ${admin.token}`).send(p.body);
+    const users = (p) => request(app)[p.m](`/Atom/api/users${p.path}`).set('Authorization', `Bearer ${superAdmin.token}`).send(p.body);
     await users({ m: 'delete', path: `/${ids.eng1}/roles/ENGINEER` });
     await users({ m: 'post', path: `/${ids.alice}/status`, body: { active: false, reason: 'Left AJSM' } });
     expect(dropped).toEqual([`user:${ids.eng1}`, `user:${ids.alice}`]);

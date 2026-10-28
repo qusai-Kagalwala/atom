@@ -9,6 +9,7 @@ import { Alert, Field, TextInput } from '../components/FormControls';
 import PhotoPicker from '../components/PhotoPicker';
 import PriorityPicker from '../components/PriorityPicker';
 import useAuth from '../hooks/useAuth';
+import { isAdminRole } from '../utils/roles';
 import { loginIdLabel } from '../utils/format';
 
 const MAX_PHOTOS = 5;
@@ -78,7 +79,7 @@ export default function RaiseTicketPage() {
   const navigate = useNavigate();
   // Pre-filled from the AI assistant (Phase 12): category, title, what was said and tried.
   const draft = useLocation().state?.draft || null;
-  const isAdmin = user.activeRole === 'SUPER_ADMIN';
+  const isAdmin = isAdminRole(user.activeRole);
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories, staleTime: 10 * 60_000 });
 
   const [form, setForm] = useState({
@@ -138,7 +139,7 @@ export default function RaiseTicketPage() {
         <ArrowLeft size={16} aria-hidden="true" /> My tickets &amp; requests
       </Link>
       <h1 className="mt-3 text-3xl">Raise a ticket</h1>
-      <p className="mt-1 font-ui text-sm text-ink-2">Something not working? Tell AVIT what's wrong and where.</p>
+      <p className="mt-1 font-ui text-sm text-ink-2">Something not working? Tell {user.company?.name || 'us'} what's wrong and where.</p>
       {draft ? (
         <div className="mt-4">
           <Alert tone="info">
@@ -147,7 +148,7 @@ export default function RaiseTicketPage() {
           </Alert>
         </div>
       ) : (
-        <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        user.company?.code === 'AVIT' && <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
           <Bot size={16} aria-hidden="true" /> Try the AI assistant first — many problems are fixed in a minute
         </Link>
       )}

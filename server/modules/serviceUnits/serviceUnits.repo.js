@@ -1,10 +1,11 @@
+// Companies (rows of service_units: AVIT, Siyanaat, Tanzeem — decided 28 Oct 2026).
 const pool = require('../../db/pool');
 
-const COLUMNS = 'id, code, name, is_active';
+const COLUMNS = 'id, code, name, is_active, tagline, sort_order';
 
 async function listServiceUnits({ activeOnly = false } = {}) {
   const { rows } = await pool.query(
-    `SELECT ${COLUMNS} FROM service_units ${activeOnly ? 'WHERE is_active' : ''} ORDER BY id`
+    `SELECT ${COLUMNS} FROM service_units ${activeOnly ? 'WHERE is_active' : ''} ORDER BY sort_order, id`
   );
   return rows;
 }
@@ -20,13 +21,4 @@ async function getServiceUnitByCode(code) {
   return rows[0] || null;
 }
 
-// IDs (as strings) of the service units an engineer is tagged to.
-async function userServiceUnitIds(userId) {
-  const { rows } = await pool.query(
-    'SELECT service_unit_id FROM user_service_units WHERE user_id = $1::bigint ORDER BY service_unit_id',
-    [userId]
-  );
-  return rows.map((r) => String(r.service_unit_id));
-}
-
-module.exports = { listServiceUnits, getServiceUnit, getServiceUnitByCode, userServiceUnitIds };
+module.exports = { listServiceUnits, getServiceUnit, getServiceUnitByCode };

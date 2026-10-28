@@ -82,3 +82,9 @@ export const ACTION_BUTTONS = {
   close: { label: 'Close', tone: 'primary' },
   reject: { label: 'Reject', tone: 'danger', note: 'required', noteLabel: 'Why is it rejected? (the requester sees this)' },
 };
+
+// "Carpenter: Abbas" — the assigned staff member with their occupation.
+export function staffLabel(person) {
+  if (!person) return null;
+  return `${person.occupation || 'Staff'}: ${person.name}`;
+}

@@ -1,7 +1,8 @@
 // Dev seed: test accounts for local login. Refuses to run when NODE_ENV=production.
 // Usage: npm run seed:dev   (from server/, after npm run migrate)
 //
-//   ITS 30328701  Qusai          Employee + Engineer + Super Admin  (any password in AUTH_MODE=mock)
+//   ITS 30328701  Qusai          Employee + Staff (Engineer, AVIT) + Admin (AVIT) + Super Admin
+//                                (any password in AUTH_MODE=mock)
 //   Employee ID 1000             Employee only, password 1000       (real IDs start at 1002)
 //
 // Idempotent: re-running reactivates the accounts and adds missing roles. It never resets a
@@ -12,7 +13,9 @@ const DEV_USERS = [
     loginType: 'ITS',
     itsNumber: '30328701',
     name: 'Qusai Kagalwala',
-    roles: ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'],
+    roles: ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'],
+    company: 'AVIT',
+    occupation: 'Engineer',
   },
   {
     loginType: 'EMPLOYEE_ID',
@@ -62,6 +65,17 @@ async function seedDevUsers(client, { nodeEnv = process.env.NODE_ENV, log = cons
          ON CONFLICT (user_id, role) DO NOTHING`,
         [userId, u.roles]
       );
+      if (u.company) {
+        // Their one company (Admin / Staff) — only if they have none yet.
+        await client.query(
+          `INSERT INTO user_company (user_id, service_unit_id, occupation_id)
+           SELECT $1::bigint, s.id, o.id FROM service_units s
+             LEFT JOIN occupations o ON o.service_unit_id = s.id AND lower(o.name) = lower($3::text)
+            WHERE s.code = $2::text
+           ON CONFLICT (user_id) DO NOTHING`,
+          [userId, u.company, u.occupation || '']
+        );
+      }
       log(`Seed: ${u.itsNumber ? `ITS ${u.itsNumber}` : `Employee ID ${u.employeeId}`} → ${u.roles.join(', ')}`);
     }
     await client.query('COMMIT');

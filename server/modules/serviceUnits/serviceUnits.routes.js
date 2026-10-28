@@ -1,13 +1,11 @@
-// /Atom/api/service-units
-//   GET /        → { serviceUnits }   Super Admin: all units. Everyone else: active units only.
-//   GET /mine    → { serviceUnits }   Engineer (active role): the units they're tagged to.
-// The front end never shows a unit picker at launch (everything is AVIT); this feeds later phases.
+// /Atom/api/service-units — the companies (AVIT, Siyanaat, Tanzeem).
+//   GET /   → { serviceUnits }   Super Admin: all. Everyone else: active ones.
+// The company picker uses GET /auth/companies (with the person's roles in each).
 const express = require('express');
-const { requireAuth, requireRole } = require('../../middleware/requireAuth');
-const { serviceUnitIdsFor } = require('../../middleware/scope');
+const { requireAuth } = require('../../middleware/requireAuth');
 const repo = require('./serviceUnits.repo');
 
-const toPublic = (u) => ({ id: String(u.id), code: u.code, name: u.name, isActive: u.is_active });
+const toPublic = (u) => ({ id: String(u.id), code: u.code, name: u.name, tagline: u.tagline || null, isActive: u.is_active });
 
 function createServiceUnitsRouter() {
   const router = express.Router();
@@ -17,16 +15,6 @@ function createServiceUnitsRouter() {
     try {
       const units = await repo.listServiceUnits({ activeOnly: req.user.activeRole !== 'SUPER_ADMIN' });
       res.json({ serviceUnits: units.map(toPublic) });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get('/mine', requireRole('ENGINEER'), async (req, res, next) => {
-    try {
-      const ids = new Set(await serviceUnitIdsFor(req));
-      const units = await repo.listServiceUnits();
-      res.json({ serviceUnits: units.filter((u) => ids.has(String(u.id))).map(toPublic) });
     } catch (err) {
       next(err);
     }

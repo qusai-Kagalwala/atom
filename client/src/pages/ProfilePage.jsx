@@ -202,7 +202,8 @@ export default function ProfilePage() {
             <span className="flex flex-wrap gap-1.5">
               {sortRoles(user.roles).map((role) => (
                 <span key={role} className={roleBadgeClass(role)}>
-                  {roleLabel(role)}
+                  {roleLabel(role, user)}
+                  {user.staffCompany && (role === 'ADMIN' || role === 'ENGINEER') ? ` · ${user.staffCompany.name}` : ''}
                 </span>
               ))}
             </span>

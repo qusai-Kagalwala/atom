@@ -15,6 +15,7 @@ const ticket = (over = {}) => ({
   requester_id: REQ,
   raised_by_id: REQ,
   assigned_engineer_id: ENG,
+  service_unit_id: '1',
   ...over,
 });
 
@@ -25,11 +26,11 @@ const who = (list) =>
 describe('planTicket', () => {
   test('created → all Super Admins; raised-for → also the requester', () => {
     expect(who(planTicket(ticket({ assigned_engineer_id: null }), { kind: 'created', actorId: REQ }))).toEqual([
-      'all:SUPER_ADMIN New ticket T-1001',
+      'all:ADMIN New ticket T-1001',
     ]);
     const forSomeone = ticket({ assigned_engineer_id: null, raised_by_id: ADMIN });
     expect(who(planTicket(forSomeone, { kind: 'created', actorId: ADMIN, raisedFor: true }))).toEqual([
-      'all:SUPER_ADMIN New ticket T-1001',
+      'all:ADMIN New ticket T-1001',
       '10:any T-1001 was raised for you',
     ]);
   });
@@ -61,7 +62,7 @@ describe('planTicket', () => {
   test('resolve → requester + Super Admins (ready to close)', () => {
     expect(who(planTicket(ticket(), { kind: 'resolve', actorId: ENG, note: 'Replaced the HDMI cable' }))).toEqual([
       '10:any T-1001 is resolved',
-      'all:SUPER_ADMIN T-1001 resolved, ready to close',
+      'all:ADMIN T-1001 resolved, ready to close',
     ]);
   });
 
@@ -83,7 +84,7 @@ describe('planTicket', () => {
       '20:ENGINEER Requester replied on T-1001',
     ]);
     expect(who(planTicket(ticket({ assigned_engineer_id: null }), { kind: 'comment', actorId: REQ, note: 'Any update?' }))).toEqual([
-      'all:SUPER_ADMIN New comment on T-1001',
+      'all:ADMIN New comment on T-1001',
     ]);
   });
 
@@ -147,13 +148,13 @@ describe('publish', () => {
     expect(sent.map(([room, event]) => `${room} ${event}`)).toEqual([
       'user:20:ENGINEER notification:new',
       'user:10 notification:new',
-      'role:SUPER_ADMIN requests:changed',
+      'co:1:admins requests:changed',
       'user:10 requests:changed',
       'user:20 requests:changed',
     ]);
     expect(sent[0][2]).toEqual({
       id: '1', type: 'ticket.assign', title: 'T-1001 is assigned to you', body: null,
-      link: '/tickets/T-1001', role: 'ENGINEER', read: false, createdAt: now,
+      link: '/tickets/T-1001', role: 'ENGINEER', company: null, read: false, createdAt: now,
     });
   });
 

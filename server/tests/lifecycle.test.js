@@ -4,11 +4,13 @@ const lc = require('../modules/requests/lifecycle');
 const STATUSES = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED', 'CLOSED', 'REJECTED'];
 
 const ticket = (status, extra = {}) => ({ status, requester_id: '1', raised_by_id: '1', assigned_engineer_id: status === 'OPEN' ? null : '2', ...extra });
-const admin = { id: '9', activeRole: 'SUPER_ADMIN' };
-const engineer = { id: '2', activeRole: 'ENGINEER' }; // assigned
-const otherEngineer = { id: '3', activeRole: 'ENGINEER' };
-const requester = { id: '1', activeRole: 'EMPLOYEE' };
-const assignedButAsEmployee = { id: '2', activeRole: 'EMPLOYEE' };
+// Everyone acts inside company 1 (scope — same company — is checked before the lifecycle).
+const admin = { id: '9', activeRole: 'ADMIN', companyId: '1' };
+const superAdmin = { id: '8', activeRole: 'SUPER_ADMIN', companyId: '1' };
+const engineer = { id: '2', activeRole: 'ENGINEER', companyId: '1' }; // assigned
+const otherEngineer = { id: '3', activeRole: 'ENGINEER', companyId: '1' };
+const requester = { id: '1', activeRole: 'EMPLOYEE', companyId: '1' };
+const assignedButAsEmployee = { id: '2', activeRole: 'EMPLOYEE', companyId: '1' };
 
 // Expected actions per status for the Super Admin and for the assigned engineer.
 const ADMIN = {
@@ -35,7 +37,9 @@ const ENGINEER = {
 describe.each(STATUSES)('status %s', (status) => {
   const t = ticket(status);
 
-  test('Super Admin', () => expect(lc.allowedActions(admin, t)).toEqual(ADMIN[status]));
+  test('Admin', () => expect(lc.allowedActions(admin, t)).toEqual(ADMIN[status]));
+  test('Super Admin inside the company: same as the Admin', () => expect(lc.allowedActions(superAdmin, t)).toEqual(ADMIN[status]));
+  test('Super Admin with no company: nothing', () => expect(lc.allowedActions({ ...superAdmin, companyId: null }, t)).toEqual([]));
   test('assigned Engineer', () => expect(lc.allowedActions(engineer, t)).toEqual(ENGINEER[status]));
   test('another Engineer: nothing', () => expect(lc.allowedActions(otherEngineer, t)).toEqual([]));
   test('requester: nothing', () => expect(lc.allowedActions(requester, t)).toEqual([]));

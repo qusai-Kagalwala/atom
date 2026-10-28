@@ -1,10 +1,13 @@
-// Inventory (Phase 8). Super Admin manages; Engineers read; everyone sees "My assets".
+// Inventory (Phase 8). Each company has its own inventory (assets, categories, import log); places
+// are shared. The company's Admin manages; Staff read; everyone sees "My assets" (in that company).
+// Every function works inside user.companyId — an asset of another company is "not found".
 //   - Every change is one transaction with the asset row locked, and one history entry.
 //   - Never deleted: assets are retired (note required), places / categories deactivated or merged.
 //   - A change made in ATOM to an imported (Snipe-IT) asset is remembered (edited_in_atom_at), so
 //     the next import preview can warn before overwriting it.
 const pool = require('../../db/pool');
 const { HttpError, notFound } = require('../../utils/httpError');
+const { isAdmin } = require('../../utils/roles');
 
 const STATUSES = ['IN_STORE', 'IN_USE', 'IN_REPAIR', 'RETIRED'];
 const bad = (message, code) => new HttpError(400, message, code);
@@ -76,14 +79,15 @@ function toSummary(a) {
   };
 }
 
-// WHERE clause for the asset list filters (shared with the inventory export).
+// WHERE clause for the asset list filters (shared with the inventory export). f.companyId is required.
 function assetFilter(f) {
   const params = [];
   const add = (v) => {
     params.push(v);
     return `$${params.length}`;
   };
-  const where = [];
+  if (!f.companyId) throw new Error('assetFilter needs a company');
+  const where = [`a.service_unit_id = ${add(f.companyId)}::bigint`];
   const q = clean(f.q);
   if (q) {
     const like = add(`%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
@@ -121,14 +125,17 @@ async function listAssets(f) {
   return { assets: rows.rows.map(toSummary), total: total.rows[0].n };
 }
 
-async function getAssetRow(db, tag, { forUpdate = false } = {}) {
+async function getAssetRow(db, tag, companyId, { forUpdate = false } = {}) {
   const t = clean(tag);
-  if (!t || t.length > 60) return null;
+  if (!t || t.length > 60 || !companyId) return null;
   if (forUpdate) {
-    const { rows } = await db.query('SELECT id FROM assets WHERE upper(asset_tag) = upper($1::text) FOR UPDATE', [t]);
+    const { rows } = await db.query(
+      'SELECT id FROM assets WHERE upper(asset_tag) = upper($1::text) AND service_unit_id = $2::bigint FOR UPDATE',
+      [t, companyId]
+    );
     if (!rows[0]) return null;
   }
-  const { rows } = await db.query(`${ASSET_SELECT} WHERE upper(a.asset_tag) = upper($1::text)`, [t]);
+  const { rows } = await db.query(`${ASSET_SELECT} WHERE upper(a.asset_tag) = upper($1::text) AND a.service_unit_id = $2::bigint`, [t, companyId]);
   return rows[0] || null;
 }
 
@@ -154,12 +161,12 @@ async function toDetail(db, user, a) {
     createdAt: a.created_at,
     history: events.map((e) => ({ id: String(e.id), type: e.type, note: e.note, data: e.data, at: e.created_at, actor: e.actor })),
     sitsHere: await placeOccupants(db, a.place),
-    permissions: { canManage: user.activeRole === 'SUPER_ADMIN' },
+    permissions: { canManage: isAdmin(user) },
   };
 }
 
 async function getAsset(user, tag) {
-  const a = await getAssetRow(pool, tag);
+  const a = await getAssetRow(pool, tag, user.companyId);
   if (!a) throw notFound();
   return toDetail(pool, user, a);
 }
@@ -181,18 +188,22 @@ async function mySeats(db, userId) {
 }
 
 async function myAssets(user) {
-  const { rows } = await pool.query(`${ASSET_SELECT} WHERE a.holder_user_id = $1::bigint AND a.status <> 'RETIRED' ORDER BY c.name, a.asset_tag`, [user.id]);
+  if (!user.companyId) return { assets: [], seats: [], roomAssets: [] };
+  const { rows } = await pool.query(
+    `${ASSET_SELECT} WHERE a.holder_user_id = $1::bigint AND a.service_unit_id = $2::bigint AND a.status <> 'RETIRED' ORDER BY c.name, a.asset_tag`,
+    [user.id, user.companyId]
+  );
   const seats = await mySeats(pool, user.id);
   let roomAssets = [];
   if (seats.length) {
     const { rows: atSeat } = await pool.query(
       `${ASSET_SELECT}
-        WHERE a.status <> 'RETIRED' AND (a.holder_user_id IS NULL)
+        WHERE a.status <> 'RETIRED' AND (a.holder_user_id IS NULL) AND a.service_unit_id = $2::bigint
           AND EXISTS (SELECT 1 FROM place_occupants o
                        WHERE o.user_id = $1::bigint AND o.is_active AND o.room_no = p.room_no
                          AND COALESCE(p.cubicle, '') IN ('', o.cubicle))
         ORDER BY p.room_no, p.cubicle NULLS FIRST, c.name, a.asset_tag`,
-      [user.id]
+      [user.id, user.companyId]
     );
     roomAssets = atSeat.map((a) => ({ ...toSummary(a), shared: !a.place?.cubicle }));
   }
@@ -224,9 +235,12 @@ async function addEvent(db, assetId, type, actorId, { note = null, data = null }
 const markEdited = (db, a) =>
   a.source === 'snipeit' ? db.query('UPDATE assets SET edited_in_atom_at = now() WHERE id = $1::bigint', [a.id]) : null;
 
-async function activeCategory(db, id) {
+async function activeCategory(db, id, companyId) {
   if (!isId(id)) return null;
-  const { rows } = await db.query('SELECT id, name FROM asset_categories WHERE id = $1::bigint AND is_active', [id]);
+  const { rows } = await db.query(
+    'SELECT id, name FROM asset_categories WHERE id = $1::bigint AND is_active AND service_unit_id = $2::bigint',
+    [id, companyId]
+  );
   return rows[0] || null;
 }
 
@@ -268,35 +282,37 @@ async function createAsset(user, input) {
   const tag = clean(input.tag);
   if (!tag || tag.length > 60) throw bad('Enter an asset tag (up to 60 characters).', 'bad_tag');
   return inTransaction(async (db) => {
-    const cat = await activeCategory(db, input.categoryId);
+    const cat = await activeCategory(db, input.categoryId, user.companyId);
     if (!cat) throw bad('Choose a category.', 'bad_category');
     let place = null;
     if (input.placeId) {
       place = await activePlace(db, input.placeId);
       if (!place) throw bad('Choose a place.', 'bad_place');
     }
-    const { rows: dup } = await db.query('SELECT 1 FROM assets WHERE upper(asset_tag) = upper($1::text)', [tag]);
+    const { rows: dup } = await db.query(
+      'SELECT 1 FROM assets WHERE upper(asset_tag) = upper($1::text) AND service_unit_id = $2::bigint',
+      [tag, user.companyId]
+    );
     if (dup.length) throw new HttpError(409, `Asset tag ${tag} is already in use.`, 'duplicate_tag');
-    const { rows: unit } = await db.query(`SELECT id FROM service_units WHERE code = 'AVIT'`);
     const fields = readFields(input);
     const cols = ['asset_tag', 'category_id', 'place_id', 'service_unit_id', 'source', ...Object.keys(fields)];
-    const vals = [tag, cat.id, place ? place.id : null, unit[0].id, 'atom', ...Object.values(fields)];
+    const vals = [tag, cat.id, place ? place.id : null, user.companyId, 'atom', ...Object.values(fields)];
     const { rows } = await db.query(
       `INSERT INTO assets (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
       vals
     );
     await addEvent(db, rows[0].id, 'created', user.id);
-    return toDetail(db, user, await getAssetRow(db, tag));
+    return toDetail(db, user, await getAssetRow(db, tag, user.companyId));
   });
 }
 
 async function updateAsset(user, tag, input) {
   return inTransaction(async (db) => {
-    const a = await getAssetRow(db, tag, { forUpdate: true });
+    const a = await getAssetRow(db, tag, user.companyId, { forUpdate: true });
     if (!a) throw notFound();
     const fields = readFields(input);
     if (input.categoryId !== undefined) {
-      const cat = await activeCategory(db, input.categoryId);
+      const cat = await activeCategory(db, input.categoryId, user.companyId);
       if (!cat) throw bad('Choose a category.', 'bad_category');
       fields.category_id = cat.id;
     }
@@ -309,13 +325,13 @@ async function updateAsset(user, tag, input) {
     await db.query(`UPDATE assets SET ${sets.join(', ')} WHERE id = $1::bigint`, [a.id, ...changed.map((c) => fields[c])]);
     await markEdited(db, a);
     await addEvent(db, a.id, 'edited', user.id, { data: { fields: changed } });
-    return toDetail(db, user, await getAssetRow(db, tag));
+    return toDetail(db, user, await getAssetRow(db, tag, user.companyId));
   });
 }
 
 async function moveAsset(user, tag, { placeId, note }) {
   return inTransaction(async (db) => {
-    const a = await getAssetRow(db, tag, { forUpdate: true });
+    const a = await getAssetRow(db, tag, user.companyId, { forUpdate: true });
     if (!a) throw notFound();
     const place = await activePlace(db, placeId);
     if (!place) throw bad('Choose a place.', 'bad_place');
@@ -326,13 +342,13 @@ async function moveAsset(user, tag, { placeId, note }) {
       note: clean(note) || null,
       data: { from: a.place ? { id: String(a.place.id), name: a.place.name } : null, to: { id: String(place.id), name: place.name } },
     });
-    return toDetail(db, user, await getAssetRow(db, tag));
+    return toDetail(db, user, await getAssetRow(db, tag, user.companyId));
   });
 }
 
 async function assignAsset(user, tag, { userId, note }) {
   return inTransaction(async (db) => {
-    const a = await getAssetRow(db, tag, { forUpdate: true });
+    const a = await getAssetRow(db, tag, user.companyId, { forUpdate: true });
     if (!a) throw notFound();
     if (a.status === 'RETIRED') throw new HttpError(409, 'This asset is retired.', 'retired');
     if (!isId(userId)) throw bad('Choose a person.', 'bad_user');
@@ -351,13 +367,13 @@ async function assignAsset(user, tag, { userId, note }) {
       note: clean(note) || null,
       data: { to: { id: String(rows[0].id), name: rows[0].name }, from: a.holder ? { id: a.holder.id, name: a.holder.name } : null },
     });
-    return toDetail(db, user, await getAssetRow(db, tag));
+    return toDetail(db, user, await getAssetRow(db, tag, user.companyId));
   });
 }
 
 async function returnAsset(user, tag, { placeId, note }) {
   return inTransaction(async (db) => {
-    const a = await getAssetRow(db, tag, { forUpdate: true });
+    const a = await getAssetRow(db, tag, user.companyId, { forUpdate: true });
     if (!a) throw notFound();
     if (!a.holder_user_id && !a.holder_unknown) throw bad('Nobody holds this asset.', 'no_holder');
     let place = null;
@@ -375,7 +391,7 @@ async function returnAsset(user, tag, { placeId, note }) {
       note: clean(note) || null,
       data: { from: a.holder ? { id: a.holder.id, name: a.holder.name } : null, to: place ? { id: String(place.id), name: place.name } : null },
     });
-    return toDetail(db, user, await getAssetRow(db, tag));
+    return toDetail(db, user, await getAssetRow(db, tag, user.companyId));
   });
 }
 
@@ -385,7 +401,7 @@ async function setStatus(user, tag, { status, note }) {
   if (status === 'RETIRED' && why.length < 3) throw bad('Say why the asset is retired (at least 3 characters).', 'note_required');
   if (why.length > 1000) throw bad('Keep the note under 1000 characters.', 'note_too_long');
   return inTransaction(async (db) => {
-    const a = await getAssetRow(db, tag, { forUpdate: true });
+    const a = await getAssetRow(db, tag, user.companyId, { forUpdate: true });
     if (!a) throw notFound();
     if (a.status === status) throw bad('The asset already has this status.', 'no_change');
     if (status === 'IN_USE' && !a.holder_user_id && !a.place_id) throw bad('Assign it to a person or a place first.', 'no_holder');
@@ -400,41 +416,47 @@ async function setStatus(user, tag, { status, note }) {
     );
     await markEdited(db, a);
     await addEvent(db, a.id, 'status', user.id, { note: why || null, data: { from: a.status, to: status } });
-    return toDetail(db, user, await getAssetRow(db, tag));
+    return toDetail(db, user, await getAssetRow(db, tag, user.companyId));
   });
 }
 
-// ---------- categories ----------
-async function listCategories() {
+// ---------- categories (per company) ----------
+async function listCategories(user) {
   const { rows } = await pool.query(
     `SELECT c.id, c.name, count(a.id) FILTER (WHERE a.status <> 'RETIRED')::int AS assets
        FROM asset_categories c LEFT JOIN assets a ON a.category_id = c.id
-      WHERE c.is_active GROUP BY c.id ORDER BY lower(c.name)`
+      WHERE c.is_active AND c.service_unit_id = $1::bigint GROUP BY c.id ORDER BY lower(c.name)`,
+    [user.companyId]
   );
   return rows.map((c) => ({ id: String(c.id), name: c.name, assets: c.assets }));
 }
 
-async function createCategory(input) {
+async function createCategory(user, input) {
   const name = clean(input.name);
   if (!name || name.length > 80) throw bad('Enter a category name (up to 80 characters).', 'bad_name');
   return inTransaction(async (db) => {
-    const { rows: dup } = await db.query('SELECT 1 FROM asset_categories WHERE is_active AND lower(name) = lower($1::text)', [name]);
+    const { rows: dup } = await db.query(
+      'SELECT 1 FROM asset_categories WHERE is_active AND lower(name) = lower($1::text) AND service_unit_id = $2::bigint',
+      [name, user.companyId]
+    );
     if (dup.length) throw new HttpError(409, 'A category with this name already exists.', 'duplicate_name');
-    const { rows: unit } = await db.query(`SELECT id FROM service_units WHERE code = 'AVIT'`);
-    const { rows } = await db.query('INSERT INTO asset_categories (name, service_unit_id) VALUES ($1::text, $2::bigint) RETURNING id, name', [name, unit[0].id]);
+    const { rows } = await db.query(
+      'INSERT INTO asset_categories (name, service_unit_id) VALUES ($1::text, $2::bigint) RETURNING id, name',
+      [name, user.companyId]
+    );
     return { id: String(rows[0].id), name: rows[0].name, assets: 0 };
   });
 }
 
-async function renameCategory(id, input) {
+async function renameCategory(user, id, input) {
   const name = clean(input.name);
   if (!name || name.length > 80) throw bad('Enter a category name (up to 80 characters).', 'bad_name');
   return inTransaction(async (db) => {
-    const cat = await activeCategory(db, id);
+    const cat = await activeCategory(db, id, user.companyId);
     if (!cat) throw notFound();
     const { rows: dup } = await db.query(
-      'SELECT 1 FROM asset_categories WHERE is_active AND lower(name) = lower($1::text) AND id <> $2::bigint',
-      [name, cat.id]
+      'SELECT 1 FROM asset_categories WHERE is_active AND lower(name) = lower($1::text) AND id <> $2::bigint AND service_unit_id = $3::bigint',
+      [name, cat.id, user.companyId]
     );
     if (dup.length) throw new HttpError(409, 'Another category already has this name — merge them instead.', 'duplicate_name');
     await db.query('UPDATE asset_categories SET name = $2::text WHERE id = $1::bigint', [cat.id, name]);
@@ -446,8 +468,8 @@ async function renameCategory(id, input) {
 async function mergeCategory(user, id, intoId) {
   if (String(id) === String(intoId)) throw bad('Choose a different category to merge into.', 'same_category');
   return inTransaction(async (db) => {
-    const from = await activeCategory(db, id);
-    const into = await activeCategory(db, intoId);
+    const from = await activeCategory(db, id, user.companyId);
+    const into = await activeCategory(db, intoId, user.companyId);
     if (!from || !into) throw notFound();
     const { rows: moved } = await db.query('UPDATE assets SET category_id = $2::bigint WHERE category_id = $1::bigint RETURNING id', [from.id, into.id]);
     for (const m of moved) {
@@ -459,18 +481,19 @@ async function mergeCategory(user, id, intoId) {
   });
 }
 
-// ---------- places ----------
+// ---------- places (shared by all companies; asset counts are the company's own) ----------
 async function listPlaces(f) {
-  const params = [];
+  const params = [f.companyId];
   const where = [f.includeInactive ? 'TRUE' : 'p.is_active'];
   const q = clean(f.q);
   if (q) {
     params.push(`%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
-    where.push(`(p.name ILIKE $1 OR p.room_no ILIKE $1 OR p.building ILIKE $1)`);
+    where.push(`(p.name ILIKE $2 OR p.room_no ILIKE $2 OR p.building ILIKE $2)`);
   }
   params.push(f.limit, f.offset);
   const { rows } = await pool.query(
-    `SELECT p.*, (SELECT count(*)::int FROM assets a WHERE a.place_id = p.id AND a.status <> 'RETIRED') AS assets,
+    `SELECT p.*, (SELECT count(*)::int FROM assets a WHERE a.place_id = p.id AND a.status <> 'RETIRED'
+                                                    AND a.service_unit_id = $1::bigint) AS assets,
             count(*) OVER ()::int AS total
        FROM places p WHERE ${where.join(' AND ')}
       ORDER BY p.room_no IS NULL, p.room_no, p.cubicle NULLS FIRST, lower(p.name)
@@ -515,7 +538,8 @@ async function updatePlace(id, input) {
     const active = input.isActive === undefined ? c.is_active : Boolean(input.isActive);
     if (!active && c.is_active) {
       const { rows: n } = await db.query(`SELECT count(*)::int AS n FROM assets WHERE place_id = $1::bigint AND status <> 'RETIRED'`, [c.id]);
-      if (n[0].n) throw bad(`Move the ${n[0].n} asset(s) out of this place first.`, 'place_in_use');
+      // Any company's assets keep a place in use (places are shared).
+      if (n[0].n) throw bad(`Move the ${n[0].n} asset(s) out of this place first (all companies).`, 'place_in_use');
     }
     const { rows } = await db.query(
       `UPDATE places SET name = $2, room_no = $3, cubicle = $4, building = $5, floor = $6, notes = $7, is_active = $8
@@ -527,11 +551,13 @@ async function updatePlace(id, input) {
 }
 
 // ---------- import log ----------
-async function listImports() {
+async function listImports(user) {
   const { rows } = await pool.query(
     `SELECT i.id, i.file_name, i.rows, i.summary, i.created_at, ${PERSON('u')} AS by
        FROM asset_imports i LEFT JOIN users u ON u.id = i.imported_by
-      ORDER BY i.created_at DESC LIMIT 20`
+      WHERE i.service_unit_id = $1::bigint
+      ORDER BY i.created_at DESC LIMIT 20`,
+    [user.companyId]
   );
   return rows.map((r) => ({ id: String(r.id), fileName: r.file_name, rows: r.rows, summary: r.summary, at: r.created_at, by: r.by }));
 }

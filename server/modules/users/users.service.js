@@ -3,7 +3,10 @@
 //     race each other (e.g. both removing the "second-last" Super Admin at the same time).
 //   - You can't remove your own Super Admin role, remove the last active Super Admin, remove
 //     anyone's only role, or deactivate yourself / the last active Super Admin.
-//   - Service-unit tags only for users holding Engineer; removing Engineer removes their tags.
+//   - Companies (28 Oct 2026): Admin and Staff (Engineer) belong to ONE company. Granting Admin needs
+//     a company; granting Staff needs a company and one of its occupations. Someone who already
+//     works for another company must be removed there first. Losing both roles leaves the company.
+//   - Company Admins manage their own Staff through /staff (staff.service.js), with the same rules.
 //   - Name / email / mobile editable for imported (legacy) and manual users only — synced users'
 //     details come from the Idarah view.
 //   - Super Admin password reset: employee-ID users only; the Super Admin types the new password.
@@ -13,13 +16,13 @@
 const pool = require('../../db/pool');
 const repo = require('./users.repo');
 const passwordsRepo = require('../auth/passwords.repo');
-const unitsRepo = require('../serviceUnits/serviceUnits.repo');
 const { HttpError, notFound } = require('../../utils/httpError');
 const realtime = require('../../realtime');
 const { locationLabel } = require('../sync/hrPlan');
 
 const LOCK_KEY = 727303; // user administration
-const ROLES = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
+const ROLES = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
+const COMPANY_ROLES = ['ENGINEER', 'ADMIN'];
 const MIN_PASSWORD = 8;
 
 const bad = (message, code) => new HttpError(400, message, code);
@@ -62,8 +65,13 @@ function toSummary(u) {
     isActive: u.is_active,
     roles: u.roles || [],
     departments: u.departments || [],
+    company: u.company_code ? { code: u.company_code, name: u.company_name } : null,
+    occupation: u.occupation_name || null,
   };
 }
+
+const ROLE_TEXT = { EMPLOYEE: 'Employee', ENGINEER: 'Staff', ADMIN: 'Admin', SUPER_ADMIN: 'Super Admin' };
+const roleText = (d) => `${ROLE_TEXT[d.role] || d.role}${d.occupation ? ` (${d.occupation})` : ''}`;
 
 function historyText(h) {
   const d = h.detail || {};
@@ -74,9 +82,11 @@ function historyText(h) {
     case 'created':
       return 'Account created';
     case 'role_granted':
-      return `Role granted: ${d.role}`;
+      return `Role granted: ${roleText(d)}${d.company ? ` in ${d.company}` : ''}`;
     case 'role_removed':
-      return `Role removed: ${d.role}${d.unitsRemoved?.length ? ` (service units untagged: ${d.unitsRemoved.join(', ')})` : ''}`;
+      return `Role removed: ${roleText(d)}${d.company ? ` in ${d.company}` : ''}${d.unitsRemoved?.length ? ` (service units untagged: ${d.unitsRemoved.join(', ')})` : ''}`;
+    case 'occupation_changed':
+      return `Occupation changed${d.company ? ` in ${d.company}` : ''}: ${d.from || '—'} → ${d.to}`;
     case 'unit_tagged':
       return `Tagged to ${d.unit}`;
     case 'unit_untagged':
@@ -103,21 +113,23 @@ function byLabel(h) {
 
 async function getUserDetail(id, db = pool) {
   const u = await mustGetUser(db, id);
-  const [roles, units, posts, hrDepartments, history] = await Promise.all([
+  const [roles, company, posts, hrDepartments, history] = await Promise.all([
     repo.getRoles(db, id),
-    repo.getServiceUnits(db, id),
+    repo.getUserCompany(db, id),
     repo.getPosts(db, id),
     repo.getHrDepartments(db, id),
     repo.getHistory(db, id),
   ]);
   return {
-    ...toSummary({ ...u, roles }),
+    ...toSummary({ ...u, roles, company_code: company?.company_code, company_name: company?.company_name, occupation_name: company?.occupation_name }),
     mobile: u.mobile || null,
     createdAt: u.created_at,
     // Synced users' details come from their source view (Idarah or HR list).
     editable: u.source !== 'idarah' && u.source !== 'hr',
     mustChangePassword: u.login_type === 'EMPLOYEE_ID' ? Boolean(u.must_change_password) : false,
-    serviceUnits: units.map((s) => ({ id: String(s.id), code: s.code, name: s.name, isActive: s.is_active })),
+    // The one company they work for as Admin / Staff, and their occupation there.
+    company: company ? { id: String(company.company_id), code: company.company_code, name: company.company_name } : null,
+    occupation: company?.occupation_id ? { id: String(company.occupation_id), name: company.occupation_name } : null,
     posts: posts.map((p) => ({
       department: p.department,
       departmentArabic: p.department_arabic,
@@ -198,41 +210,87 @@ async function updateProfile(id, fields, actor) {
 }
 
 // ---------- roles ----------
-async function grantRole(id, role, actor) {
+// Admin: { companyId }. Staff (ENGINEER): { companyId, occupationId }. Granting Staff again with
+// another occupation (same company) changes the occupation. Inside the caller's transaction.
+async function grantInTx(db, id, role, actor, { companyId, occupationId } = {}) {
+  await mustGetUser(db, id);
+  const roles = await repo.getRoles(db, id);
+  const detail = { role };
+  if (COMPANY_ROLES.includes(role)) {
+    const company = await repo.getCompany(db, companyId);
+    if (!company || !company.is_active) throw bad('Choose a company.', 'bad_company');
+    const current = await repo.getUserCompany(db, id);
+    const busyElsewhere = current && String(current.company_id) !== String(company.id) && roles.some((r) => COMPANY_ROLES.includes(r));
+    if (busyElsewhere) {
+      throw new HttpError(409, `This person already works for ${current.company_name}. Remove them there first.`, 'other_company');
+    }
+    detail.company = company.code;
+    let occupation = null;
+    if (role === 'ENGINEER') {
+      occupation = await repo.getOccupation(db, occupationId);
+      if (!occupation || !occupation.is_active || String(occupation.service_unit_id) !== String(company.id)) {
+        throw bad('Choose an occupation of this company.', 'bad_occupation');
+      }
+      detail.occupation = occupation.name;
+    }
+    const sameCompany = current && String(current.company_id) === String(company.id);
+    if (!sameCompany) {
+      await repo.setUserCompany(db, id, company.id, occupation ? occupation.id : null, actor.id);
+    } else if (occupation && String(current.occupation_id) !== String(occupation.id)) {
+      await repo.setOccupation(db, id, occupation.id);
+      if (roles.includes('ENGINEER')) {
+        await repo.logChange(db, id, 'occupation_changed', { company: company.code, from: current.occupation_name, to: occupation.name }, actor.id);
+      }
+    }
+  }
+  if (await repo.addRole(db, id, role, actor.id)) {
+    await repo.logChange(db, id, 'role_granted', detail, actor.id);
+    return true;
+  }
+  return false;
+}
+
+async function grantRole(id, role, actor, opts = {}) {
   if (!ROLES.includes(role)) throw bad('Unknown role.', 'bad_role');
   return inTransaction(async (db) => {
-    await mustGetUser(db, id);
-    if (await repo.addRole(db, id, role, actor.id)) {
-      await repo.logChange(db, id, 'role_granted', { role }, actor.id);
-    }
+    await grantInTx(db, id, role, actor, opts);
     return getUserDetail(id, db);
   });
+}
+
+// Inside the caller's transaction. → false if they didn't hold the role.
+async function removeInTx(db, id, role, actor) {
+  const u = await mustGetUser(db, id);
+  const roles = await repo.getRoles(db, id);
+  if (!roles.includes(role)) return false;
+
+  if (roles.length === 1) {
+    throw bad('Every user keeps at least one role. Deactivate the user instead.', 'only_role');
+  }
+  if (role === 'SUPER_ADMIN') {
+    if (String(id) === String(actor.id)) throw bad('You can\'t remove your own Super Admin role.', 'own_super_admin');
+    if (u.is_active && (await repo.countActiveSuperAdmins(db)) <= 1) {
+      throw bad('This is the last active Super Admin. Grant Super Admin to someone else first.', 'last_super_admin');
+    }
+  }
+  const company = COMPANY_ROLES.includes(role) ? await repo.getUserCompany(db, id) : null;
+  await repo.removeRole(db, id, role);
+  const detail = { role };
+  if (company) {
+    detail.company = company.company_code;
+    if (role === 'ENGINEER') detail.occupation = company.occupation_name || undefined;
+    const left = roles.filter((r) => r !== role && COMPANY_ROLES.includes(r));
+    if (!left.length) await repo.clearUserCompany(db, id);
+    else if (role === 'ENGINEER') await repo.setOccupation(db, id, null);
+  }
+  await repo.logChange(db, id, 'role_removed', detail, actor.id);
+  return true;
 }
 
 async function removeRole(id, role, actor) {
   if (!ROLES.includes(role)) throw bad('Unknown role.', 'bad_role');
   return inTransaction(async (db) => {
-    const u = await mustGetUser(db, id);
-    const roles = await repo.getRoles(db, id);
-    if (!roles.includes(role)) return getUserDetail(id, db); // already gone — nothing to do
-
-    if (roles.length === 1) {
-      throw bad('Every user keeps at least one role. Deactivate the user instead.', 'only_role');
-    }
-    if (role === 'SUPER_ADMIN') {
-      if (String(id) === String(actor.id)) throw bad('You can\'t remove your own Super Admin role.', 'own_super_admin');
-      if (u.is_active && (await repo.countActiveSuperAdmins(db)) <= 1) {
-        throw bad('This is the last active Super Admin. Grant Super Admin to someone else first.', 'last_super_admin');
-      }
-    }
-
-    await repo.removeRole(db, id, role);
-    const detail = { role };
-    if (role === 'ENGINEER') {
-      const removed = await repo.removeAllUnitTags(db, id);
-      if (removed.length) detail.unitsRemoved = removed;
-    }
-    await repo.logChange(db, id, 'role_removed', detail, actor.id);
+    await removeInTx(db, id, role, actor);
     return getUserDetail(id, db);
   }).then((result) => {
     realtime.disconnectUser(id);
@@ -240,32 +298,15 @@ async function removeRole(id, role, actor) {
   });
 }
 
-// ---------- service-unit tags ----------
-async function tagUnit(id, unitId, actor) {
-  return inTransaction(async (db) => {
-    await mustGetUser(db, id);
-    const unit = await unitsRepo.getServiceUnit(unitId);
-    if (!unit) throw notFound();
-    if (!(await repo.getRoles(db, id)).includes('ENGINEER')) {
-      throw bad('Only users with the Engineer role can be tagged to a service unit.', 'not_engineer');
-    }
-    if (await repo.addUnitTag(db, id, unit.id, actor.id)) {
-      await repo.logChange(db, id, 'unit_tagged', { unit: unit.code }, actor.id);
-    }
-    return getUserDetail(id, db);
-  });
-}
-
-async function untagUnit(id, unitId, actor) {
-  return inTransaction(async (db) => {
-    await mustGetUser(db, id);
-    const unit = await unitsRepo.getServiceUnit(unitId);
-    if (!unit) throw notFound();
-    if (await repo.removeUnitTag(db, id, unit.id)) {
-      await repo.logChange(db, id, 'unit_untagged', { unit: unit.code }, actor.id);
-    }
-    return getUserDetail(id, db);
-  });
+// ---------- companies + occupations (for the role pickers) ----------
+async function companiesWithOccupations() {
+  const { rows } = await pool.query(
+    `SELECT s.id::text AS id, s.code, s.name,
+            COALESCE((SELECT json_agg(json_build_object('id', o.id::text, 'name', o.name) ORDER BY o.sort_order, lower(o.name))
+                        FROM occupations o WHERE o.service_unit_id = s.id AND o.is_active), '[]') AS occupations
+       FROM service_units s WHERE s.is_active ORDER BY s.sort_order, s.id`
+  );
+  return rows;
 }
 
 // ---------- activate / deactivate ----------
@@ -333,8 +374,11 @@ module.exports = {
   updateProfile,
   grantRole,
   removeRole,
-  tagUnit,
-  untagUnit,
+  companiesWithOccupations,
+  grantInTx,
+  removeInTx,
+  inTransaction,
+  mustGetUser,
   setStatus,
   resetPassword,
   MIN_PASSWORD,

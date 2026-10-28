@@ -2,17 +2,8 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, KeyRound, LoaderCircle, Pencil, Power, ShieldAlert } from 'lucide-react';
-import {
-  getUser,
-  grantRole,
-  listServiceUnits,
-  removeRole,
-  resetUserPassword,
-  setUserStatus,
-  tagUnit,
-  untagUnit,
-  updateUser,
-} from '../api/users';
+import { getUser, grantRole, removeRole, resetUserPassword, setUserStatus, updateUser } from '../api/users';
+import http from '../api/http';
 import { errorMessage } from '../api/http';
 import { Alert, Field, PasswordInput, TextInput } from '../components/FormControls';
 import Modal from '../components/Modal';
@@ -21,12 +12,17 @@ import { formatDateTime, loginIdLabel, SOURCE_LABELS } from '../utils/format';
 import { MIN_PASSWORD, newPasswordErrors } from '../utils/passwordRules';
 import { roleBadgeClass, roleLabel } from '../utils/roles';
 
-const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
+const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
+const COMPANY_ROLES = ['ENGINEER', 'ADMIN'];
 const ROLE_HELP = {
-  EMPLOYEE: 'AI assistant, raise tickets and requests, track own items.',
-  ENGINEER: 'Works on assigned tickets and requests in their service units.',
-  SUPER_ADMIN: 'Everything: assign, close, approve, manage users, inventory and reports.',
+  EMPLOYEE: 'AI assistant, raise tickets and requests in any company, track own items.',
+  ENGINEER: 'Staff of one company, with an occupation (Engineer, Carpenter, Peon, …). Works on assigned tickets there.',
+  ADMIN: 'Runs one company: assign, close, approve, staff, catalogue, inventory.',
+  SUPER_ADMIN: 'All companies: appoints Admins, users, sync, AI and settings.',
 };
+const selectClass =
+  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
+const listCompanies = () => http.get('/users/companies').then((r) => r.data.companies);
 
 function Section({ title, children, action }) {
   return (
@@ -289,7 +285,8 @@ export default function UserDetailPage() {
   const [actionError, setActionError] = useState('');
 
   const userQuery = useQuery({ queryKey: ['users', 'detail', id], queryFn: () => getUser(id), retry: false });
-  const unitsQuery = useQuery({ queryKey: ['service-units'], queryFn: listServiceUnits, staleTime: 5 * 60_000 });
+  const companiesQuery = useQuery({ queryKey: ['users', 'companies'], queryFn: listCompanies, staleTime: 5 * 60_000 });
+  const [pick, setPick] = useState({ companyId: null, occupationId: null }); // null = the user's current one
 
   const saved = (fresh) => {
     queryClient.setQueryData(['users', 'detail', id], fresh);
@@ -328,13 +325,20 @@ export default function UserDetailPage() {
   const u = userQuery.data;
   const isSelf = u.id === me.id;
   const busy = mutation.isPending;
-  const toggleRole = (role) =>
-    mutation.mutate({ key: `role:${role}`, fn: () => (u.roles.includes(role) ? removeRole(u.id, role) : grantRole(u.id, role)) });
-  const toggleUnit = (unit) =>
-    mutation.mutate({
-      key: `unit:${unit.id}`,
-      fn: () => (u.serviceUnits.some((s) => s.id === unit.id) ? untagUnit(u.id, unit.id) : tagUnit(u.id, unit.id)),
-    });
+  // Admin and Staff belong to one company (Staff: with an occupation), chosen below the roles.
+  const holdsCompanyRole = u.roles.some((r) => COMPANY_ROLES.includes(r));
+  const companyId = pick.companyId ?? u.company?.id ?? '';
+  const occupationId = pick.occupationId ?? (companyId === u.company?.id ? u.occupation?.id : '') ?? '';
+  const companies = companiesQuery.data || [];
+  const occupations = companies.find((c) => c.id === companyId)?.occupations || [];
+  const toggleRole = (role) => {
+    if (u.roles.includes(role)) return mutation.mutate({ key: `role:${role}`, fn: () => removeRole(u.id, role) });
+    if (COMPANY_ROLES.includes(role) && !companyId) return setActionError('Choose the company below first.');
+    if (role === 'ENGINEER' && !occupationId) return setActionError('Choose the occupation below first.');
+    return mutation.mutate({ key: `role:${role}`, fn: () => grantRole(u.id, role, { companyId, occupationId }) });
+  };
+  const saveOccupation = () =>
+    mutation.mutate({ key: 'occupation', fn: () => grantRole(u.id, 'ENGINEER', { companyId, occupationId }) });
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -410,7 +414,7 @@ export default function UserDetailPage() {
               <Toggle
                 key={role}
                 on={on}
-                label={roleLabel(role)}
+                label={roleLabel(role, { occupation: u.occupation?.name })}
                 badgeClass={on ? roleBadgeClass(role) : undefined}
                 help={ownSa ? 'You can\'t remove your own Super Admin role.' : ROLE_HELP[role]}
                 disabled={busy || ownSa || (on && u.roles.length === 1)}
@@ -425,25 +429,54 @@ export default function UserDetailPage() {
         )}
       </Section>
 
-      {u.roles.includes('ENGINEER') && (
-        <Section title="Service units">
-          <p className="mb-3 font-ui text-sm text-ink-2">The teams this engineer works for. They only see work in these units.</p>
-          {unitsQuery.isError && <Alert tone="error">Could not load service units.</Alert>}
-          <div className="grid gap-2 sm:grid-cols-2">
-            {(unitsQuery.data || []).map((unit) => (
-              <Toggle
-                key={unit.id}
-                on={u.serviceUnits.some((s) => s.id === unit.id)}
-                label={unit.name}
-                help={unit.isActive ? undefined : 'Not live yet (backend only).'}
-                disabled={busy}
-                busy={pendingKey === `unit:${unit.id}`}
-                onClick={() => toggleUnit(unit)}
-              />
-            ))}
+      <Section title="Company & occupation">
+        <p className="mb-3 font-ui text-sm text-ink-2">
+          Admin and Staff work for one company only. {holdsCompanyRole ? 'To move them to another company, remove Admin and Staff first.' : 'Choose it here, then switch on Admin or Staff above.'}
+        </p>
+        {companiesQuery.isError && <Alert tone="error">Could not load the companies.</Alert>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field id="company" label="Company">
+            <select
+              id="company"
+              className={selectClass}
+              value={companyId}
+              disabled={holdsCompanyRole || busy}
+              onChange={(e) => setPick({ companyId: e.target.value, occupationId: '' })}
+            >
+              <option value="">Choose…</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field id="occupation" label="Occupation (Staff)">
+            <select
+              id="occupation"
+              className={selectClass}
+              value={occupationId || ''}
+              disabled={!companyId || busy}
+              onChange={(e) => setPick((p) => ({ companyId: p.companyId ?? companyId, occupationId: e.target.value }))}
+            >
+              <option value="">Choose…</option>
+              {occupations.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        {u.roles.includes('ENGINEER') && occupationId && occupationId !== u.occupation?.id && (
+          <div className="mt-3 flex justify-end">
+            <button type="button" className="btn-primary" disabled={busy} onClick={saveOccupation}>
+              {pendingKey === 'occupation' ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}
+              Save occupation
+            </button>
           </div>
-        </Section>
-      )}
+        )}
+      </Section>
 
       <Section title="Departments & posts">
         {u.hrDepartments?.length > 0 && (

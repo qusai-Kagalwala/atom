@@ -1,7 +1,8 @@
 // Time frames by priority and overdue checks (decided 28 Oct 2026).
 //   High 30 min – 2 h · Normal 2 – 4 h · Low 4 – 48 h (Super Admin can change them), 24/7 clock,
 //   counted from when the ticket / request was raised until it is done (resolved / delivered).
-//   Past the end of the window = overdue: Super Admins and the assigned engineer are told once.
+//   Past the end of the window = overdue: the company's Admins and the assigned staff member are told once.
+//   One set of time frames for every company, edited by the Super Admin.
 const defaultPool = require('../../db/pool');
 const { HttpError } = require('../../utils/httpError');
 const notifications = require('../notifications/notifications.service');
@@ -63,7 +64,7 @@ async function setDue(db, requestId) {
   return rows[0] || null;
 }
 
-// Background job (every minute): mark newly overdue requests and tell Super Admins + the engineer.
+// Background job (every minute): mark newly overdue requests and tell the company's Admins + the staff member.
 // The UPDATE … RETURNING claims each row once, so several server processes never double-notify.
 async function checkOverdue({ pool = defaultPool, publish = notifications.publish } = {}) {
   const client = await pool.connect();
@@ -75,7 +76,8 @@ async function checkOverdue({ pool = defaultPool, publish = notifications.publis
       `UPDATE requests SET overdue_notified_at = now()
         WHERE due_by < now() AND overdue_notified_at IS NULL
           AND status::text NOT IN ('RESOLVED', 'CLOSED', 'REJECTED')
-        RETURNING id, number, type, title, requester_id, raised_by_id, assigned_engineer_id, due_by`
+        RETURNING id, number, type, title, requester_id, raised_by_id, assigned_engineer_id, due_by, service_unit_id,
+                  (SELECT s.name FROM service_units s WHERE s.id = requests.service_unit_id) AS service_unit_name`
     );
     claimed = rows;
     for (const r of rows) {

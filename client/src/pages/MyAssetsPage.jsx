@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Armchair, LoaderCircle, MapPin, Package, Phone } from 'lucide-react';
 import { myAssets } from '../api/inventory';
 import { Alert } from '../components/FormControls';
+import useAuth from '../hooks/useAuth';
 import { assetTitle, statusClass, statusLabel } from '../utils/assets';
 
 function AssetCard({ a, note }) {
@@ -31,6 +32,7 @@ const seatLabel = (s) => [`Room ${s.roomNo}`, s.cubicle && `Cubicle ${s.cubicle}
 
 // Everyone: equipment assigned to me, and (Phase 8.2) equipment at my seat from the occupancy sheet.
 export default function MyAssetsPage() {
+  const { user } = useAuth();
   const query = useQuery({ queryKey: ['inventory', 'mine'], queryFn: myAssets });
   const d = query.data;
   const nothing = d && !d.assets.length && !d.roomAssets.length;
@@ -69,7 +71,7 @@ export default function MyAssetsPage() {
         <div className="card text-center">
           <Package size={24} className="mx-auto text-ink-3" aria-hidden="true" />
           <p className="mt-2 font-ui font-medium">Nothing is assigned to you</p>
-          <p className="mt-1 font-ui text-sm text-ink-2">When AVIT gives you equipment, it shows here.</p>
+          <p className="mt-1 font-ui text-sm text-ink-2">When {user.company?.name || 'a team'} gives you equipment, it shows here.</p>
         </div>
       )}
       {d?.assets.length > 0 && (

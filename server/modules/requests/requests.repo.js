@@ -2,15 +2,20 @@
 const PERSON = (alias) => `json_build_object(
     'id', ${alias}.id::text, 'name', COALESCE(${alias}.name, 'Employee ' || ${alias}.employee_id),
     'loginType', ${alias}.login_type, 'itsNumber', ${alias}.its_number, 'employeeId', ${alias}.employee_id)`;
+// The assigned staff member, with their occupation ("Carpenter") — shown instead of "Engineer".
+const STAFF = (alias) => `CASE WHEN ${alias}.id IS NULL THEN NULL ELSE json_build_object(
+    'id', ${alias}.id::text, 'name', COALESCE(${alias}.name, 'Employee ' || ${alias}.employee_id),
+    'loginType', ${alias}.login_type, 'itsNumber', ${alias}.its_number, 'employeeId', ${alias}.employee_id,
+    'occupation', (SELECT o.name FROM user_company x JOIN occupations o ON o.id = x.occupation_id WHERE x.user_id = ${alias}.id)) END`;
 
 const REQUEST_SELECT = `
   SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.description, r.location,
-         r.category_id, c.name AS category_name, r.service_unit_id, s.code AS service_unit_code,
+         r.category_id, c.name AS category_name, r.service_unit_id, s.code AS service_unit_code, s.name AS service_unit_name,
          r.requester_id, r.raised_by_id, r.assigned_engineer_id, r.resolution, r.rejection_note,
          r.created_at, r.updated_at, r.assigned_at, r.resolved_at, r.closed_at, r.rejected_at, r.due_from, r.due_by,
          ${PERSON('req')} AS requester,
          ${PERSON('rb')} AS raised_by,
-         CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer
+         ${STAFF('eng')} AS assigned_engineer
     FROM requests r
     JOIN users req ON req.id = r.requester_id
     JOIN users rb ON rb.id = r.raised_by_id
@@ -46,11 +51,6 @@ async function departmentLocation(db, userId) {
   return rows[0] || null;
 }
 
-async function defaultServiceUnitId(db) {
-  const { rows } = await db.query(`SELECT id FROM service_units WHERE code = 'AVIT' AND is_active`);
-  return rows[0]?.id ?? null;
-}
-
 async function getCategory(db, id) {
   if (!/^\d{1,18}$/.test(String(id))) return null;
   const { rows } = await db.query('SELECT id, name, service_unit_id, is_active FROM categories WHERE id = $1::bigint', [id]);
@@ -75,7 +75,7 @@ async function insertRequest(db, r) {
   const { rows } = await db.query(
     `INSERT INTO requests (type, priority, title, description, location, category_id, service_unit_id, requester_id, raised_by_id)
      VALUES ('TICKET', $1::request_priority, $2::text, $3::text, $4::text, $5::bigint, $6::bigint, $7::bigint, $8::bigint)
-     RETURNING id, number`,
+     RETURNING id, number, service_unit_id`,
     [r.priority, r.title, r.description, r.location, r.categoryId, r.serviceUnitId, r.requesterId, r.raisedById]
   );
   return rows[0];
@@ -125,30 +125,34 @@ async function touch(db, id) {
   await db.query('UPDATE requests SET updated_at = now() WHERE id = $1::bigint', [id]);
 }
 
-// Engineer who may be assigned: active, holds ENGINEER, tagged to the ticket's service unit.
+// Staff who may be assigned: active, hold ENGINEER (Staff), work for the ticket's company with an
+// occupation there. Grouped by occupation in the picker; least open work first.
 async function eligibleEngineers(db, serviceUnitId) {
   const { rows } = await db.query(
     `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name,
+            o.id::text AS occupation_id, o.name AS occupation,
             (SELECT count(*)::int FROM requests w
               WHERE w.assigned_engineer_id = u.id
                 AND w.status IN ('ASSIGNED','IN_PROGRESS','WAITING_FOR_USER','WAITING_FOR_EQUIPMENT')) AS open_work
        FROM users u
        JOIN user_roles r ON r.user_id = u.id AND r.role = 'ENGINEER'
-       JOIN user_service_units t ON t.user_id = u.id AND t.service_unit_id = $1::bigint
+       JOIN user_company t ON t.user_id = u.id AND t.service_unit_id = $1::bigint
+       JOIN occupations o ON o.id = t.occupation_id
       WHERE u.is_active
-      ORDER BY open_work, lower(u.name)`,
+      ORDER BY o.sort_order, lower(o.name), open_work, lower(u.name)`,
     [serviceUnitId]
   );
   return rows;
 }
 
-// -> { id, name } when the user may be assigned, else null.
+// -> { id, name, occupation } when the user may be assigned in this company, else null.
 async function eligibleEngineer(db, userId, serviceUnitId) {
   if (!/^\d{1,18}$/.test(String(userId))) return null;
   const { rows } = await db.query(
-    `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name FROM users u
+    `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name, o.name AS occupation FROM users u
        JOIN user_roles r ON r.user_id = u.id AND r.role = 'ENGINEER'
-       JOIN user_service_units t ON t.user_id = u.id AND t.service_unit_id = $2::bigint
+       JOIN user_company t ON t.user_id = u.id AND t.service_unit_id = $2::bigint
+       JOIN occupations o ON o.id = t.occupation_id
       WHERE u.id = $1::bigint AND u.is_active`,
     [userId, serviceUnitId]
   );
@@ -204,23 +208,24 @@ async function getAttachment(db, requestId, attachmentId) {
   return rows[0] || null;
 }
 
-// "My tickets & requests": everything the user is the requester of (or raised for someone).
-async function listMine(db, userId, { open, limit, offset }) {
+// "My tickets & requests" in one company: everything the user is the requester of (or raised for someone).
+async function listMine(db, userId, companyId, { open, limit, offset }) {
   const { rows } = await db.query(
     `SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.created_at, r.updated_at,
             r.due_from, r.due_by, r.resolved_at, r.closed_at, r.rejected_at,
             c.name AS category_name, ${PERSON('req')} AS requester,
-            CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer,
+            ${STAFF('eng')} AS assigned_engineer,
             count(*) OVER () AS total
        FROM requests r
        JOIN users req ON req.id = r.requester_id
        LEFT JOIN users eng ON eng.id = r.assigned_engineer_id
        LEFT JOIN categories c ON c.id = r.category_id
       WHERE (r.requester_id = $1::bigint OR r.raised_by_id = $1::bigint)
+        AND r.service_unit_id = $5::bigint
         AND ($2::boolean IS NULL OR (r.status NOT IN ('CLOSED', 'REJECTED')) = $2::boolean)
       ORDER BY r.updated_at DESC, r.id DESC
       LIMIT $3::int OFFSET $4::int`,
-    [userId, open ?? null, limit, offset]
+    [userId, open ?? null, limit, offset, companyId]
   );
   return { rows, total: rows.length ? Number(rows[0].total) : 0 };
 }
@@ -275,7 +280,7 @@ async function listRequests(db, scope, f) {
     `SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.location, r.created_at, r.updated_at,
             r.due_from, r.due_by, r.resolved_at, r.closed_at, r.rejected_at,
             c.name AS category_name, ${PERSON('req')} AS requester,
-            CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer,
+            ${STAFF('eng')} AS assigned_engineer,
             (SELECT max(e.created_at) FROM request_events e
               WHERE e.request_id = r.id AND e.type IN ('created', 'status', 'assigned')) AS status_since,
             count(*) OVER () AS total
@@ -291,8 +296,8 @@ async function listRequests(db, scope, f) {
   return { rows, total: rows.length ? Number(rows[0].total) : 0 };
 }
 
-// Sidebar badges.
-async function queueCounts(db, userId) {
+// Sidebar badges (one company).
+async function queueCounts(db, userId, companyId) {
   const { rows } = await db.query(
     `SELECT
        count(*) FILTER (WHERE assigned_engineer_id = $1::bigint
@@ -300,8 +305,8 @@ async function queueCounts(db, userId) {
        count(*) FILTER (WHERE status = 'OPEN')::int AS unassigned,
        count(*) FILTER (WHERE status = 'RESOLVED')::int AS to_close,
        count(*) FILTER (WHERE status = 'PENDING_APPROVAL')::int AS approvals
-       FROM requests`,
-    [userId]
+       FROM requests WHERE service_unit_id = $2::bigint`,
+    [userId, companyId]
   );
   return rows[0];
 }
@@ -310,7 +315,6 @@ module.exports = {
   listRequests,
   queueCounts,
   getByNumber,
-  defaultServiceUnitId,
   getCategory,
   listCategories,
   getActiveUser,

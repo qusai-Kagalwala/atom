@@ -26,7 +26,7 @@ describe('seedDevUsers', () => {
     expect(client.query).not.toHaveBeenCalled();
   });
 
-  it('seeds Qusai with all three roles and employee 1000 with Employee, in one transaction', async () => {
+  it('seeds Qusai with every role (Admin and Staff of AVIT) and employee 1000 with Employee, in one transaction', async () => {
     const client = fakeClient();
     await seedDevUsers(client, { nodeEnv: 'development', log: quiet });
 
@@ -35,9 +35,11 @@ describe('seedDevUsers', () => {
 
     const roleInserts = client.calls.filter((c) => c.sql.startsWith('INSERT INTO user_roles'));
     expect(roleInserts.map((c) => c.params[1])).toEqual([
-      ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'],
+      ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'],
       ['EMPLOYEE'],
     ]);
+    const company = client.calls.filter((c) => c.sql.startsWith('INSERT INTO user_company'));
+    expect(company.map((c) => c.params.slice(1))).toEqual([['AVIT', 'Engineer']]);
 
     const its = client.calls.find((c) => c.params[0] === '30328701');
     expect(its.sql).toMatch(/ON CONFLICT \(its_number\)/);

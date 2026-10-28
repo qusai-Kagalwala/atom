@@ -66,6 +66,7 @@ maybe('inventory on real PostgreSQL', () => {
   const fs = require('fs');
   const request = require('supertest');
   const pool = require('../../db/pool');
+  const { staffOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { runMigrations } = require('../../db/migrate');
   const { createApp } = require('../../app');
@@ -119,6 +120,7 @@ maybe('inventory on real PostgreSQL', () => {
     app = createApp();
     ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE', 'SUPER_ADMIN']);
     ids.eng = await addUser('40000003', 'Eng One', ['EMPLOYEE', 'ENGINEER']);
+    await staffOf(pool, ids.eng);
     ids.alice = await addUser('40000001', 'Alice Hamid', ['EMPLOYEE']);
     // A department with the room 1615 (Phase 3.1 data) → places in room 1615 get its building/floor.
     await pool.query(`INSERT INTO departments (idarah_id, name, building, floor, room_no) VALUES ('6013', 'Culture Générale', 'Admin Bldg', 'Sixth', '1615')`);

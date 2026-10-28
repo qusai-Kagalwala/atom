@@ -13,6 +13,7 @@ const invoices = require('../invoices/invoices.service');
 const assistant = require('../assistant/assistant.service');
 const { locationLabel } = require('../sync/hrPlan');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
+const roles = require('../../utils/roles');
 const { HttpError, notFound } = require('../../utils/httpError');
 
 // High / Normal / Low for everyone (Urgent retired 28 Oct 2026). Each has a time frame (timeFrames.js).
@@ -136,9 +137,10 @@ async function toDetail(db, user, r) {
     items: r.type === 'SERVICE_REQUEST' ? (await itemsRepo.listItems(db, r.id)).map(itemsRepo.toItem) : undefined,
     // What happened in the AI assistant before this ticket (Phase 12).
     assistant: await assistant.forRequest(db, r.id),
+    company: { code: r.service_unit_code, name: r.service_unit_name },
     permissions: {
-      canLinkInvoices: seeInternal && (user.activeRole === 'SUPER_ADMIN' || user.activeRole === 'ENGINEER'),
-      canUnlinkInvoices: user.activeRole === 'SUPER_ADMIN',
+      canLinkInvoices: seeInternal && (roles.isAdmin(user) || user.activeRole === 'ENGINEER'),
+      canUnlinkInvoices: roles.isAdmin(user),
       actions: lifecycle.allowedActions(user, r),
       canComment: lifecycle.canComment(user, r),
       canAddInternalNote: seeInternal && lifecycle.canComment(user, r),
@@ -158,21 +160,22 @@ async function getTicket(user, numberParam) {
 }
 
 async function listMine(user, { open, limit, offset }) {
-  const { rows, total } = await repo.listMine(pool, user.id, { open, limit, offset });
+  if (!user.companyId) return { requests: [], total: 0 };
+  const { rows, total } = await repo.listMine(pool, user.id, user.companyId, { open, limit, offset });
   return { requests: rows.map(toSummary), total };
 }
 
-async function listCategories() {
-  const unitId = await repo.defaultServiceUnitId(pool);
-  if (!unitId) return [];
-  return (await repo.listCategories(pool, unitId)).map((c) => ({ id: String(c.id), name: c.name }));
+// Ticket categories of the active company.
+async function listCategories(user) {
+  if (!user.companyId) return [];
+  return (await repo.listCategories(pool, user.companyId)).map((c) => ({ id: String(c.id), name: c.name }));
 }
 
-// "Where?" prefill: the requester's department location (Phase 3.1). Only a Super Admin may ask
+// "Where?" prefill: the requester's department location (Phase 3.1). Only an Admin may ask
 // for someone else (raise-for-someone); anyone else asking for another person gets 404.
 async function defaultLocation(user, forUserId) {
   const target = forUserId ? String(forUserId) : String(user.id);
-  if (target !== String(user.id) && user.activeRole !== 'SUPER_ADMIN') throw notFound();
+  if (target !== String(user.id) && !roles.isAdmin(user)) throw notFound();
   const d = await repo.departmentLocation(pool, target);
   return { location: d ? locationLabel({ building: d.building, floor: d.floor, roomNo: d.room_no }) : null };
 }
@@ -203,7 +206,7 @@ async function createTicket(user, input, uploads) {
   const title = clean(input.title);
   const description = clean(input.description);
   const location = clean(input.location) || null;
-  const isAdmin = user.activeRole === 'SUPER_ADMIN';
+  const isAdmin = roles.isAdmin(user);
   const priority = clean(input.priority).toUpperCase() || 'NORMAL';
 
   if (title.length < 3 || title.length > 120) throw bad('Give the ticket a short title (3–120 characters).', 'bad_title');
@@ -216,15 +219,16 @@ async function createTicket(user, input, uploads) {
   let created;
   try {
     created = await inTransaction(async (db, afterCommit) => {
-      const serviceUnitId = await repo.defaultServiceUnitId(db);
-      if (!serviceUnitId) throw new HttpError(503, 'Ticketing is not available right now.', 'no_service_unit');
+      // Raised in the active company (the session checked it is active).
+      const serviceUnitId = user.companyId;
+      if (!serviceUnitId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
 
       const category = await repo.getCategory(db, input.categoryId);
       if (!category || !category.is_active || String(category.service_unit_id) !== String(serviceUnitId)) {
         throw bad('Choose a category.', 'bad_category');
       }
 
-      // Raise for someone else: Super Admin only (Decisions §9).
+      // Raise for someone else: Admin only (Decisions §9).
       let requesterId = user.id;
       if (input.requesterId && String(input.requesterId) !== String(user.id)) {
         if (!isAdmin) throw notFound();
@@ -258,7 +262,10 @@ async function createTicket(user, input, uploads) {
         await assistant.linkTicket(db, user, input.assistantSessionId, row.id);
       }
 
-      const ticket = { ...row, type: 'TICKET', status: 'OPEN', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null, due_by: due?.due_by };
+      const ticket = {
+        ...row, type: 'TICKET', status: 'OPEN', title, requester_id: requesterId, raised_by_id: user.id,
+        assigned_engineer_id: null, due_by: due?.due_by, service_unit_name: user.company?.name,
+      };
       const sent = await notifications.recordTicketEvent(db, ticket, {
         kind: 'created',
         actorId: user.id,
@@ -287,7 +294,7 @@ async function act(user, numberParam, action, body = {}) {
     if (action === 'assign') {
       const engineerId = clean(body.engineerId);
       const engineer = await repo.eligibleEngineer(db, engineerId, r.service_unit_id);
-      if (!engineer) throw bad('Choose an active engineer tagged to this service unit.', 'bad_engineer');
+      if (!engineer) throw bad('Choose an active staff member of this company.', 'bad_engineer');
       if (String(r.assigned_engineer_id) === engineerId) throw bad('Already assigned to this engineer.', 'no_change');
       const to = lifecycle.nextStatus('assign', r.status);
       await repo.assignEngineer(db, r.id, engineerId, to);
@@ -345,7 +352,7 @@ async function triage(user, numberParam, { priority, categoryId, message }) {
     const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
     afterCommit(() => notifications.publish([], r)); // no one is notified; open lists refresh
     if (!lifecycle.canEditTriage(user, r)) {
-      if (user.activeRole === 'SUPER_ADMIN') throw new HttpError(409, 'This ticket is closed.', 'wrong_status');
+      if (roles.isAdmin(user)) throw new HttpError(409, 'This ticket is closed.', 'wrong_status');
       throw notFound();
     }
     if (priority !== undefined) {
@@ -465,13 +472,16 @@ function toQueueItem(r) {
   return { ...toSummary(r), location: r.location || null, statusSince: r.status_since };
 }
 
-const requireRoles = (user, roles) => {
-  if (!roles.includes(user.activeRole)) throw notFound();
+const requireStaffOrAdmin = (user) => {
+  if (!roles.isAdmin(user) && !roles.isStaff(user)) throw notFound();
+};
+const requireAdmin = (user) => {
+  if (!roles.isAdmin(user)) throw notFound();
 };
 
-// Engineer (or a Super Admin who is assigned work): tickets assigned to ME.
+// Staff (or an Admin who is assigned work): tickets assigned to ME, in this company.
 async function listWorkQueue(user, { group = 'active', limit, offset }) {
-  requireRoles(user, ['ENGINEER', 'SUPER_ADMIN']);
+  requireStaffOrAdmin(user);
   if (!WORK_GROUPS.includes(group)) throw bad('Unknown queue.', 'bad_group');
   const scope = recordScopeSql(user, 'r', 1);
   const { rows, total } = await repo.listRequests(pool, scope, {
@@ -484,9 +494,9 @@ async function listWorkQueue(user, { group = 'active', limit, offset }) {
   return { requests: rows.map(toQueueItem), total };
 }
 
-// Super Admin: waiting for an engineer (urgent first, then oldest) / resolved, waiting to be closed.
+// Admin: waiting for staff (high first, then oldest) / resolved, waiting to be closed.
 async function listAssignQueue(user, { view = 'unassigned', limit, offset }) {
-  requireRoles(user, ['SUPER_ADMIN']);
+  requireAdmin(user);
   if (!['unassigned', 'to_close'].includes(view)) throw bad('Unknown queue.', 'bad_group');
   const { rows, total } = await repo.listRequests(pool, recordScopeSql(user, 'r', 1), {
     statuses: view === 'unassigned' ? ['OPEN'] : ['RESOLVED'],
@@ -497,9 +507,9 @@ async function listAssignQueue(user, { view = 'unassigned', limit, offset }) {
   return { requests: rows.map(toQueueItem), total };
 }
 
-// Super Admin: everything, with filters.
+// Admin: everything in the company, with filters.
 async function listAll(user, f) {
-  requireRoles(user, ['SUPER_ADMIN']);
+  requireAdmin(user);
   if (f.status && !(f.status in STATUS_GROUPS)) throw bad('Unknown status filter.', 'bad_group');
   if (f.priority && !ALL_PRIORITIES.has(f.priority)) throw bad('Unknown priority.', 'bad_priority');
   if (f.categoryId && !/^\d{1,18}$/.test(f.categoryId)) throw bad('Unknown category.', 'bad_category');
@@ -523,24 +533,25 @@ async function listAll(user, f) {
 
 // Sidebar badges: only the numbers this role can act on.
 async function queueCounts(user) {
-  if (!['ENGINEER', 'SUPER_ADMIN'].includes(user.activeRole)) return {};
-  const c = await repo.queueCounts(pool, user.id);
-  return user.activeRole === 'SUPER_ADMIN'
+  if (!roles.isAdmin(user) && !roles.isStaff(user)) return {};
+  const c = await repo.queueCounts(pool, user.id, user.companyId);
+  return roles.isAdmin(user)
     ? { workQueue: c.work, assignQueue: c.unassigned, toClose: c.to_close, approvals: c.approvals }
     : { workQueue: c.work };
 }
 
-// Super Admin: engineers who can take AVIT tickets (for quick-assign in the queue).
+const toStaff = (e) => ({ id: e.id, name: e.name, occupation: e.occupation, occupationId: e.occupation_id, open_work: e.open_work });
+
+// Admin: staff who can take this company's tickets (for quick-assign in the queue).
 async function listEngineers(user) {
-  requireRoles(user, ['SUPER_ADMIN']);
-  const unitId = await repo.defaultServiceUnitId(pool);
-  return unitId ? repo.eligibleEngineers(pool, unitId) : [];
+  requireAdmin(user);
+  return (await repo.eligibleEngineers(pool, user.companyId)).map(toStaff);
 }
 
 async function eligibleEngineers(user, numberParam) {
-  if (user.activeRole !== 'SUPER_ADMIN') throw notFound();
+  if (!roles.isAdmin(user)) throw notFound();
   const r = await loadInScope(pool, { user }, numberParam);
-  return repo.eligibleEngineers(pool, r.service_unit_id);
+  return (await repo.eligibleEngineers(pool, r.service_unit_id)).map(toStaff);
 }
 
 module.exports = {

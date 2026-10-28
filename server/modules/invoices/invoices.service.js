@@ -7,6 +7,7 @@
 //   - Requesters never see invoices: ticket timeline events for invoices are internal.
 //   - Out of scope = 404.
 const pool = require('../../db/pool');
+const roles = require('../../utils/roles');
 const repo = require('./invoices.repo');
 const files = require('./invoiceFiles');
 const requestsRepo = require('../requests/requests.repo');
@@ -15,7 +16,7 @@ const { HttpError, notFound } = require('../../utils/httpError');
 
 const MAX_LINKS_PER_CALL = 20;
 const bad = (message, code) => new HttpError(400, message, code);
-const isAdmin = (user) => user?.activeRole === 'SUPER_ADMIN';
+const isAdmin = (user) => roles.isAdmin(user);
 const isEngineer = (user) => user?.activeRole === 'ENGINEER';
 const same = (a, b) => a != null && b != null && String(a) === String(b);
 const clean = (v) => (v == null ? '' : String(v).trim());
@@ -104,7 +105,8 @@ function parseRequestList(value) {
   return numbers;
 }
 
-const canLinkTo = (user, r) => isAdmin(user) || (isEngineer(user) && same(r.assigned_engineer_id, user.id));
+const canLinkTo = (user, r) =>
+  same(r.service_unit_id, user.companyId) && (isAdmin(user) || (isEngineer(user) && same(r.assigned_engineer_id, user.id)));
 const canEdit = (user, inv) => isAdmin(user) || (isEngineer(user) && same(inv.uploaded_by_id, user.id));
 
 // Locks and checks every ticket. A ticket you can't link to looks missing (404).
@@ -220,8 +222,8 @@ async function upload(user, input, file) {
   try {
     return await inTransaction(async (db, afterCommit) => {
       // Same file uploaded at the same moment by two people: serialise on the hash.
-      await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 727311))', [processed.sha256]);
-      const existing = await repo.findBySha(db, processed.sha256);
+      await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 727311))', [`${user.companyId}:${processed.sha256}`]);
+      const existing = await repo.findBySha(db, processed.sha256, user.companyId);
       if (existing) {
         if (!linkExisting) {
           const visible = await repo.isVisible(db, user, existing.id);
@@ -241,8 +243,8 @@ async function upload(user, input, file) {
         return { invoice: await toDetail(db, user, fresh), linkedExisting: true, ...result };
       }
 
-      const serviceUnitId = await requestsRepo.defaultServiceUnitId(db);
-      if (!serviceUnitId) throw new HttpError(503, 'Invoices are not available right now.', 'no_service_unit');
+      const serviceUnitId = user.companyId;
+      if (!serviceUnitId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
       const targets = await loadLinkTargets(db, user, numbers);
 
       const storedName = files.newStoredName(processed.ext);

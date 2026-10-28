@@ -9,6 +9,7 @@ import { CategoriesTab, PlacesTab, PlacePicker } from '../components/InventorySe
 import Modal from '../components/Modal';
 import { Pager, Tabs } from '../components/RequestList';
 import useAuth from '../hooks/useAuth';
+import { isAdminRole, roleLabel } from '../utils/roles';
 import { ASSET_STATUS, assetTitle, assetWhere, statusClass, statusLabel } from '../utils/assets';
 
 const selectClass =
@@ -276,10 +277,10 @@ const TABS = [
   ['categories', 'Categories'],
 ];
 
-// Super Admin manages; Engineers read.
+// The company's Admin manages; Staff read. Each company has its own inventory.
 export default function InventoryPage() {
   const { user } = useAuth();
-  const isAdmin = user.activeRole === 'SUPER_ADMIN';
+  const isAdmin = isAdminRole(user.activeRole);
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'assets';
 
@@ -287,7 +288,7 @@ export default function InventoryPage() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{isAdmin ? 'Super Admin' : 'Engineer'}</p>
+          <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · {isAdmin ? 'Admin' : roleLabel(user.activeRole, user)}</p>
           <h1 className="mt-1 text-3xl">Inventory</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">
             Every AV/IT asset, where it is and who has it.{!isAdmin && ' Read only.'}

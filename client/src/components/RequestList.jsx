@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, LoaderCircle, MapPin, Ticket } from 'lucide-
 import { errorMessage } from '../api/http';
 import { Alert } from './FormControls';
 import { timeAgo } from '../utils/format';
-import { FINAL_STATUSES, priorityBadge, priorityLabel, statusBadge, statusLabel } from '../utils/requests';
+import { FINAL_STATUSES, priorityBadge, priorityLabel, staffLabel, statusBadge, statusLabel } from '../utils/requests';
 import PriorityChange from './PriorityChange';
 import { TimeBadge } from './TimeFrame';
 
@@ -55,7 +55,7 @@ export default function RequestList({ query, emptyText = 'Nothing here.', render
                   <MapPin size={12} aria-hidden="true" /> {t.location}
                 </span>
               )}
-              {showEngineer && <span>{t.assignedEngineer ? `Engineer: ${t.assignedEngineer.name}` : 'Not assigned'}</span>}
+              {showEngineer && <span>{t.assignedEngineer ? staffLabel(t.assignedEngineer) : 'Not assigned'}</span>}
               <span className="text-ink-3" title={t.createdAt}>
                 Raised {timeAgo(t.createdAt)}
                 {t.statusSince && t.statusSince !== t.createdAt && ` · this status ${timeAgo(t.statusSince)}`}

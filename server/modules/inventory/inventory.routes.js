@@ -1,4 +1,6 @@
-// /Atom/api/inventory — Phase 8.
+// /Atom/api/inventory — Phase 8. Everything is inside the active company (409 choose_company without
+// one); each company has its own inventory. "Super Admin" below = the company's Admin; Engineer = Staff.
+// Snipe-IT import: AVIT only.
 //   Everyone (signed in):
 //     GET  /mine                                   → { assets, seats, roomAssets }   assigned to me + at my seat
 //   Engineer + Super Admin (read):
@@ -24,7 +26,7 @@
 const express = require('express');
 const multer = require('multer');
 const { query, validationResult } = require('express-validator');
-const { requireAuth, requireRole } = require('../../middleware/requireAuth');
+const { requireAuth, requireRole, requireCompany, requireCompanyCode, requireAdmin } = require('../../middleware/requireAuth');
 const { HttpError } = require('../../utils/httpError');
 const { MAX_BYTES } = require('../../utils/csv');
 const svc = require('./inventory.service');
@@ -88,12 +90,12 @@ const pageOf = (req, size) => {
 
 function createInventoryRouter() {
   const router = express.Router();
-  router.use(requireAuth);
+  router.use(requireAuth, requireCompany);
 
   router.get('/mine', handle(async (req, res) => res.json(await svc.myAssets(req.user))));
 
-  const read = requireRole('ENGINEER', 'SUPER_ADMIN');
-  const admin = requireRole('SUPER_ADMIN');
+  const read = requireRole('ENGINEER', 'ADMIN', 'SUPER_ADMIN');
+  const admin = requireAdmin;
 
   router.get(
     '/assets',
@@ -108,6 +110,7 @@ function createInventoryRouter() {
     handle(async (req, res) => {
       const p = pageOf(req, 50);
       const result = await svc.listAssets({
+        companyId: req.user.companyId,
         q: req.query.q, categoryId: req.query.categoryId || null, placeId: req.query.placeId || null,
         room: req.query.room || null, status: req.query.status || null, attention: req.query.attention || null,
         limit: p.limit, offset: p.offset,
@@ -116,7 +119,7 @@ function createInventoryRouter() {
     })
   );
   router.get('/assets/:tag', read, handle(async (req, res) => res.json({ asset: await svc.getAsset(req.user, req.params.tag) })));
-  router.get('/categories', read, handle(async (req, res) => res.json({ categories: await svc.listCategories() })));
+  router.get('/categories', read, handle(async (req, res) => res.json({ categories: await svc.listCategories(req.user) })));
   router.get(
     '/places',
     read,
@@ -124,7 +127,7 @@ function createInventoryRouter() {
     ...paging,
     handle(async (req, res) => {
       const p = pageOf(req, 50);
-      res.json({ ...(await svc.listPlaces({ q: req.query.q, includeInactive: yes(req.query.includeInactive), limit: p.limit, offset: p.offset })), page: p.page, pageSize: p.pageSize });
+      res.json({ ...(await svc.listPlaces({ companyId: req.user.companyId, q: req.query.q, includeInactive: yes(req.query.includeInactive), limit: p.limit, offset: p.offset })), page: p.page, pageSize: p.pageSize });
     })
   );
 
@@ -135,8 +138,8 @@ function createInventoryRouter() {
   router.post('/assets/:tag/return', admin, handle(async (req, res) => res.json({ asset: await svc.returnAsset(req.user, req.params.tag, req.body || {}) })));
   router.post('/assets/:tag/status', admin, handle(async (req, res) => res.json({ asset: await svc.setStatus(req.user, req.params.tag, req.body || {}) })));
 
-  router.post('/categories', admin, handle(async (req, res) => res.status(201).json({ category: await svc.createCategory(req.body || {}) })));
-  router.patch('/categories/:id', admin, handle(async (req, res) => res.json({ category: await svc.renameCategory(req.params.id, req.body || {}) })));
+  router.post('/categories', admin, handle(async (req, res) => res.status(201).json({ category: await svc.createCategory(req.user, req.body || {}) })));
+  router.patch('/categories/:id', admin, handle(async (req, res) => res.json({ category: await svc.renameCategory(req.user, req.params.id, req.body || {}) })));
   router.post('/categories/:id/merge', admin, handle(async (req, res) => res.json(await svc.mergeCategory(req.user, req.params.id, req.body?.intoId))));
 
   router.post('/places', admin, handle(async (req, res) => res.status(201).json({ place: await svc.createPlace(req.body || {}) })));
@@ -145,6 +148,7 @@ function createInventoryRouter() {
   router.post(
     '/import',
     admin,
+    requireCompanyCode('AVIT'),
     csvField,
     handle(async (req, res) => {
       if (!req.file) throw new HttpError(400, 'Choose the CSV file exported from Snipe-IT.', 'no_file');
@@ -194,11 +198,12 @@ function createInventoryRouter() {
           skipErrors: yes(req.body?.skipErrors),
           fileName: String(req.file.originalname || '').slice(0, 200),
           userId: req.user.id,
+          company: req.user.company,
         })
       );
     })
   );
-  router.get('/imports', admin, handle(async (req, res) => res.json({ imports: await svc.listImports() })));
+  router.get('/imports', admin, handle(async (req, res) => res.json({ imports: await svc.listImports(req.user) })));
 
   return router;
 }

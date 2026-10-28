@@ -1,23 +1,26 @@
-// /Atom/api/assistant — Phase 12.
-//   Everyone (signed in):
+// /Atom/api/assistant — Phase 12. The assistant and its FAQs are AVIT's for now (each company gets
+// its own in step C): chat and FAQ routes need the active company to be AVIT (else 404).
+// GPT settings and usage are global: Super Admin only (decided 28 Oct 2026).
+//   Everyone (signed in, in AVIT):
 //     GET  /config                          → { languages, uiText, guidelines, tree }   browse tree + texts
 //     POST /sessions          { language }  → 201 { session }
 //     POST /sessions/:id/ask  { text }      → { type: 'answer', via, faq } | { type: 'choices', via, faqs } | { type: 'none' }
 //     POST /sessions/:id/show { faqId, via: 'browse'|'choice' } → { faq }
 //     POST /sessions/:id/feedback { solved } → { session } (+ draft when not solved)
 //     GET  /sessions/:id/draft              → { draft }   pre-filled ticket
-//   Super Admin:
+//   AVIT Admin (or the Super Admin inside AVIT):
 //     GET  /faqs?includeInactive=1 · GET /faqs/:id · POST /faqs · PATCH /faqs/:id
 //     POST /faqs/import   multipart: file (.json), commit?, keepAtomEdits?   → report
+//     GET  /learned?includeOff=1 · PATCH /learned/:id { isActive }   saved GPT answers
+//   Super Admin (any company or none):
 //     GET  /settings · PATCH /settings     GPT switch, model, temperature, token limits, prices
 //     GET  /usage?days=30                   tokens, cost, sessions, unanswered questions (grouped)
 //     POST /unmatched/dismiss  { key }      hide a question from "Questions with no FAQ"
-//     GET  /learned?includeOff=1 · PATCH /learned/:id { isActive }   saved GPT answers
 // Sessions belong to their user; anyone else's = 404. Out of role = 404.
 const express = require('express');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
-const { requireAuth, requireRole } = require('../../middleware/requireAuth');
+const { requireAuth, requireRole, requireCompany, requireCompanyCode, requireAdmin } = require('../../middleware/requireAuth');
 const { HttpError } = require('../../utils/httpError');
 const svc = require('./assistant.service');
 const faqs = require('./faqAdmin.service');
@@ -60,6 +63,16 @@ function createAssistantRouter() {
   const router = express.Router();
   router.use(requireAuth);
 
+  // Global (Super Admin): GPT settings, usage, unanswered questions.
+  const superAdmin = requireRole('SUPER_ADMIN');
+  router.get('/settings', superAdmin, handle(async (req, res) => res.json({ settings: await svc.getSettings() })));
+  router.patch('/settings', superAdmin, handle(async (req, res) => res.json({ settings: await svc.updateSettings(req.user, req.body || {}) })));
+  router.post('/unmatched/dismiss', superAdmin, handle(async (req, res) => res.json(await svc.dismissQuestion(req.user, req.body || {}))));
+  router.get('/usage', superAdmin, handle(async (req, res) => res.json(await svc.usage({ days: req.query.days }))));
+
+  // Everything else: inside AVIT.
+  router.use(requireCompany, requireCompanyCode('AVIT'));
+
   router.get('/config', handle(async (req, res) => res.json(await svc.getConfig())));
   router.post('/sessions', handle(async (req, res) => res.status(201).json({ session: await svc.startSession(req.user, req.body || {}) })));
   router.post('/sessions/:id/ask', askLimit, handle(async (req, res) => res.json(await svc.ask(req.user, req.params.id, req.body || {}))));
@@ -67,7 +80,7 @@ function createAssistantRouter() {
   router.post('/sessions/:id/feedback', handle(async (req, res) => res.json(await svc.feedback(req.user, req.params.id, req.body || {}))));
   router.get('/sessions/:id/draft', handle(async (req, res) => res.json(await svc.draft(req.user, req.params.id))));
 
-  const admin = requireRole('SUPER_ADMIN');
+  const admin = requireAdmin;
   router.get('/faqs', admin, handle(async (req, res) => res.json({ faqs: await faqs.listFaqs({ includeInactive: yes(req.query.includeInactive) }) })));
   router.get('/faqs/:id', admin, handle(async (req, res) => res.json({ faq: await faqs.getFaq(req.params.id) })));
   router.post('/faqs', admin, handle(async (req, res) => res.status(201).json({ faq: await faqs.createFaq(req.user, req.body || {}) })));
@@ -81,12 +94,8 @@ function createAssistantRouter() {
       res.json(await faqs.importFaqFile(req.file.buffer, { commit: yes(req.body?.commit), keepAtomEdits: req.body?.keepAtomEdits !== 'false' }));
     })
   );
-  router.get('/settings', admin, handle(async (req, res) => res.json({ settings: await svc.getSettings() })));
-  router.patch('/settings', admin, handle(async (req, res) => res.json({ settings: await svc.updateSettings(req.user, req.body || {}) })));
-  router.post('/unmatched/dismiss', admin, handle(async (req, res) => res.json(await svc.dismissQuestion(req.user, req.body || {}))));
   router.get('/learned', admin, handle(async (req, res) => res.json({ learned: await svc.listLearned({ includeOff: yes(req.query.includeOff) }) })));
   router.patch('/learned/:id', admin, handle(async (req, res) => res.json({ learned: await svc.setLearned(req.user, req.params.id, req.body || {}) })));
-  router.get('/usage', admin, handle(async (req, res) => res.json(await svc.usage({ days: req.query.days }))));
 
   return router;
 }

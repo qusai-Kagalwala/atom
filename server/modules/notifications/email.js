@@ -34,7 +34,7 @@ function compose(row, ticket) {
     lines.push('', `Expected by: ${when(ticket.due_by)}`);
   }
   if (row.link) lines.push('', `Open in ATOM: ${config.appUrl}${row.link}`);
-  lines.push('', '—', 'AVIT · ATOM (automatic message — please do not reply)');
+  lines.push('', '—', `${ticket?.service_unit_name ? `${ticket.service_unit_name} · ` : ''}ATOM (automatic message — please do not reply)`);
   return lines.join('\n');
 }
 

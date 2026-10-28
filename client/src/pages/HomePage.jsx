@@ -1,9 +1,16 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Bot, ShoppingCart, Ticket } from 'lucide-react';
+import { ArrowRight, Bot, ShoppingCart, Ticket, TriangleAlert } from 'lucide-react';
 import UserName from '../components/UserName';
 import useAuth from '../hooks/useAuth';
 
-// Same three cards for every role — Super Admins and Engineers raise tickets too.
+// Same three cards for every role — Admins and Staff raise tickets too. The AI assistant is AVIT's
+// for now; in the other companies the first card raises a ticket directly.
+const RAISE = {
+  to: '/tickets/new',
+  Icon: TriangleAlert,
+  title: 'Report a problem',
+  text: 'Something broken or not working? Raise a ticket and the right person is sent.',
+};
 const CARDS = [
   {
     to: '/assistant',
@@ -27,17 +34,18 @@ const CARDS = [
 
 export default function HomePage() {
   const { user } = useAuth();
+  const cards = user.company?.code === 'AVIT' ? CARDS : [RAISE, ...CARDS.slice(1)];
 
   return (
     <section>
-      <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Home</p>
+      <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name || 'Home'}</p>
       <h1 className="mt-1 text-3xl">
         Welcome, <UserName user={user} />
       </h1>
       <p className="mt-2 font-ui text-sm text-ink-2">What do you need help with today?</p>
 
       <ul className="mt-6 grid gap-4 md:grid-cols-3">
-        {CARDS.map(({ to, Icon, title, text }) => (
+        {cards.map(({ to, Icon, title, text }) => (
           <li key={to}>
             <Link
               to={to}

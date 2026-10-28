@@ -1,5 +1,7 @@
-// /Atom/api/requests — tickets (Phase 6). Every route needs login; scope is checked per ticket
-// (out of scope = 404). :number accepts "T-1001" or "1001".
+// /Atom/api/requests — tickets (Phase 6). Every route needs login AND a chosen company (409
+// choose_company otherwise); everything is inside that company. Scope is checked per ticket
+// (out of scope = 404). :number accepts "T-1001" or "1001". "Super Admin" below = the company's
+// Admin (or the Super Admin inside the company).
 //   GET    /categories                                         → { categories }
 //   GET    /default-location?for=<userId>   "Where?" prefill from the department (for = Super Admin only) → { location }
 //   GET    /mine?status=open|closed|all&page=&pageSize=        → { requests, total, page, pageSize }
@@ -27,7 +29,7 @@
 //   POST   /:number/items/:itemId/deliver   { note?, assetTags? }   assigned engineer / Super Admin → { request }
 const express = require('express');
 const { query, validationResult } = require('express-validator');
-const { requireAuth, requireRole } = require('../../middleware/requireAuth');
+const { requireAuth, requireCompany, requireAdmin } = require('../../middleware/requireAuth');
 const { photosField } = require('./attachments');
 const lifecycle = require('./lifecycle');
 const svc = require('./requests.service');
@@ -46,9 +48,9 @@ const handle = (fn) => async (req, res, next) => {
 
 function createRequestsRouter() {
   const router = express.Router();
-  router.use(requireAuth);
+  router.use(requireAuth, requireCompany);
 
-  router.get('/categories', handle(async (req, res) => res.json({ categories: await svc.listCategories() })));
+  router.get('/categories', handle(async (req, res) => res.json({ categories: await svc.listCategories(req.user) })));
 
   router.get(
     '/default-location',
@@ -130,7 +132,7 @@ function createRequestsRouter() {
   );
 
   // ---------- Phase 9: catalogue + service requests ----------
-  const admin = requireRole('SUPER_ADMIN');
+  const admin = requireAdmin;
   // Time frame per priority (everyone: shown when raising) — edited in /Atom/api/settings.
   router.get('/time-frames', handle(async (req, res) => res.json({ timeFrames: await timeFrames.listTargets() })));
   router.get('/catalogue', handle(async (req, res) => res.json({ items: await sr.listCatalogue(req.user, { includeInactive: req.query.includeInactive === '1' }) })));

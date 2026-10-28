@@ -24,6 +24,7 @@ maybe('inventory export / import on real PostgreSQL', () => {
   const ExcelJS = require('exceljs');
   const request = require('supertest');
   const pool = require('../../db/pool');
+  const { staffOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { runMigrations } = require('../../db/migrate');
   const { createApp } = require('../../app');
@@ -92,7 +93,7 @@ maybe('inventory export / import on real PostgreSQL', () => {
     app = createApp();
     ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE', 'SUPER_ADMIN']);
     ids.alice = await addUser('40000001', 'Alice Hamid', ['EMPLOYEE']);
-    await addUser('40000003', 'Eng One', ['EMPLOYEE', 'ENGINEER']);
+    await staffOf(pool, await addUser('40000003', 'Eng One', ['EMPLOYEE', 'ENGINEER']));
     admin = await login('30328701', 'SUPER_ADMIN');
     eng = await login('40000003', 'ENGINEER');
     const avit = (await pool.query(`SELECT id FROM service_units WHERE code='AVIT'`)).rows[0].id;
@@ -112,7 +113,7 @@ maybe('inventory export / import on real PostgreSQL', () => {
     expect((await exportFile(eng)).status).toBe(404);
     const res = await exportFile(admin);
     expect(res.status).toBe(200);
-    expect(res.headers['content-disposition']).toMatch(/^attachment; filename="ATOM-inventory-\d{4}-\d{2}-\d{2}\.xlsx"$/);
+    expect(res.headers['content-disposition']).toMatch(/^attachment; filename="ATOM-AVIT-inventory-\d{4}-\d{2}-\d{2}\.xlsx"$/);
     const wb = await workbook(res.body);
     const ws = wb.getWorksheet('Inventory');
     expect(ws.rowCount).toBe(3);

@@ -8,6 +8,7 @@ import InvoiceUploadForm from '../components/InvoiceUploadForm';
 import Modal from '../components/Modal';
 import { Pager } from '../components/RequestList';
 import useAuth from '../hooks/useAuth';
+import { isAdminRole, roleLabel } from '../utils/roles';
 import { timeAgo } from '../utils/format';
 import { invoiceLabel } from '../utils/invoices';
 
@@ -61,12 +62,12 @@ export default function InvoicesPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">
-            {user.activeRole === 'SUPER_ADMIN' ? 'Super Admin' : 'Engineer'}
+            {user.company?.name} · {isAdminRole(user.activeRole) ? 'Admin' : roleLabel(user.activeRole, user)}
           </p>
           <h1 className="mt-1 text-3xl">Invoices</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">
-            {user.activeRole === 'SUPER_ADMIN'
-              ? 'Every invoice, and the tickets it covers. Requesters never see invoices.'
+            {isAdminRole(user.activeRole)
+              ? 'Every invoice of this company, and the tickets it covers. Requesters never see invoices.'
               : 'Invoices you uploaded and invoices on tickets assigned to you.'}
           </p>
         </div>

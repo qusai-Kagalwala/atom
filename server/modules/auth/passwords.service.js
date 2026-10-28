@@ -77,7 +77,7 @@ async function changePassword(user, currentPassword, newPassword, { keepSocketId
   const except = /^[A-Za-z0-9_-]{1,64}$/.test(String(keepSocketId || '')) ? keepSocketId : undefined;
   realtime.disconnectUser(user.id, { except }); // other devices' live connections drop now; their next request gets 401
   // Other devices are signed out (session_version went up). This device gets a fresh token and stays in.
-  return { message: MSG.changed, token: signSession(user.id, user.activeRole, version) };
+  return { message: MSG.changed, token: signSession(user.id, user.activeRole, version, user.companyId) };
 }
 
 function resetEmail(link) {

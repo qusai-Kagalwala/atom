@@ -45,10 +45,12 @@ async function resolveCategories(db, plan, unitId) {
     `SELECT a.alias, COALESCE(m.id, c.id) AS id
        FROM asset_category_aliases a
        JOIN asset_categories c ON c.id = a.category_id
-       LEFT JOIN asset_categories m ON m.id = c.merged_into_id`
+       LEFT JOIN asset_categories m ON m.id = c.merged_into_id
+      WHERE c.service_unit_id = $1::bigint`,
+    [unitId]
   );
   const byAlias = new Map(aliases.map((a) => [a.alias, a.id]));
-  const { rows: active } = await db.query('SELECT id, name FROM asset_categories WHERE is_active');
+  const { rows: active } = await db.query('SELECT id, name FROM asset_categories WHERE is_active AND service_unit_id = $1::bigint', [unitId]);
   const byName = new Map(active.map((c) => [c.name.toLowerCase(), c.id]));
   const result = new Map();
   let created = 0;
@@ -119,7 +121,8 @@ async function applyAssets(db, plan, { categoryIds, placeIds, unitId, keepAtomEd
     `SELECT id, upper(asset_tag) AS key, source, imported_hash, imported_at, edited_in_atom_at,
             category_id, place_id, holder_user_id,
             ${Object.keys(IMPORT_FIELDS).map((col) => (col === 'purchased_on' ? 'purchased_on::text AS purchased_on' : col)).join(', ')}
-       FROM assets`
+       FROM assets WHERE service_unit_id = $1::bigint`,
+    [unitId]
   );
   const byTag = new Map(existing.map((a) => [a.key, a]));
   const c = { created: 0, updated: 0, unchanged: 0, keptAtomEdits: 0, overwroteAtomEdits: 0 };
@@ -255,8 +258,8 @@ async function runSnipeitImport(csvBuffer, { commit = false, keepAtomEdits = fal
       return report;
     }
     await client.query(
-      `INSERT INTO asset_imports (file_name, file_sha256, rows, summary, imported_by)
-       VALUES ($1::text, $2::text, $3::int, $4::jsonb, $5::bigint)`,
+      `INSERT INTO asset_imports (file_name, file_sha256, rows, summary, imported_by, service_unit_id)
+       VALUES ($1::text, $2::text, $3::int, $4::jsonb, $5::bigint, $6::bigint)`,
       [
         fileName,
         crypto.createHash('sha256').update(csvBuffer).digest('hex'),
@@ -267,6 +270,7 @@ async function runSnipeitImport(csvBuffer, { commit = false, keepAtomEdits = fal
           newCategories: report.newCategories, newPlaces: report.newPlaces, notInFile: report.notInFileCount,
         }),
         userId,
+        unitId,
       ]
     );
     await client.query('COMMIT');

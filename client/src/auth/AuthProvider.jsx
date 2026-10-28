@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { loginRequest, meRequest, switchRoleRequest } from '../api/auth';
+import { loginRequest, meRequest, switchCompanyRequest, switchRoleRequest } from '../api/auth';
 import { LOGIN_PATH } from '../api/http';
 import queryClient from '../api/queryClient';
 import AuthContext from './authContext';
@@ -11,6 +11,7 @@ import {
   getToken,
   saveSession,
   saveUser,
+  setLastCompany,
   setLastRole,
 } from './storage';
 
@@ -38,26 +39,33 @@ export default function AuthProvider({ children }) {
     if (me.data) saveUser(me.data);
   }, [me.data]);
 
+  // After login the company picker always opens (LoginPage sends them there).
   const login = useCallback(async (identifier, password) => {
-    let { token, user: next } = await loginRequest(identifier, password);
+    const { token, user: next } = await loginRequest(identifier, password);
     saveSession(token, next);
-
-    // Land in the last role used on this device, if it's still granted.
-    const last = getLastRole(next.id);
-    if (last && last !== next.activeRole && next.roles.includes(last)) {
-      ({ token, user: next } = await switchRoleRequest(last));
-      saveSession(token, next);
-    }
-    setLastRole(next.id, next.activeRole);
     setStoredUser(next);
     return next;
   }, []);
 
+  // Company picker: company = { id, roles } from /auth/companies, or null for the Super Admin console.
+  // Lands in the last role used in that company on this device, if still allowed there.
   // Full reload after switching (the Awraaq pattern — avoids stale data and redirect loops).
+  const switchCompany = useCallback(async (company, to = HOME_PATH) => {
+    const current = getStoredUser();
+    const last = current ? getLastRole(current.id, company?.id) : null;
+    const role = last && company?.roles?.includes(last) ? last : null;
+    const { token, user: next } = await switchCompanyRequest(company?.id || null, company ? role : 'SUPER_ADMIN');
+    saveSession(token, next);
+    setLastCompany(next.id, next.companyId);
+    setLastRole(next.id, next.activeRole, next.companyId);
+    queryClient.clear();
+    window.location.replace(to);
+  }, []);
+
   const switchRole = useCallback(async (role) => {
     const { token, user: next } = await switchRoleRequest(role);
     saveSession(token, next);
-    setLastRole(next.id, next.activeRole);
+    setLastRole(next.id, next.activeRole, next.companyId);
     queryClient.clear();
     window.location.replace(HOME_PATH);
   }, []);
@@ -69,8 +77,8 @@ export default function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isAuthenticated, login, logout, switchRole }),
-    [user, isAuthenticated, login, logout, switchRole]
+    () => ({ user, isAuthenticated, login, logout, switchRole, switchCompany }),
+    [user, isAuthenticated, login, logout, switchRole, switchCompany]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

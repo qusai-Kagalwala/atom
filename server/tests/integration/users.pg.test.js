@@ -25,6 +25,7 @@ const maybe = enabled ? describe : describe.skip;
 maybe('users admin API on real PostgreSQL', () => {
   const request = require('supertest');
   const pool = require('../../db/pool');
+  const { staffOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { runMigrations } = require('../../db/migrate');
   const { createApp } = require('../../app');
@@ -75,6 +76,8 @@ maybe('users admin API on real PostgreSQL', () => {
     ids.raja = await addUser({ its: '20305503', name: 'Shaikh Ebrahim Raja' });
     ids.emp = await addUser({ emp: '1002', source: 'legacy' });
     ids.eng = await addUser({ its: '40000003', name: 'Engineer One', roles: ['EMPLOYEE', 'ENGINEER'] });
+    await staffOf(pool, ids.qusai);
+    await staffOf(pool, ids.eng);
 
     const { rows } = await pool.query(`INSERT INTO departments (idarah_id, name) VALUES ('6053', 'Insha al-Nazm') RETURNING id`);
     await pool.query(`INSERT INTO user_posts (user_id, department_id, post) VALUES ($1, $2, 'Masool (HOD)')`, [ids.raja, rows[0].id]);
@@ -126,7 +129,7 @@ maybe('users admin API on real PostgreSQL', () => {
   test('roles: grant/remove with history; protections', async () => {
     const g = await admin.post(`/${ids.raja}/roles`, { role: 'SUPER_ADMIN' });
     expect(g.body.user.roles).toEqual(['EMPLOYEE', 'SUPER_ADMIN']);
-    expect(g.body.user.history[0]).toMatchObject({ text: 'Role granted: SUPER_ADMIN', by: 'Qusai Kagalwala' });
+    expect(g.body.user.history[0]).toMatchObject({ text: 'Role granted: Super Admin', by: 'Qusai Kagalwala' });
 
     // granting twice is a no-op (no second history line)
     const again = await admin.post(`/${ids.raja}/roles`, { role: 'SUPER_ADMIN' });
@@ -173,23 +176,40 @@ maybe('users admin API on real PostgreSQL', () => {
     expect(left[0].n).toBeGreaterThanOrEqual(1);
   });
 
-  test('service-unit tags: engineers only; removing Engineer untags', async () => {
-    const avit = (await q(`SELECT id FROM service_units WHERE code='AVIT'`))[0].id;
-    const siy = (await q(`SELECT id FROM service_units WHERE code='SIYANAAT'`))[0].id;
+  test('Admin and Staff: one company each; Staff with one of its occupations; history', async () => {
+    const co = Object.fromEntries((await admin.get('/companies')).body.companies.map((c) => [c.code, c]));
+    expect(Object.keys(co)).toEqual(['AVIT', 'SIYANAAT', 'TANZEEM']);
+    const occ = (code, name) => co[code].occupations.find((o) => o.name === name).id;
 
-    expect((await admin.post(`/${ids.raja}/service-units`, { serviceUnitId: avit })).body.code).toBe('not_engineer');
+    expect((await admin.post(`/${ids.raja}/roles`, { role: 'ADMIN' })).body.code).toBe('bad_company');
+    expect((await admin.post(`/${ids.raja}/roles`, { role: 'ENGINEER', companyId: co.AVIT.id })).body.code).toBe('bad_occupation');
+    expect((await admin.post(`/${ids.raja}/roles`, { role: 'ENGINEER', companyId: co.AVIT.id, occupationId: occ('SIYANAAT', 'Carpenter') })).body.code).toBe('bad_occupation');
 
-    await admin.post(`/${ids.eng}/service-units`, { serviceUnitId: avit });
-    const t = await admin.post(`/${ids.eng}/service-units`, { serviceUnitId: siy }); // inactive unit is allowed
-    expect(t.body.user.serviceUnits.map((s) => s.code)).toEqual(['AVIT', 'SIYANAAT']);
+    const a = (await admin.post(`/${ids.raja}/roles`, { role: 'ADMIN', companyId: co.SIYANAAT.id })).body.user;
+    expect(a).toMatchObject({ roles: ['EMPLOYEE', 'ADMIN'], company: { code: 'SIYANAAT' }, occupation: null });
+    expect(a.history[0].text).toBe('Role granted: Admin in SIYANAAT');
 
-    const u = await admin.del(`/${ids.eng}/service-units/${siy}`);
-    expect(u.body.user.serviceUnits.map((s) => s.code)).toEqual(['AVIT']);
+    // Already works for Siyanaat → can't be Staff of AVIT.
+    const busy = await admin.post(`/${ids.raja}/roles`, { role: 'ENGINEER', companyId: co.AVIT.id, occupationId: occ('AVIT', 'Engineer') });
+    expect(busy.status).toBe(409);
+    expect(busy.body.code).toBe('other_company');
 
-    const r = await admin.del(`/${ids.eng}/roles/ENGINEER`);
-    expect(r.body.user.serviceUnits).toEqual([]);
-    expect(r.body.user.history[0].text).toBe('Role removed: ENGINEER (service units untagged: AVIT)');
-    expect((await admin.post(`/${ids.eng}/service-units`, { serviceUnitId: 999 })).status).toBe(404);
+    const s1 = (await admin.post(`/${ids.raja}/roles`, { role: 'ENGINEER', companyId: co.SIYANAAT.id, occupationId: occ('SIYANAAT', 'Carpenter') })).body.user;
+    expect(s1).toMatchObject({ roles: ['EMPLOYEE', 'ENGINEER', 'ADMIN'], occupation: { name: 'Carpenter' } });
+    expect(s1.history[0].text).toBe('Role granted: Staff (Carpenter) in SIYANAAT');
+    const s2 = (await admin.post(`/${ids.raja}/roles`, { role: 'ENGINEER', companyId: co.SIYANAAT.id, occupationId: occ('SIYANAAT', 'Electrician') })).body.user;
+    expect(s2.occupation.name).toBe('Electrician');
+    expect(s2.history[0].text).toBe('Occupation changed in SIYANAAT: Carpenter → Electrician');
+
+    const r1 = (await admin.del(`/${ids.raja}/roles/ADMIN`)).body.user;
+    expect(r1).toMatchObject({ roles: ['EMPLOYEE', 'ENGINEER'], company: { code: 'SIYANAAT' }, occupation: { name: 'Electrician' } });
+    const r2 = (await admin.del(`/${ids.raja}/roles/ENGINEER`)).body.user;
+    expect(r2).toMatchObject({ roles: ['EMPLOYEE'], company: null, occupation: null });
+    expect(r2.history[0].text).toBe('Role removed: Staff (Electrician) in SIYANAAT');
+
+    // Free again → may join another company.
+    expect((await admin.post(`/${ids.raja}/roles`, { role: 'ADMIN', companyId: co.TANZEEM.id })).body.user.company.code).toBe('TANZEEM');
+    expect((await admin.get(`/?role=ADMIN&companyId=${co.TANZEEM.id}`)).body.users.map((u) => u.name)).toEqual(['Shaikh Ebrahim Raja']);
   });
 
   test('status: reason required, logged with who; deactivated user is locked out at once', async () => {

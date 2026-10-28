@@ -24,6 +24,7 @@ const maybe = enabled ? describe : describe.skip;
 maybe('service requests on real PostgreSQL', () => {
   const request = require('supertest');
   const pool = require('../../db/pool');
+  const { staffOf, adminOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { runMigrations } = require('../../db/migrate');
   const { createApp } = require('../../app');
@@ -81,14 +82,15 @@ maybe('service requests on real PostgreSQL', () => {
                        WHERE s.code = 'AVIT'`);
     ejamaat.authenticate.mockReset().mockResolvedValue({ success: true });
     app = createApp();
-    ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE', 'SUPER_ADMIN']);
+    ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE']);
+    await adminOf(pool, ids.admin);
     ids.alice = await addUser('40000001', 'Alice Hamid', ['EMPLOYEE']);
     ids.bob = await addUser('40000002', 'Bob Saifee', ['EMPLOYEE']);
     ids.eng1 = await addUser('40000003', 'Eng One', ['EMPLOYEE', 'ENGINEER']);
     ids.eng2 = await addUser('40000004', 'Eng Two', ['EMPLOYEE', 'ENGINEER']);
     const avit = (await pool.query(`SELECT id FROM service_units WHERE code='AVIT'`)).rows[0].id;
-    for (const e of [ids.eng1, ids.eng2]) await pool.query('INSERT INTO user_service_units (user_id, service_unit_id) VALUES ($1, $2)', [e, avit]);
-    admin = as(await login('30328701', 'SUPER_ADMIN'));
+    for (const e of [ids.eng1, ids.eng2]) await staffOf(pool, e);
+    admin = as(await login('30328701', 'ADMIN'));
     alice = as(await login('40000001'));
     bob = as(await login('40000002'));
     eng1 = as(await login('40000003', 'ENGINEER'));

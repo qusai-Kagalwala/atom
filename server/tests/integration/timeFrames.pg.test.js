@@ -24,6 +24,7 @@ const MIN = 60 * 1000;
 maybe('time frames, overdue and email on real PostgreSQL', () => {
   const request = require('supertest');
   const pool = require('../../db/pool');
+  const { staffOf, adminOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { config } = require('../../config/env');
   const { runMigrations } = require('../../db/migrate');
@@ -34,6 +35,7 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
   let app;
   const ids = {};
   let admin;
+  let sa;
   let alice;
   let eng1;
   let cat;
@@ -81,13 +83,16 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
     ejamaat.authenticate.mockReset().mockResolvedValue({ success: true });
     config.smtp.host = '';
     app = createApp();
-    ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE', 'SUPER_ADMIN'], 'qusai@example.org');
+    ids.admin = await addUser('30328701', 'Qusai', ['EMPLOYEE'], 'qusai@example.org');
+    await adminOf(pool, ids.admin); // Admin of AVIT: told about AVIT work
+    ids.sa = await addUser('30328709', 'Super', ['EMPLOYEE', 'SUPER_ADMIN']); // global settings
     ids.alice = await addUser('40000001', 'Alice Hamid', ['EMPLOYEE'], 'alice@example.org');
     ids.eng1 = await addUser('40000003', 'Eng One', ['EMPLOYEE', 'ENGINEER']);
     const avit = (await pool.query(`SELECT id FROM service_units WHERE code='AVIT'`)).rows[0].id;
-    await pool.query('INSERT INTO user_service_units (user_id, service_unit_id) VALUES ($1, $2)', [ids.eng1, avit]);
+    await staffOf(pool, ids.eng1);
     cat = String((await pool.query(`SELECT id FROM categories WHERE name='Printer / Scanner'`)).rows[0].id);
-    admin = as(await login('30328701', 'SUPER_ADMIN'));
+    admin = as(await login('30328701', 'ADMIN'));
+    sa = as(await login('30328709', 'SUPER_ADMIN'));
     alice = as(await login('40000001'));
     eng1 = as(await login('40000003', 'ENGINEER'));
   });
@@ -107,11 +112,12 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
     expect((await alice.get('/requests/mine')).body.requests[0]).toMatchObject({ dueBy: expect.any(String), doneAt: null });
   });
 
-  test('Super Admin edits the time frames; employees cannot', async () => {
+  test('Super Admin edits the time frames (one set for every company); Admins and employees cannot', async () => {
     expect((await alice.get('/settings')).status).toBe(404);
-    expect((await admin.patch('/settings/time-frames', { targets: [{ priority: 'HIGH', minMinutes: 90, maxMinutes: 60 }] })).status).toBe(400);
-    expect((await admin.patch('/settings/time-frames', { targets: [{ priority: 'URGENT', minMinutes: 1, maxMinutes: 2 }] })).status).toBe(400);
-    const t = (await admin.patch('/settings/time-frames', { targets: [{ priority: 'HIGH', minMinutes: 15, maxMinutes: 60 }] })).body.timeFrames;
+    expect((await admin.get('/settings')).status).toBe(404);
+    expect((await sa.patch('/settings/time-frames', { targets: [{ priority: 'HIGH', minMinutes: 90, maxMinutes: 60 }] })).status).toBe(400);
+    expect((await sa.patch('/settings/time-frames', { targets: [{ priority: 'URGENT', minMinutes: 1, maxMinutes: 2 }] })).status).toBe(400);
+    const t = (await sa.patch('/settings/time-frames', { targets: [{ priority: 'HIGH', minMinutes: 15, maxMinutes: 60 }] })).body.timeFrames;
     expect(t[0]).toMatchObject({ priority: 'HIGH', minMinutes: 15, maxMinutes: 60 });
     expect(window((await raise(alice, { priority: 'HIGH' })).body.request)).toEqual([15, 60]);
   });
@@ -129,7 +135,7 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
     expect((await eng1.patch('/requests/T-1001', { priority: 'LOW' })).status).toBe(404);
   });
 
-  test('overdue: told once (Super Admins + engineer); done ones are not', async () => {
+  test('overdue: told once (the company\'s Admins + the staff member); done ones are not', async () => {
     await raise(alice);
     await raise(alice);
     await admin.post('/requests/T-1001/actions/assign', { engineerId: ids.eng1 });
@@ -138,7 +144,8 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
     const publish = jest.fn();
     expect(await timeFrames.checkOverdue({ publish })).toBe(1);
     expect(await timeFrames.checkOverdue({ publish })).toBe(0);
-    expect((await notes(ids.admin)).filter((n) => /overdue/.test(n.title))).toEqual([{ title: 'T-1001 is overdue', body: 'Printer jams', role: 'SUPER_ADMIN' }]);
+    expect((await notes(ids.admin)).filter((n) => /overdue/.test(n.title))).toEqual([{ title: 'T-1001 is overdue', body: 'Printer jams', role: 'ADMIN' }]);
+    expect(await notes(ids.sa)).toEqual([]);
     expect((await notes(ids.eng1)).at(-1)).toMatchObject({ title: 'T-1001 is overdue', role: 'ENGINEER' });
     expect((await notes(ids.alice)).some((n) => /overdue/.test(n.title))).toBe(false);
     // Lowering the priority moves the window later → can be told again later.
@@ -150,9 +157,9 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
     await raise(alice);
     expect((await pool.query('SELECT count(*)::int AS n FROM email_outbox')).rows[0].n).toBe(0);
 
-    expect((await admin.patch('/settings/email', { enabled: 'yes' })).status).toBe(400);
-    expect((await admin.patch('/settings/email', { enabled: true })).body.email).toMatchObject({ emailEnabled: true, smtpConfigured: false });
-    await raise(alice, { priority: 'HIGH' }); // → Super Admin (has email)
+    expect((await sa.patch('/settings/email', { enabled: 'yes' })).status).toBe(400);
+    expect((await sa.patch('/settings/email', { enabled: true })).body.email).toMatchObject({ emailEnabled: true, smtpConfigured: false });
+    await raise(alice, { priority: 'HIGH' }); // → the AVIT Admin (has email)
     await admin.post('/requests/T-1002/actions/assign', { engineerId: ids.eng1 }); // → engineer (no email) + Alice
     const queued = (await pool.query('SELECT to_email, subject, body_text FROM email_outbox ORDER BY id')).rows;
     expect(queued.map((q) => [q.to_email, q.subject])).toEqual([
@@ -173,7 +180,7 @@ maybe('time frames, overdue and email on real PostgreSQL', () => {
       await pool.query(`UPDATE email_outbox SET next_try_at = now() WHERE status = 'queued'`);
       await email.sendQueued({ send });
     }
-    const s = (await admin.get('/settings')).body.email;
+    const s = (await sa.get('/settings')).body.email;
     expect(s.emails.map((e) => [e.to, e.status, e.attempts])).toEqual([
       ['alice@example.org', 'failed', 3],
       ['qusai@example.org', 'sent', 1],

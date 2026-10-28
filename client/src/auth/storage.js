@@ -2,7 +2,9 @@
 // so never reuse its keys. Every access is wrapped: storage can be blocked or throw.
 const TOKEN_KEY = 'atom_token';
 const USER_KEY = 'atom_user';
-const lastRoleKey = (userId) => `atom_last_role_${userId}`;
+// Last role per company (and with no company: the Super Admin console), last company — per device.
+const lastRoleKey = (userId, companyId) => `atom_last_role_${userId}${companyId ? `_${companyId}` : ''}`;
+const lastCompanyKey = (userId) => `atom_last_company_${userId}`;
 
 function read(key) {
   try {
@@ -47,16 +49,24 @@ export function saveUser(user) {
   write(USER_KEY, JSON.stringify(user));
 }
 
-// Keeps the last-used role (it's per device, on purpose).
+// Keeps the last-used role and company (they're per device, on purpose).
 export function clearSession() {
   write(TOKEN_KEY, null);
   write(USER_KEY, null);
 }
 
-export function getLastRole(userId) {
-  return userId ? read(lastRoleKey(userId)) : null;
+export function getLastRole(userId, companyId) {
+  return userId ? read(lastRoleKey(userId, companyId)) : null;
 }
 
-export function setLastRole(userId, role) {
-  if (userId) write(lastRoleKey(userId), role);
+export function setLastRole(userId, role, companyId) {
+  if (userId) write(lastRoleKey(userId, companyId), role);
+}
+
+export function getLastCompany(userId) {
+  return userId ? read(lastCompanyKey(userId)) : null;
+}
+
+export function setLastCompany(userId, companyId) {
+  if (userId) write(lastCompanyKey(userId), companyId || null);
 }

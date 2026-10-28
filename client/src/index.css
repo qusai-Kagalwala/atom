@@ -178,6 +178,7 @@
   /* Role badges */
   .role-super { @apply badge bg-role-super-bg text-role-super; }
   .role-engineer { @apply badge bg-role-engineer-bg text-role-engineer; }
+  .role-admin { @apply badge bg-primary-tint text-primary; }
   .role-employee { @apply badge bg-role-employee-bg text-role-employee; }
 }
 

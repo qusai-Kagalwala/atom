@@ -6,7 +6,7 @@ import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import useAuth from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
-import { priorityBadge, priorityLabel, statusBadge, statusLabel } from '../utils/requests';
+import { priorityBadge, priorityLabel, staffLabel, statusBadge, statusLabel } from '../utils/requests';
 import { TimeBadge } from '../components/TimeFrame';
 
 const TABS = [
@@ -45,7 +45,7 @@ export default function MyRequestsPage() {
           <Link to="/request" className="btn-secondary">
             <Plus size={18} aria-hidden="true" /> Request something
           </Link>
-          <Link to="/assistant" className="btn-primary">
+          <Link to={user.company?.code === 'AVIT' ? '/assistant' : '/tickets/new'} className="btn-primary">
             <Plus size={18} aria-hidden="true" /> Raise a ticket
           </Link>
         </div>
@@ -107,7 +107,7 @@ export default function MyRequestsPage() {
                   {t.priority !== 'NORMAL' && <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>}
                   <TimeBadge t={t} />
                   {!forMe && <span>For {t.requester.name}</span>}
-                  {t.assignedEngineer && <span>Engineer: {t.assignedEngineer.name}</span>}
+                  {t.assignedEngineer && <span>{staffLabel(t.assignedEngineer)}</span>}
                   <span className="text-ink-3">Updated {formatDateTime(t.updatedAt)}</span>
                 </div>
               </Link>

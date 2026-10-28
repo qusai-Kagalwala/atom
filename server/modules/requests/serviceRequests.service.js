@@ -1,4 +1,5 @@
-// Catalogue + service requests (Phase 9, ATOM_Decisions.md §9).
+// Catalogue + service requests (Phase 9, ATOM_Decisions.md §9). Each company has its own catalogue;
+// everything here is inside the session's company ("Super Admin" below = that company's Admin).
 //   Employee: picks catalogue items and/or types "something else", each with quantity and reason.
 //   Super Admin: approves / rejects each item (reason required to reject). When none is pending:
 //     any approved → OPEN (Assign queue, like a ticket) · all rejected → REJECTED.
@@ -13,6 +14,7 @@ const repo = require('./requests.repo');
 const lifecycle = require('./lifecycle');
 const tickets = require('./requests.service');
 const timeFrames = require('./timeFrames');
+const roles = require('../../utils/roles');
 
 const bad = (message, code) => new HttpError(400, message, code);
 const clean = (v) => (v == null ? '' : String(v).replace(/\s+/g, ' ').trim());
@@ -35,17 +37,19 @@ function toCatalogue(c) {
 }
 
 async function listCatalogue(user, { includeInactive = false } = {}) {
-  const all = includeInactive && user.activeRole === 'SUPER_ADMIN';
+  if (!user.companyId) return [];
+  const all = includeInactive && roles.isAdmin(user);
   const { rows } = await pool.query(
     `SELECT ci.*, ac.name AS asset_category_name
        FROM catalogue_items ci LEFT JOIN asset_categories ac ON ac.id = ci.asset_category_id
-      ${all ? '' : 'WHERE ci.is_active'}
-      ORDER BY ci.sort_order, lower(ci.name)`
+      WHERE ci.service_unit_id = $1::bigint ${all ? '' : 'AND ci.is_active'}
+      ORDER BY ci.sort_order, lower(ci.name)`,
+    [user.companyId]
   );
   return rows.map(toCatalogue);
 }
 
-async function catalogueFields(db, body, current = {}) {
+async function catalogueFields(db, user, body, current = {}) {
   const name = 'name' in body ? clean(body.name) : current.name;
   if (!name || name.length < 2 || name.length > 80) throw bad('Give the item a name (2–80 characters).', 'bad_name');
   const kind = 'kind' in body ? clean(body.kind) : current.kind || 'physical';
@@ -55,7 +59,10 @@ async function catalogueFields(db, body, current = {}) {
   if (kind !== 'physical') assetCategoryId = null;
   if (assetCategoryId) {
     if (!isId(assetCategoryId)) throw bad('Choose an inventory category.', 'bad_category');
-    const { rows } = await db.query('SELECT id FROM asset_categories WHERE id = $1::bigint AND is_active', [assetCategoryId]);
+    const { rows } = await db.query(
+      'SELECT id FROM asset_categories WHERE id = $1::bigint AND is_active AND service_unit_id = $2::bigint',
+      [assetCategoryId, user.companyId]
+    );
     if (!rows[0]) throw bad('Choose an inventory category.', 'bad_category');
   }
   const sortOrder = 'sortOrder' in body ? Number(body.sortOrder) : current.sort_order ?? 100;
@@ -68,8 +75,8 @@ async function catalogueFields(db, body, current = {}) {
 const nameTaken = (err) => err.code === '23505' ? new HttpError(409, 'An item with this name already exists.', 'duplicate') : err;
 
 async function createCatalogueItem(user, body = {}) {
-  const f = await catalogueFields(pool, body);
-  const unitId = await repo.defaultServiceUnitId(pool);
+  const f = await catalogueFields(pool, user, body);
+  const unitId = user.companyId;
   try {
     const { rows } = await pool.query(
       `INSERT INTO catalogue_items (name, kind, description, asset_category_id, sort_order, is_active, service_unit_id)
@@ -84,9 +91,9 @@ async function createCatalogueItem(user, body = {}) {
 
 async function updateCatalogueItem(user, id, body = {}) {
   if (!isId(id)) throw notFound();
-  const { rows } = await pool.query('SELECT * FROM catalogue_items WHERE id = $1::bigint', [id]);
+  const { rows } = await pool.query('SELECT * FROM catalogue_items WHERE id = $1::bigint AND service_unit_id = $2::bigint', [id, user.companyId]);
   if (!rows[0]) throw notFound();
-  const f = await catalogueFields(pool, body, rows[0]);
+  const f = await catalogueFields(pool, user, body, rows[0]);
   try {
     await pool.query(
       `UPDATE catalogue_items SET name = $2::text, kind = $3::text, description = $4::text, asset_category_id = $5::bigint,
@@ -102,7 +109,8 @@ async function updateCatalogueItem(user, id, body = {}) {
 // ---------- create ----------
 // body: { items: [{ catalogueItemId?, name? (something else), quantity, reason }], location?, priority?, requesterId? }
 async function createServiceRequest(user, body = {}) {
-  const isAdmin = user.activeRole === 'SUPER_ADMIN';
+  const isAdmin = roles.isAdmin(user);
+  if (!user.companyId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
   const list = Array.isArray(body.items) ? body.items : [];
   if (!list.length) throw bad('Add at least one item.', 'no_items');
   if (list.length > MAX_ITEMS) throw bad(`Up to ${MAX_ITEMS} items in one request.`, 'too_many_items');
@@ -111,7 +119,10 @@ async function createServiceRequest(user, body = {}) {
   const priority = clean(body.priority).toUpperCase() || 'NORMAL';
   if (!(isAdmin ? tickets.ALL_PRIORITIES : tickets.REQUESTER_PRIORITIES).has(priority)) throw bad('Choose how urgent it is.', 'bad_priority');
 
-  const { rows: catalogue } = await pool.query('SELECT id, name, kind FROM catalogue_items WHERE is_active');
+  const { rows: catalogue } = await pool.query(
+    'SELECT id, name, kind FROM catalogue_items WHERE is_active AND service_unit_id = $1::bigint',
+    [user.companyId]
+  );
   const byId = new Map(catalogue.map((c) => [String(c.id), c]));
   const items = list.map((raw, i) => {
     const n = i + 1;
@@ -136,8 +147,7 @@ async function createServiceRequest(user, body = {}) {
   const description = items.map((it) => `• ${label(it)} — ${it.reason}`).join('\n').slice(0, 5000);
 
   const created = await tickets.inTransaction(async (db, afterCommit) => {
-    const serviceUnitId = await repo.defaultServiceUnitId(db);
-    if (!serviceUnitId) throw new HttpError(503, 'Requests are not available right now.', 'no_service_unit');
+    const serviceUnitId = user.companyId;
     let requesterId = String(user.id);
     if (body.requesterId && String(body.requesterId) !== String(user.id)) {
       if (!isAdmin) throw notFound();
@@ -148,7 +158,7 @@ async function createServiceRequest(user, body = {}) {
     const { rows } = await db.query(
       `INSERT INTO requests (type, status, priority, title, description, location, service_unit_id, requester_id, raised_by_id)
        VALUES ('SERVICE_REQUEST', 'PENDING_APPROVAL', $1::request_priority, $2::text, $3::text, $4::text, $5::bigint, $6::bigint, $7::bigint)
-       RETURNING id, number`,
+       RETURNING id, number, service_unit_id`,
       [priority, title, description, location, serviceUnitId, requesterId, user.id]
     );
     const row = rows[0];
@@ -168,7 +178,10 @@ async function createServiceRequest(user, body = {}) {
       toStatus: 'PENDING_APPROVAL',
       data: requesterId !== String(user.id) ? { raisedFor: requesterId } : null,
     });
-    const ticket = { ...row, type: 'SERVICE_REQUEST', status: 'PENDING_APPROVAL', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null, due_by: due?.due_by };
+    const ticket = {
+      ...row, type: 'SERVICE_REQUEST', status: 'PENDING_APPROVAL', title, requester_id: requesterId, raised_by_id: user.id,
+      assigned_engineer_id: null, due_by: due?.due_by, service_unit_name: user.company?.name,
+    };
     const sent = await notifications.recordTicketEvent(db, ticket, { kind: 'created', actorId: user.id, raisedFor: requesterId !== String(user.id) });
     afterCommit(() => notifications.publish(sent, ticket));
     return row;
@@ -183,7 +196,7 @@ async function decideItems(user, numberParam, body = {}) {
   if (!decisions.length) throw bad('Choose approve or reject for at least one item.', 'no_decisions');
   const r = await tickets.inTransaction(async (db, afterCommit) => {
     const req = await tickets.loadInScope(db, { user }, numberParam, { forUpdate: true });
-    if (req.type !== 'SERVICE_REQUEST' || user.activeRole !== 'SUPER_ADMIN') throw notFound();
+    if (req.type !== 'SERVICE_REQUEST' || !roles.isAdmin(user)) throw notFound();
     if (!lifecycle.canDecideItems(user, req)) {
       throw new HttpError(409, 'This request has moved on — refresh to see its current status.', 'wrong_status');
     }
@@ -253,7 +266,7 @@ async function deliverItem(user, numberParam, itemId, body = {}) {
     const req = await tickets.loadInScope(db, { user }, numberParam, { forUpdate: true });
     if (req.type !== 'SERVICE_REQUEST') throw notFound();
     if (!lifecycle.canDeliverItems(user, req)) {
-      const worker = user.activeRole === 'SUPER_ADMIN' || (user.activeRole === 'ENGINEER' && String(req.assigned_engineer_id) === String(user.id));
+      const worker = roles.isAdmin(user) || (user.activeRole === 'ENGINEER' && String(req.assigned_engineer_id) === String(user.id));
       if (worker) throw new HttpError(409, 'Start work on this request before delivering items.', 'wrong_status');
       throw notFound();
     }
@@ -272,8 +285,9 @@ async function deliverItem(user, numberParam, itemId, body = {}) {
     const handed = [];
     for (const tag of tags) {
       const { rows: a } = await db.query(
-        `SELECT id, asset_tag, status, holder_user_id, source FROM assets WHERE upper(asset_tag) = upper($1::text) FOR UPDATE`,
-        [tag]
+        `SELECT id, asset_tag, status, holder_user_id, source FROM assets
+          WHERE upper(asset_tag) = upper($1::text) AND service_unit_id = $2::bigint FOR UPDATE`,
+        [tag, req.service_unit_id]
       );
       const asset = a[0];
       if (!asset) throw bad(`Asset ${tag} not found.`, 'bad_asset');

@@ -1,8 +1,9 @@
 {
   "roles": {
     "EMPLOYEE": { "key": "EMPLOYEE", "label": "Employee", "rank": 1, "badge": "role-employee" },
-    "ENGINEER": { "key": "ENGINEER", "label": "Engineer", "rank": 2, "badge": "role-engineer" },
-    "SUPER_ADMIN": { "key": "SUPER_ADMIN", "label": "Super Admin", "rank": 3, "badge": "role-super" }
+    "ENGINEER": { "key": "ENGINEER", "label": "Staff", "rank": 2, "badge": "role-engineer" },
+    "ADMIN": { "key": "ADMIN", "label": "Admin", "rank": 3, "badge": "role-admin" },
+    "SUPER_ADMIN": { "key": "SUPER_ADMIN", "label": "Super Admin", "rank": 4, "badge": "role-super" }
   },
   "loginTypes": {
     "ITS": { "key": "ITS", "label": "ITS" },
@@ -10,7 +11,7 @@
   },
   "navItems": {
     "home": { "label": "Home", "path": "/", "icon": "House" },
-    "assistant": { "label": "AI assistant", "path": "/assistant", "icon": "Bot" },
+    "assistant": { "label": "AI assistant", "path": "/assistant", "icon": "Bot", "companies": ["AVIT"] },
     "request": { "label": "Request", "path": "/request", "icon": "ShoppingCart" },
     "track": { "label": "My tickets & requests", "path": "/track", "icon": "Ticket" },
     "myAssets": { "label": "My assets", "path": "/my-assets", "icon": "Package" },
@@ -22,22 +23,32 @@
     "allRequests": { "label": "All tickets & requests", "path": "/all", "icon": "Tickets" },
     "inventory": { "label": "Inventory", "path": "/inventory", "icon": "Boxes" },
     "catalogue": { "label": "Catalogue", "path": "/catalogue", "icon": "Store" },
-    "faqs": { "label": "FAQs & AI", "path": "/faqs", "icon": "CircleHelp" },
+    "faqs": { "label": "FAQs", "path": "/faqs", "icon": "CircleHelp", "companies": ["AVIT"] },
+    "staff": { "label": "Staff & occupations", "path": "/staff", "icon": "HardHat" },
     "onboarding": { "label": "Onboarding / Offboarding", "path": "/onboarding", "icon": "PackagePlus" },
-    "users": { "label": "Users & roles", "path": "/users", "icon": "Users" },
     "analytics": { "label": "Analytics", "path": "/analytics", "icon": "BarChart3" },
     "reports": { "label": "Reports (PDF)", "path": "/reports", "icon": "FileDown" },
+    "admins": { "label": "Company admins", "path": "/admins", "icon": "ShieldUser" },
+    "users": { "label": "Users & roles", "path": "/users", "icon": "Users" },
     "syncStatus": { "label": "Sync status", "path": "/sync", "icon": "RefreshCw" },
+    "aiUsage": { "label": "AI & usage", "path": "/ai-usage", "icon": "Sparkles" },
     "settings": { "label": "Settings", "path": "/settings", "icon": "Settings" }
   },
   "navPersonal": ["home", "assistant", "request", "track", "myAssets", "notifications"],
+  "navConsole": ["admins", "users", "syncStatus", "aiUsage", "settings"],
   "navByRole": {
     "EMPLOYEE": ["home", "assistant", "request", "track", "myAssets", "notifications"],
     "ENGINEER": ["home", "assistant", "request", "track", "myAssets", "notifications", "workQueue", "inventory", "invoices"],
+    "ADMIN": [
+      "home", "assistant", "request", "track", "myAssets", "notifications", "workQueue",
+      "assignQueue", "approvals", "allRequests", "inventory", "catalogue", "faqs", "invoices",
+      "staff", "onboarding", "analytics", "reports"
+    ],
     "SUPER_ADMIN": [
       "home", "assistant", "request", "track", "myAssets", "notifications", "workQueue",
       "assignQueue", "approvals", "allRequests", "inventory", "catalogue", "faqs", "invoices",
-      "onboarding", "users", "analytics", "reports", "syncStatus", "settings"
+      "staff", "onboarding", "analytics", "reports",
+      "admins", "users", "syncStatus", "aiUsage", "settings"
     ]
   }
 }

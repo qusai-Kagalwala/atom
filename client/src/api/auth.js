@@ -7,6 +7,12 @@ export const loginRequest = (identifier, password) =>
 
 export const switchRoleRequest = (role) => http.post('/auth/switch-role', { role }).then((r) => r.data);
 
+// Company picker (decided 28 Oct 2026): every active company with this person's roles there.
+export const companiesRequest = () => http.get('/auth/companies').then((r) => r.data.companies);
+// companyId null = no company (Super Admin console). role optional: the highest one there by default.
+export const switchCompanyRequest = (companyId, role) =>
+  http.post('/auth/switch', { companyId: companyId || null, role: role || null }).then((r) => r.data);
+
 export const updatePreferencesRequest = (prefs) =>
   http.patch('/auth/preferences', prefs).then((r) => r.data.user);
 

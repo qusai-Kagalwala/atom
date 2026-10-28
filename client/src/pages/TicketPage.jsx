@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bot, Lock, LoaderCircle, MapPin, MessageSquare, Send } from 'lucide-react';
 import { addComment, eligibleEngineers, getTicket, listCategories, ticketAction, triageTicket } from '../api/requests';
+import StaffOptions from '../components/StaffOptions';
 import { errorMessage } from '../api/http';
 import AuthImage from '../components/AuthImage';
 import { Alert, Field } from '../components/FormControls';
@@ -88,21 +89,17 @@ function ActionModal({ ticket, action, onClose, onDone }) {
       )}
       <form id="action-form" onSubmit={submit} className="space-y-4" noValidate>
         {action === 'assign' && (
-          <Field id="engineer" label="Engineer" hint="Active engineers tagged to this service unit. Open work in brackets.">
+          <Field id="engineer" label="Who does it" hint="Active staff of this company, by occupation. Open work in brackets.">
             {engineers.isError ? (
-              <Alert tone="error">Could not load engineers.</Alert>
+              <Alert tone="error">Could not load the staff.</Alert>
             ) : (
               <select id="engineer" className={selectClass} value={engineerId} onChange={(e) => setEngineerId(e.target.value)}>
-                <option value="">{engineers.isPending ? 'Loading…' : 'Choose an engineer'}</option>
-                {(engineers.data || []).map((eng) => (
-                  <option key={eng.id} value={eng.id} disabled={eng.id === currentId}>
-                    {eng.name} ({eng.open_work}){eng.id === currentId ? ' — current' : ''}
-                  </option>
-                ))}
+                <option value="">{engineers.isPending ? 'Loading…' : 'Choose who does it'}</option>
+                <StaffOptions staff={engineers.data || []} currentId={currentId} />
               </select>
             )}
             {engineers.isSuccess && engineers.data.length === 0 && (
-              <p className="mt-1 font-ui text-xs text-error">No engineer is tagged to this service unit yet (Users &amp; roles).</p>
+              <p className="mt-1 font-ui text-xs text-error">This company has no staff yet (Staff &amp; occupations).</p>
             )}
           </Field>
         )}
@@ -154,7 +151,7 @@ function CommentBox({ ticket, onDone }) {
   return (
     <form onSubmit={submit} className={`card space-y-3 ${internal ? 'border-gold bg-gold-muted/40' : ''}`} noValidate>
       <label htmlFor="comment" className="font-ui text-sm font-medium text-ink">
-        {internal ? 'Internal note (only engineers and Super Admins see this)' : 'Add a comment'}
+        {internal ? 'Internal note (only staff and Admins see this)' : 'Add a comment'}
       </label>
       {error && <Alert tone="error">{error}</Alert>}
       <textarea id="comment" rows={3} maxLength={5000} value={note} onChange={(e) => setNote(e.target.value)} className={textareaClass} />
@@ -324,7 +321,7 @@ export default function TicketPage() {
             </dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-wider text-ink-3">Engineer</dt>
+            <dt className="text-xs uppercase tracking-wider text-ink-3">{t.assignedEngineer?.occupation || 'Assigned to'}</dt>
             <dd className="text-ink">{t.assignedEngineer?.name || <span className="text-ink-3">Not assigned yet</span>}</dd>
           </div>
           {t.location && (
@@ -343,7 +340,7 @@ export default function TicketPage() {
 
         <TimeFrame t={t} isService={t.type === 'SERVICE_REQUEST'} />
         {t.type === 'SERVICE_REQUEST' && !t.doneAt && (
-          <p className="mt-2 font-ui text-xs text-ink-3">Delivery depends on availability. AVIT will keep you updated.</p>
+          <p className="mt-2 font-ui text-xs text-ink-3">Delivery depends on availability. {t.company?.name || 'The team'} will keep you updated.</p>
         )}
 
         <p className="mt-4 whitespace-pre-wrap font-ui text-sm text-ink">{t.description}</p>

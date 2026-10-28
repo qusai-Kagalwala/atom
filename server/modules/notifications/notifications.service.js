@@ -1,4 +1,5 @@
-// Who gets told what about a ticket (Phase 13). Rows are written INSIDE the ticket's transaction
+// Who gets told what about a ticket (Phase 13). "Super Admins" below = the Admins of the ticket's
+// company (decided 28 Oct 2026); the global Super Admin is not told about company work. Rows are written INSIDE the ticket's transaction
 // (so a rolled-back change never notifies anyone) and pushed over Socket.IO AFTER the commit.
 //
 //   created           → Super Admins · the requester when a Super Admin raised it for them
@@ -41,7 +42,7 @@ function planTicket(ticket, e) {
   const out = [];
   const toRequester = (title, body) => out.push({ userId: requester, role: null, title, body });
   const toEngineer = (id, title, body) => id && out.push({ userId: id, role: 'ENGINEER', title, body });
-  const toAdmins = (title, body) => out.push({ toRole: 'SUPER_ADMIN', role: 'SUPER_ADMIN', title, body });
+  const toAdmins = (title, body) => out.push({ toRole: 'ADMIN', role: 'ADMIN', title, body });
 
   switch (e.kind) {
     case 'created':
@@ -139,8 +140,9 @@ async function recordTicketEvent(db, ticket, e) {
   const link = `/tickets/${ticketNumber(ticket)}`;
   const type = `ticket.${e.kind}`;
   const rows = [];
+  const companyId = ticket.service_unit_id ?? null;
   for (const n of planTicket(ticket, e)) {
-    const base = { type, title: n.title, body: n.body, link, requestId: ticket.id, actorId: e.actorId };
+    const base = { type, title: n.title, body: n.body, link, requestId: ticket.id, actorId: e.actorId, companyId };
     if (n.toRole) rows.push(...(await repo.insertForRole(db, { ...base, role: n.toRole })));
     else {
       const row = await repo.insertForUser(db, { ...base, userId: n.userId, role: n.role });
@@ -151,6 +153,7 @@ async function recordTicketEvent(db, ticket, e) {
   return rows;
 }
 
+// company: which company the ticket belongs to — opening one from another company switches to it.
 function toPublic(row) {
   return {
     id: String(row.id),
@@ -159,6 +162,7 @@ function toPublic(row) {
     body: row.body,
     link: row.link,
     role: row.role,
+    company: row.service_unit_id ? { id: String(row.service_unit_id), code: row.company_code ?? null, name: row.company_name ?? null } : null,
     read: Boolean(row.read_at),
     createdAt: row.created_at,
   };
@@ -175,7 +179,7 @@ function publish(rows, ticket, extraUserIds = []) {
     }
     if (ticket) {
       const changed = { number: ticketNumber(ticket) };
-      realtime.emitToRole('SUPER_ADMIN', 'requests:changed', changed);
+      if (ticket.service_unit_id != null) realtime.emitToCompanyAdmins(ticket.service_unit_id, 'requests:changed', changed);
       const ids = new Set(
         [ticket.requester_id, ticket.raised_by_id, ticket.assigned_engineer_id, ...extraUserIds]
           .filter((id) => id != null)

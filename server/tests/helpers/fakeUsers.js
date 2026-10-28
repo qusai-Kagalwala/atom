@@ -10,9 +10,17 @@ function createFakeUsers() {
   let nextId = 1;
   let nextTokenId = 1;
 
-  const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
+  const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
+  // Companies (service_units): AVIT 1, Siyanaat 2, Tanzeem 3. Occupation 1 = AVIT "Engineer".
+  const COMPANIES = [
+    { id: '1', code: 'AVIT', name: 'AVIT', tagline: null, is_active: true },
+    { id: '2', code: 'SIYANAAT', name: 'Siyanaat', tagline: null, is_active: true },
+    { id: '3', code: 'TANZEEM', name: 'Tanzeem', tagline: null, is_active: true },
+  ];
+  const staff = new Map(); // userId -> { companyId, occupationId, occupationName }
 
-  function add(user, userRoles = ['EMPLOYEE']) {
+  // Admin / Engineer roles get a company (AVIT unless given), Engineers the "Engineer" occupation.
+  function add(user, userRoles = ['EMPLOYEE'], { companyId = '1', occupationId = '1', occupationName = 'Engineer' } = {}) {
     const id = String(nextId++);
     users.set(id, {
       id,
@@ -29,6 +37,9 @@ function createFakeUsers() {
       must_change_password: user.must_change_password ?? false,
     });
     roles.set(id, new Set(userRoles));
+    if (userRoles.includes('ADMIN') || userRoles.includes('ENGINEER')) {
+      staff.set(id, { companyId, occupationId: userRoles.includes('ENGINEER') ? occupationId : null, occupationName });
+    }
     return id;
   }
 
@@ -59,7 +70,25 @@ function createFakeUsers() {
       if (!u) return { rows: [] };
       const { legacy_password, ...rest } = u; // eslint-disable-line no-unused-vars
       const granted = ROLE_ORDER.filter((r) => roles.get(u.id).has(r));
-      return { rows: [{ ...rest, roles: granted }] };
+      const st = staff.get(u.id);
+      const sc = st && COMPANIES.find((c) => c.id === st.companyId);
+      const co = params[1] != null && COMPANIES.find((c) => c.id === String(params[1]) && c.is_active);
+      return {
+        rows: [{
+          ...rest,
+          roles: granted,
+          staff_company_id: st ? st.companyId : null,
+          staff_company_code: sc ? sc.code : null,
+          staff_company_name: sc ? sc.name : null,
+          occupation_id: st ? st.occupationId : null,
+          occupation_name: st && st.occupationId ? st.occupationName : null,
+          company: co ? { id: co.id, code: co.code, name: co.name } : null,
+        }],
+      };
+    }
+
+    if (text.includes('FROM service_units WHERE is_active ORDER BY sort_order')) {
+      return { rows: COMPANIES.filter((c) => c.is_active).map(({ is_active, ...c }) => c) }; // eslint-disable-line no-unused-vars
     }
 
     if (text.startsWith('UPDATE users SET name_language')) {
@@ -127,8 +156,9 @@ function createFakeUsers() {
     txLog,
     setActive: (id, value) => { users.get(id).is_active = value; },
     removeRole: (id, role) => roles.get(id).delete(role),
+    companies: COMPANIES,
     reset: () => {
-      users.clear(); roles.clear(); tokens.length = 0; txLog.length = 0;
+      users.clear(); roles.clear(); staff.clear(); tokens.length = 0; txLog.length = 0;
       nextId = 1; nextTokenId = 1;
     },
   };

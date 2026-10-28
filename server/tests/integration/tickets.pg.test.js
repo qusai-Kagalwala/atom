@@ -31,6 +31,7 @@ maybe('tickets on real PostgreSQL', () => {
   const request = require('supertest');
   const sharp = require('sharp');
   const pool = require('../../db/pool');
+  const { staffOf, adminOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { runMigrations } = require('../../db/migrate');
   const { createApp } = require('../../app');
@@ -121,7 +122,7 @@ maybe('tickets on real PostgreSQL', () => {
     ids.eng = await addUser('40000003', 'Engineer Eng', ['EMPLOYEE', 'ENGINEER']);
     avitId = (await q(`SELECT id FROM service_units WHERE code = 'AVIT'`))[0].id;
     categoryId = String((await q(`SELECT id FROM categories WHERE name = 'Printer / Scanner'`))[0].id);
-    await pool.query('INSERT INTO user_service_units (user_id, service_unit_id) VALUES ($1, $2)', [ids.eng, avitId]);
+    await staffOf(pool, ids.eng);
 
     admin = client(await login('30328701'));
     alice = client(await login('40000001'));

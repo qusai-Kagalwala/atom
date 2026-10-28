@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoaderCircle, Search } from 'lucide-react';
 import { listAllRequests, listCategories, listEngineers } from '../api/requests';
+import StaffOptions from '../components/StaffOptions';
 import RequestList, { Pager } from '../components/RequestList';
 import { Alert } from '../components/FormControls';
 import { PRIORITIES } from '../utils/requests';
@@ -125,14 +126,10 @@ export default function AllRequestsPage() {
             </option>
           ))}
         </select>
-        <select aria-label="Engineer" className={selectClass} value={f.engineerId} onChange={(e) => set({ engineerId: e.target.value })}>
-          <option value="">Any engineer</option>
+        <select aria-label="Assigned to" className={selectClass} value={f.engineerId} onChange={(e) => set({ engineerId: e.target.value })}>
+          <option value="">Anyone</option>
           <option value="none">Not assigned</option>
-          {(engineers.data || []).map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
+          <StaffOptions staff={engineers.data || []} showOpen={false} />
         </select>
         <select aria-label="Sort" className={selectClass} value={f.sort} onChange={(e) => set({ sort: e.target.value === 'updated' ? '' : e.target.value })}>
           {SORT_OPTIONS.map(([v, l]) => (

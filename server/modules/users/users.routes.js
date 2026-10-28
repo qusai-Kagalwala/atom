@@ -1,12 +1,12 @@
-// /Atom/api/users — Super Admin only (any other role gets 404).
-//   GET    /?q=&role=&status=active|inactive|all&source=&page=&pageSize=  → { users, total, page, pageSize }
+// /Atom/api/users — Super Admin only (any other role gets 404). Global: works with or without a
+// company chosen. Company Admins manage their own staff through /Atom/api/staff.
+//   GET    /?q=&role=&status=active|inactive|all&source=&companyId=&page=&pageSize=  → { users, total, page, pageSize }
+//   GET    /companies   companies with their active occupations (role pickers) → { companies }
 //   POST   /                                    create a manual user       → { user }
 //   GET    /:id                                                            → { user }
 //   PATCH  /:id            { name?, email?, mobile? }  (imported/manual only)  → { user }
-//   POST   /:id/roles      { role }                                        → { user }
+//   POST   /:id/roles      { role, companyId? (Admin, Staff), occupationId? (Staff) } → { user }
 //   DELETE /:id/roles/:role                                                → { user }
-//   POST   /:id/service-units { serviceUnitId }                            → { user }
-//   DELETE /:id/service-units/:serviceUnitId                               → { user }
 //   POST   /:id/status     { active, reason }                              → { user }
 //   POST   /:id/password   { newPassword, requireChange? (default true) }  (employee-ID users only) → { message }
 // SECURITY: never log req.body (passwords).
@@ -15,7 +15,7 @@ const { body, query, validationResult } = require('express-validator');
 const { requireAuth, requireRole } = require('../../middleware/requireAuth');
 const svc = require('./users.service');
 
-const ROLES = ['EMPLOYEE', 'ENGINEER', 'SUPER_ADMIN'];
+const ROLES = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
 const SOURCES = ['idarah', 'hr', 'legacy', 'manual'];
 
 // '' / whitespace → null, otherwise trimmed.
@@ -73,6 +73,7 @@ function createUsersRouter() {
     query('role').optional({ values: 'falsy' }).isIn(ROLES),
     query('status').optional({ values: 'falsy' }).isIn(['active', 'inactive', 'all']),
     query('source').optional({ values: 'falsy' }).isIn(SOURCES),
+    query('companyId').optional({ values: 'falsy' }).matches(/^\d{1,18}$/),
     query('page').optional().isInt({ min: 1, max: 100000 }),
     query('pageSize').optional().isInt({ min: 1, max: 100 }),
     validated(async (req, res) => {
@@ -84,6 +85,7 @@ function createUsersRouter() {
         role: req.query.role || null,
         active: status === 'all' ? null : status === 'active',
         source: req.query.source || null,
+        companyId: req.query.companyId || null,
         limit: pageSize,
         offset: (page - 1) * pageSize,
       });
@@ -111,6 +113,8 @@ function createUsersRouter() {
     })
   );
 
+  router.get('/companies', validated(async (req, res) => res.json({ companies: await svc.companiesWithOccupations() })));
+
   router.get('/:id', validated(async (req, res) => res.json({ user: await svc.getUserDetail(req.params.id) })));
 
   router.patch(
@@ -122,25 +126,21 @@ function createUsersRouter() {
   router.post(
     '/:id/roles',
     body('role').isIn(ROLES).withMessage('Choose a valid role.'),
-    validated(async (req, res) => res.json({ user: await svc.grantRole(req.params.id, req.body.role, req.user) }))
+    body('companyId').optional({ values: 'null' }).matches(/^\d{1,18}$/).withMessage('Choose a company.'),
+    body('occupationId').optional({ values: 'null' }).matches(/^\d{1,18}$/).withMessage('Choose an occupation.'),
+    validated(async (req, res) =>
+      res.json({
+        user: await svc.grantRole(req.params.id, req.body.role, req.user, {
+          companyId: req.body.companyId ? String(req.body.companyId) : null,
+          occupationId: req.body.occupationId ? String(req.body.occupationId) : null,
+        }),
+      })
+    )
   );
 
   router.delete(
     '/:id/roles/:role',
     validated(async (req, res) => res.json({ user: await svc.removeRole(req.params.id, req.params.role, req.user) }))
-  );
-
-  router.post(
-    '/:id/service-units',
-    body('serviceUnitId').isInt({ min: 1 }).withMessage('Choose a service unit.'),
-    validated(async (req, res) =>
-      res.json({ user: await svc.tagUnit(req.params.id, String(req.body.serviceUnitId), req.user) })
-    )
-  );
-
-  router.delete(
-    '/:id/service-units/:serviceUnitId',
-    validated(async (req, res) => res.json({ user: await svc.untagUnit(req.params.id, req.params.serviceUnitId, req.user) }))
   );
 
   router.post(

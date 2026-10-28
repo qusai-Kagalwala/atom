@@ -67,28 +67,32 @@ describe('GET /', () => {
   it('defaults: active users, page 1 of 25', async () => {
     const res = await api('get', '/');
     expect(res.body).toEqual({ users: [], total: 0, page: 1, pageSize: 25 });
-    expect(svc.listUsers).toHaveBeenCalledWith({ q: null, role: null, active: true, source: null, limit: 25, offset: 0 });
+    expect(svc.listUsers).toHaveBeenCalledWith({ q: null, role: null, active: true, source: null, companyId: null, limit: 25, offset: 0 });
   });
 
   it('passes filters and paging', async () => {
-    await api('get', '/?q=%20raja%20&role=ENGINEER&status=all&source=legacy&page=3&pageSize=10');
-    expect(svc.listUsers).toHaveBeenCalledWith({ q: 'raja', role: 'ENGINEER', active: null, source: 'legacy', limit: 10, offset: 20 });
+    await api('get', '/?q=%20raja%20&role=ADMIN&status=all&source=legacy&companyId=2&page=3&pageSize=10');
+    expect(svc.listUsers).toHaveBeenCalledWith({ q: 'raja', role: 'ADMIN', active: null, source: 'legacy', companyId: '2', limit: 10, offset: 20 });
   });
 
-  it.each(['role=ADMIN', 'status=gone', 'source=x', 'page=0', 'pageSize=500'])('400 for %s', async (qs) => {
+  it.each(['role=BOSS', 'companyId=x', 'status=gone', 'source=x', 'page=0', 'pageSize=500'])('400 for %s', async (qs) => {
     expect((await api('get', `/?${qs}`)).status).toBe(400);
   });
 });
 
 describe('mutations', () => {
   it('passes the acting Super Admin to the service', async () => {
-    await api('post', '/5/roles', { role: 'ENGINEER' });
-    expect(svc.grantRole).toHaveBeenCalledWith('5', 'ENGINEER', expect.objectContaining({ id: '1', activeRole: 'SUPER_ADMIN' }));
+    await api('post', '/5/roles', { role: 'ENGINEER', companyId: '2', occupationId: '7' });
+    expect(svc.grantRole).toHaveBeenCalledWith('5', 'ENGINEER', expect.objectContaining({ id: '1', activeRole: 'SUPER_ADMIN' }), {
+      companyId: '2',
+      occupationId: '7',
+    });
   });
 
   it.each([
-    ['post', '/5/roles', { role: 'ADMIN' }, 'Choose a valid role.'],
-    ['post', '/5/service-units', { serviceUnitId: 'x' }, 'Choose a service unit.'],
+    ['post', '/5/roles', { role: 'BOSS' }, 'Choose a valid role.'],
+    ['post', '/5/roles', { role: 'ADMIN', companyId: 'x' }, 'Choose a company.'],
+    ['post', '/5/roles', { role: 'ENGINEER', companyId: '1', occupationId: 'x' }, 'Choose an occupation.'],
     ['post', '/5/status', { active: 'yes', reason: 'x' }, 'Choose active or inactive.'],
     ['post', '/5/status', { active: false }, 'Enter a reason.'],
     ['post', '/', { loginType: 'X' }, 'Choose ITS or Employee ID.'],

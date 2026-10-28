@@ -1,67 +1,39 @@
-// Scope guards (ATOM_Decisions.md §6–§7). Every endpoint that touches a ticket, request, asset,
-// invoice or FAQ uses these — the UI hiding a button is never the protection.
+// Scope guards (ATOM_Decisions.md §6–§7, companies 28 Oct 2026). Every endpoint that touches a
+// ticket, request, asset, invoice or FAQ uses these — the UI hiding a button is never the protection.
 //
-// Access follows the ACTIVE role only (req.user.activeRole), never the union of roles.
+// Access follows the ACTIVE role and the ACTIVE company only (req.user.activeRole, req.user.companyId),
+// never the union of roles. Records of another company are out of scope for everyone, Admins included.
 // Out of scope = 404 "Not found." (same as missing), so record IDs can't be probed.
 //
-// Record convention (later tables use these column names):
+// Record convention:
 //   requester_id          the person the ticket/request is for
-//   raised_by_id          who raised it (a Super Admin raising for someone else)
-//   assigned_engineer_id  the engineer working on it
-//   service_unit_id       the team that does the work
+//   raised_by_id          who raised it (an Admin raising for someone else)
+//   assigned_engineer_id  the staff member working on it
+//   service_unit_id       the company that does the work
 const { requireRole } = require('./requireAuth');
 const { notFound } = require('../utils/httpError');
+const { isAdmin } = require('../utils/roles');
 const repo = require('../modules/serviceUnits/serviceUnits.repo');
-
-const SUPER_ADMIN = 'SUPER_ADMIN';
-const ENGINEER = 'ENGINEER';
-const EMPLOYEE = 'EMPLOYEE';
 
 const same = (a, b) => a != null && b != null && String(a) === String(b);
 
-// Engineer's service-unit tags, loaded once per request.
-async function serviceUnitIdsFor(req) {
-  if (!req.scopeCache) req.scopeCache = {};
-  if (!req.scopeCache.unitIds) req.scopeCache.unitIds = await repo.userServiceUnitIds(req.user.id);
-  return req.scopeCache.unitIds;
-}
-
-// purpose:
-//   'raise' — create a ticket / request in this unit. Any role; the unit must be active
-//             (Super Admin may also use inactive units — Siyanaat is backend-only for now).
-//   'work'  — act as the team: work queues, asset history, invoices.
-//             Super Admin: any unit. Engineer: only units they're tagged to. Employee: never.
-// Returns the service unit row; throws 404 otherwise.
-async function assertServiceUnitInScope(req, serviceUnitId, { purpose = 'raise' } = {}) {
+// The active company, if the record is in it. Raising: the company must be active.
+async function assertServiceUnitInScope(req, serviceUnitId) {
   const unit = await repo.getServiceUnit(serviceUnitId);
-  if (!unit) throw notFound();
-
-  const role = req.user?.activeRole;
-  if (role === SUPER_ADMIN) return unit;
-
-  if (purpose === 'raise') {
-    if (unit.is_active) return unit;
-    throw notFound();
-  }
-
-  if (purpose === 'work' && role === ENGINEER) {
-    const ids = await serviceUnitIdsFor(req);
-    if (ids.includes(String(unit.id))) return unit;
-  }
-  throw notFound();
+  if (!unit || !unit.is_active || !same(unit.id, req.user?.companyId)) throw notFound();
+  return unit;
 }
 
 // One record (ticket, request, …) — true/false, no DB access.
 function isRecordInScope(user, record) {
-  if (!user || !record) return false;
+  if (!user || !record || !user.companyId || !same(record.service_unit_id, user.companyId)) return false;
   const me = user.id;
+  if (isAdmin(user)) return true;
   switch (user.activeRole) {
-    case SUPER_ADMIN:
-      return true;
-    case ENGINEER:
-      // Assigned work, plus anything they raised for themselves (Engineers have all Employee actions).
+    case 'ENGINEER':
+      // Assigned work, plus anything they raised for themselves (Staff have all Employee actions).
       return same(record.assigned_engineer_id, me) || same(record.requester_id, me);
-    case EMPLOYEE:
+    case 'EMPLOYEE':
       return same(record.requester_id, me) || same(record.raised_by_id, me);
     default:
       return false; // no or unknown role → nothing
@@ -79,30 +51,19 @@ function assertRecordInScope(req, record) {
 // startIndex = number of the first placeholder to use ($1, $2, …).
 function recordScopeSql(user, alias, startIndex = 1) {
   const a = alias ? `${alias}.` : '';
-  const p = `$${startIndex}::bigint`;
-  switch (user?.activeRole) {
-    case SUPER_ADMIN:
-      return { clause: 'TRUE', params: [] };
-    case ENGINEER:
-      return { clause: `(${a}assigned_engineer_id = ${p} OR ${a}requester_id = ${p})`, params: [user.id] };
-    case EMPLOYEE:
-      return { clause: `(${a}requester_id = ${p} OR ${a}raised_by_id = ${p})`, params: [user.id] };
+  if (!user?.companyId) return { clause: 'FALSE', params: [] };
+  const co = `$${startIndex}::bigint`;
+  const p = `$${startIndex + 1}::bigint`;
+  const inCompany = `${a}service_unit_id = ${co}`;
+  if (isAdmin(user)) return { clause: inCompany, params: [user.companyId] };
+  switch (user.activeRole) {
+    case 'ENGINEER':
+      return { clause: `(${inCompany} AND (${a}assigned_engineer_id = ${p} OR ${a}requester_id = ${p}))`, params: [user.companyId, user.id] };
+    case 'EMPLOYEE':
+      return { clause: `(${inCompany} AND (${a}requester_id = ${p} OR ${a}raised_by_id = ${p}))`, params: [user.companyId, user.id] };
     default:
       return { clause: 'FALSE', params: [] }; // no or unknown role → nothing
   }
-}
-
-// Express wrapper: takes the unit id from req.params / req.body, checks it, sets req.serviceUnit.
-//   router.post('/', requireAuth, serviceUnitFrom('body', 'serviceUnitId', 'raise'), handler)
-function serviceUnitFrom(where, field, purpose = 'raise') {
-  return async (req, res, next) => {
-    try {
-      req.serviceUnit = await assertServiceUnitInScope(req, req[where]?.[field], { purpose });
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
 }
 
 module.exports = {
@@ -111,6 +72,4 @@ module.exports = {
   assertRecordInScope,
   isRecordInScope,
   recordScopeSql,
-  serviceUnitFrom,
-  serviceUnitIdsFor,
 };

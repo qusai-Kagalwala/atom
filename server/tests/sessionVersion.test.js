@@ -53,7 +53,8 @@ const me = (token) => request(app).get(`${API}/me`).set('Authorization', `Bearer
 
 describe('session version in the token', () => {
   test('signed tokens carry sv; tokens from before 7.1 (no sv) count as version 0', () => {
-    expect(verifySession(signSession('5', 'EMPLOYEE', 3))).toEqual({ userId: '5', role: 'EMPLOYEE', version: 3 });
+    expect(verifySession(signSession('5', 'EMPLOYEE', 3))).toEqual({ userId: '5', role: 'EMPLOYEE', version: 3, companyId: null });
+    expect(verifySession(signSession('5', 'ADMIN', 3, 2))).toEqual({ userId: '5', role: 'ADMIN', version: 3, companyId: '2' });
     const legacy = jwt.sign({ role: 'EMPLOYEE' }, config.sessionSecret, { algorithm: 'HS256', subject: '5', expiresIn: '1h' });
     expect(verifySession(legacy).version).toBe(0);
   });

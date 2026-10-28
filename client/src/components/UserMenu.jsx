@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, ChevronDown, LoaderCircle, LogOut, Repeat, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronDown, LoaderCircle, LogOut, Repeat, UserRound } from 'lucide-react';
 import { errorMessage } from '../api/http';
 import useAuth from '../hooks/useAuth';
 import UserName from './UserName';
 import { initials, roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
 
-// Avatar + name, role switcher (only when the user holds more than one role) and sign out.
+// Avatar + name, role switcher (roles available in this company, when more than one), switch
+// company, and sign out. Staff show their occupation ("Carpenter") instead of "Staff".
 export default function UserMenu() {
   const { user, switchRole, logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -26,7 +27,7 @@ export default function UserMenu() {
     };
   }, [open]);
 
-  const roles = sortRoles(user.roles);
+  const roles = sortRoles(user.rolesHere || user.roles);
   const canSwitch = roles.length > 1;
 
   async function onSwitch(role) {
@@ -59,7 +60,7 @@ export default function UserMenu() {
         </span>
         <span className="hidden text-left font-ui leading-tight sm:block">
           <UserName user={user} className="block max-w-[12rem] truncate text-sm font-medium" />
-          <span className="block text-xs text-ink-on-primary">{roleLabel(user.activeRole)}</span>
+          <span className="block text-xs text-ink-on-primary">{roleLabel(user.activeRole, user)}</span>
         </span>
         <ChevronDown size={16} aria-hidden="true" className="text-ink-on-primary" />
       </button>
@@ -93,7 +94,7 @@ export default function UserMenu() {
                   onClick={() => onSwitch(role)}
                   className="flex min-h-tap w-full items-center justify-between px-4 hover:bg-gold-muted disabled:opacity-60"
                 >
-                  <span className={roleBadgeClass(role)}>{roleLabel(role)}</span>
+                  <span className={roleBadgeClass(role)}>{roleLabel(role, user)}</span>
                   {switching === role && <LoaderCircle size={16} className="animate-spin text-ink-3" aria-hidden="true" />}
                   {!switching && role === user.activeRole && <Check size={16} className="text-primary" aria-hidden="true" />}
                 </button>
@@ -101,6 +102,15 @@ export default function UserMenu() {
               {error && <p className="px-4 pb-2 text-xs text-error">{error}</p>}
             </div>
           )}
+
+          <Link
+            to="/choose-company"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex min-h-tap w-full items-center gap-2 border-b border-line px-4 hover:bg-gold-muted"
+          >
+            <ArrowLeftRight size={18} aria-hidden="true" className="text-ink-2" /> Switch company
+          </Link>
 
           <Link
             to="/profile"

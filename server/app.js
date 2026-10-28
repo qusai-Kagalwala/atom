@@ -13,6 +13,7 @@ const { createInvoicesRouter } = require('./modules/invoices/invoices.routes');
 const { createInventoryRouter } = require('./modules/inventory/inventory.routes');
 const { createAssistantRouter } = require('./modules/assistant/assistant.routes');
 const { createSettingsRouter } = require('./modules/settings/settings.routes');
+const { createStaffRouter } = require('./modules/staff/staff.routes');
 const { HttpError } = require('./utils/httpError');
 
 function createApp() {
@@ -37,6 +38,7 @@ function createApp() {
   api.use('/inventory', createInventoryRouter());
   api.use('/assistant', createAssistantRouter());
   api.use('/settings', createSettingsRouter());
+  api.use('/staff', createStaffRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
 
   app.use(`${config.basePath}/api`, api);

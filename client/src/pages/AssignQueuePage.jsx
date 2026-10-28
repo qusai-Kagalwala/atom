@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, LoaderCircle } from 'lucide-react';
 import { listAssignQueue, listEngineers, queueCounts, ticketAction } from '../api/requests';
+import StaffOptions from '../components/StaffOptions';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import RequestList, { Pager, Tabs } from '../components/RequestList';
@@ -43,12 +44,8 @@ function QuickAssign({ ticket, engineers, onDone }) {
         disabled={busy || !engineers.length}
         className="min-h-tap min-w-0 flex-1 rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted sm:max-w-xs"
       >
-        <option value="">{engineers.length ? 'Choose an engineer' : 'No engineer tagged to AVIT'}</option>
-        {engineers.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.name} ({e.open_work} open)
-          </option>
-        ))}
+        <option value="">{engineers.length ? 'Choose who does it' : 'No staff yet (Staff & occupations)'}</option>
+        <StaffOptions staff={engineers} />
       </select>
       <button type="button" className="btn-primary" disabled={!engineerId || busy} onClick={assign}>
         {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />} Assign
@@ -80,7 +77,7 @@ function QuickClose({ ticket, onDone }) {
   return (
     <>
       <span className="font-ui text-xs text-ink-2">
-        Resolved by {ticket.assignedEngineer?.name || 'engineer'} — check the fix, then close. Closing is final.
+        Resolved by {ticket.assignedEngineer?.name || 'staff'} — check the fix, then close. Closing is final.
       </span>
       <span className="ml-auto flex gap-2">
         <Link to={`/tickets/${ticket.number}`} state={{ from: '/assign?view=to_close' }} className="btn-secondary">

@@ -52,8 +52,10 @@ const FIELD_COL = { name: 'name', manufacturer: 'manufacturer', model: 'model', 
 const LABEL = Object.fromEntries(COLUMNS.map(([k, h]) => [k, h.replace(/ \(.*\)$/, '')]));
 
 // ---------- export ----------
+// Only the active company's assets; the file remembers the company, and importing it in another
+// company is refused.
 async function exportInventory(user, filters = {}, { pool = defaultPool } = {}) {
-  const { filter, params } = inv.assetFilter(filters);
+  const { filter, params } = inv.assetFilter({ ...filters, companyId: user.companyId });
   const { rows } = await pool.query(
     `SELECT x.*, (SELECT string_agg(COALESCE(u.name, 'Employee ' || u.employee_id), ', ' ORDER BY u.name)
                     FROM place_occupants o JOIN users u ON u.id = o.user_id
@@ -104,10 +106,15 @@ async function exportInventory(user, filters = {}, { pool = defaultPool } = {}) 
     ['Rows', String(rows.length)],
     ['Filters', JSON.stringify(filters)],
     ['How to use', 'Edit the white columns, keep the Asset tag, then import this file in ATOM → Inventory → Import. Grey columns are ignored.'],
+    ['Company', user.company?.code || ''],
   ]);
 
-  await pool.query('INSERT INTO inventory_exports (exported_by, filters, rows) VALUES ($1::bigint, $2::jsonb, $3::int)', [user.id, JSON.stringify(filters), rows.length]);
-  return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), rows: rows.length, fileName: `ATOM-inventory-${exportedAt.slice(0, 10)}.xlsx` };
+  await pool.query(
+    'INSERT INTO inventory_exports (exported_by, filters, rows, service_unit_id) VALUES ($1::bigint, $2::jsonb, $3::int, $4::bigint)',
+    [user.id, JSON.stringify(filters), rows.length, user.companyId]
+  );
+  const prefix = user.company?.code ? `ATOM-${user.company.code}-inventory` : 'ATOM-inventory';
+  return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), rows: rows.length, fileName: `${prefix}-${exportedAt.slice(0, 10)}.xlsx` };
 }
 
 // ---------- read the file ----------
@@ -139,9 +146,13 @@ async function readFile(buffer) {
 
   const about = wb.getWorksheet(ABOUT);
   let exportedAt = null;
+  let companyCode = null;
   if (about) {
     const v = cellText(about.getRow(2).getCell(2));
     if (v && !Number.isNaN(Date.parse(v))) exportedAt = new Date(v);
+    about.eachRow((row) => {
+      if (cellText(row.getCell(1)) === 'Company') companyCode = cellText(row.getCell(2)) || null;
+    });
   }
   const rows = [];
   ws.eachRow((row, n) => {
@@ -151,12 +162,17 @@ async function readFile(buffer) {
     if (Object.values(r).some((v, i) => i > 0 && v !== '')) rows.push(r);
   });
   if (rows.length > MAX_ROWS) throw bad(`More than ${MAX_ROWS} rows.`, 'too_many');
-  return { rows, exportedAt };
+  return { rows, exportedAt, companyCode };
 }
 
 // ---------- import ----------
-async function importInventory(buffer, { commit = false, overwrite = false, allowNew = true, skipErrors = false, fileName = null, userId, pool = defaultPool } = {}) {
-  const { rows, exportedAt } = await readFile(buffer);
+// company = the session's company { id, code, name }: assets are matched and added only there.
+async function importInventory(buffer, { commit = false, overwrite = false, allowNew = true, skipErrors = false, fileName = null, userId, company, pool = defaultPool } = {}) {
+  if (!company?.id) throw bad('Choose a company first.', 'choose_company');
+  const { rows, exportedAt, companyCode } = await readFile(buffer);
+  if (companyCode && companyCode !== company.code) {
+    throw bad(`This file was exported from another company (${companyCode}). Import it there.`, 'wrong_company');
+  }
   if (!rows.length) throw bad('The file has no asset rows.', 'empty_file');
 
   const report = {
@@ -168,11 +184,12 @@ async function importInventory(buffer, { commit = false, overwrite = false, allo
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(727305)'); // same lock as the Snipe-IT import
     const { rows: cats } = await client.query(
-      `SELECT lower(name) AS k, id FROM asset_categories WHERE is_active
-       UNION SELECT al.alias, COALESCE(c.merged_into_id, c.id) FROM asset_category_aliases al JOIN asset_categories c ON c.id = al.category_id`
+      `SELECT lower(name) AS k, id FROM asset_categories WHERE is_active AND service_unit_id = $1::bigint
+       UNION SELECT al.alias, COALESCE(c.merged_into_id, c.id) FROM asset_category_aliases al JOIN asset_categories c ON c.id = al.category_id
+        WHERE c.service_unit_id = $1::bigint`,
+      [company.id]
     );
     const catId = new Map(cats.map((c) => [c.k, String(c.id)]));
-    const { rows: unit } = await client.query(`SELECT id FROM service_units WHERE code = 'AVIT'`);
     const seen = new Set();
 
     for (const r of rows) {
@@ -204,14 +221,15 @@ async function importInventory(buffer, { commit = false, overwrite = false, allo
       const placeId = await resolvePlace(client, { room, cubicle, placeName }, report);
       // eslint-disable-next-line no-await-in-loop
       const { rows: found } = await client.query(
-        `SELECT a.*, a.purchased_on::text AS purchased_on_text FROM assets a WHERE upper(a.asset_tag) = upper($1::text) FOR UPDATE`,
-        [tag]
+        `SELECT a.*, a.purchased_on::text AS purchased_on_text FROM assets a
+          WHERE upper(a.asset_tag) = upper($1::text) AND a.service_unit_id = $2::bigint FOR UPDATE`,
+        [tag, company.id]
       );
       const a = found[0];
       if (!a) {
         if (!allowNew) { report.newSkipped.push(tag); continue; }
         const cols = ['asset_tag', 'category_id', 'place_id', 'service_unit_id', 'source', ...Object.keys(fields)];
-        const vals = [tag, categoryId, placeId, unit[0].id, 'atom', ...Object.values(fields)];
+        const vals = [tag, categoryId, placeId, company.id, 'atom', ...Object.values(fields)];
         // eslint-disable-next-line no-await-in-loop
         const { rows: ins } = await client.query(
           `INSERT INTO assets (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
@@ -265,10 +283,11 @@ async function importInventory(buffer, { commit = false, overwrite = false, allo
     }
     if (!commit) throw new Rollback();
     await client.query(
-      `INSERT INTO asset_imports (kind, file_name, file_sha256, rows, summary, imported_by) VALUES ('atom_file', $1::text, $2::text, $3::int, $4::jsonb, $5::bigint)`,
+      `INSERT INTO asset_imports (kind, file_name, file_sha256, rows, summary, imported_by, service_unit_id)
+       VALUES ('atom_file', $1::text, $2::text, $3::int, $4::jsonb, $5::bigint, $6::bigint)`,
       [fileName, crypto.createHash('sha256').update(buffer).digest('hex'), rows.length,
         JSON.stringify({ updated: report.updated, created: report.created, unchanged: report.unchanged, errors: report.errors.length,
-          changedSinceExport: report.changedSinceExport.length, exportedAt }), userId]
+          changedSinceExport: report.changedSinceExport.length, exportedAt }), userId, company.id]
     );
     await client.query('COMMIT');
     report.committed = true;

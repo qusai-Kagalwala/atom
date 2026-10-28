@@ -1,14 +1,14 @@
 import { Suspense, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, LoaderCircle, Menu, X } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronDown, LoaderCircle, Menu, ShieldUser, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
 import useAuth from '../hooks/useAuth';
 import useLiveUpdates from '../hooks/useLiveUpdates';
 import useUnreadCount from '../hooks/useUnreadCount';
 import NotificationBell from './NotificationBell';
 import Toasts from './Toasts';
-import { navSectionsForRole } from '../utils/roles';
+import { navSectionsForUser } from '../utils/roles';
 import UserMenu from './UserMenu';
 
 const linkClass = ({ isActive }) =>
@@ -17,10 +17,10 @@ const linkClass = ({ isActive }) =>
     isActive ? 'bg-white/10 font-medium text-white' : 'text-ink-on-primary hover:bg-white/5 hover:text-white',
   ].join(' ');
 
-// Numbers on nav items: work waiting for the active role + unread notifications.
+// Numbers on nav items: work waiting for the active role in this company + unread notifications.
 // Live pushes refresh them; the interval is only a fallback if the live connection is down.
-function useNavCounts(role) {
-  const enabled = role === 'ENGINEER' || role === 'SUPER_ADMIN';
+function useNavCounts(user) {
+  const enabled = Boolean(user.company) && ['ENGINEER', 'ADMIN', 'SUPER_ADMIN'].includes(user.activeRole);
   const { data } = useQuery({
     queryKey: ['requests', 'counts'],
     queryFn: queueCounts,
@@ -35,9 +35,9 @@ function useNavCounts(role) {
 const SECTIONS_KEY = 'atom.nav.sections';
 function readOpen() {
   try {
-    return { personal: true, work: true, ...JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') };
+    return { personal: true, work: true, console: true, ...JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}') };
   } catch {
-    return { personal: true, work: true };
+    return { personal: true, work: true, console: true };
   }
 }
 
@@ -55,8 +55,8 @@ function NavItems({ items, counts, onNavigate }) {
   ));
 }
 
-// Engineers / Super Admins: "Personal" and "Work", each opens and closes on its own (both can be
-// open); remembered on this device. A closed section shows the total of its counts.
+// Staff / Admins: "Personal" and "Work" (+ "Super Admin" for the Super Admin), each opens and closes
+// on its own; remembered on this device. A closed section shows the total of its counts.
 function SideNav({ sections, counts, onNavigate, open, onToggle }) {
   return (
     <nav aria-label="Main" className="flex flex-col gap-1 p-3">
@@ -98,8 +98,8 @@ function SideNav({ sections, counts, onNavigate, open, onToggle }) {
 export default function AppShell() {
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const sections = navSectionsForRole(user.activeRole);
-  const counts = useNavCounts(user.activeRole);
+  const sections = navSectionsForUser(user);
+  const counts = useNavCounts(user);
   const [open, setOpen] = useState(readOpen);
   const toggle = (key) =>
     setOpen((o) => {
@@ -164,10 +164,18 @@ export default function AppShell() {
             >
               <Menu size={20} />
             </button>
-            <span className="font-display text-xl font-bold leading-none lg:hidden">ATOM</span>
-            <span className="hidden font-ui text-sm text-ink-on-primary lg:inline">
-              AVIT Ticketing &amp; Operations Manager
-            </span>
+            <span className="hidden font-display text-xl font-bold leading-none sm:inline lg:hidden">ATOM</span>
+            {/* The company this session works in — tap to switch (company picker). */}
+            <Link
+              to="/choose-company"
+              className="ml-1 flex min-h-tap min-w-0 items-center gap-2 rounded-btn px-2 font-ui text-sm text-white hover:bg-primary-dark"
+              title="Switch company"
+            >
+              {user.company ? <Building2 size={18} aria-hidden="true" className="shrink-0 text-gold-light" /> : <ShieldUser size={18} aria-hidden="true" className="shrink-0 text-gold-light" />}
+              <span className="truncate font-medium">{user.company ? user.company.name : 'Super Admin console'}</span>
+              <ArrowLeftRight size={14} aria-hidden="true" className="shrink-0 text-ink-on-primary" />
+              <span className="sr-only">Switch company</span>
+            </Link>
             <div className="ml-auto flex items-center gap-1">
               <NotificationBell />
               <UserMenu />

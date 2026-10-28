@@ -7,6 +7,7 @@ import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import { ITEM_KINDS } from '../utils/requests';
 import PriorityPicker from '../components/PriorityPicker';
+import useAuth from '../hooks/useAuth';
 
 const MAX_ITEMS = 10;
 const areaClass =
@@ -15,8 +16,9 @@ const areaClass =
 let nextKey = 1;
 
 // Everyone: ask for something new (software, equipment, a service). Pick from the catalogue or
-// type "something else"; each item needs a reason. The Super Admin approves or rejects each item.
+// type "something else"; each item needs a reason. The company's Admin approves or rejects each item.
 export default function RequestPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const catalogue = useQuery({ queryKey: ['catalogue'], queryFn: () => listCatalogue(false), staleTime: 5 * 60_000 });
   const suggested = useQuery({ queryKey: ['requests', 'default-location', 'me'], queryFn: () => getDefaultLocation(), staleTime: 5 * 60_000 });
@@ -66,7 +68,7 @@ export default function RequestPage() {
       <div>
         <h1 className="text-3xl">Request something</h1>
         <p className="mt-1 font-ui text-sm text-ink-2">
-          Need software, equipment or a service? Add what you need and why. AVIT approves each item and lets you know. Something broken? Raise a ticket
+          Need something from {user.company?.name || 'us'}? Add what you need and why. {user.company?.name || 'The team'} approves each item and lets you know. Something broken? Raise a ticket
           instead.
         </p>
       </div>
@@ -149,7 +151,7 @@ export default function RequestPage() {
             </li>
           ))}
         </ul>
-        {lines.length > 0 && <PriorityPicker value={priority} onChange={setPriority} note="Delivery depends on availability — AVIT will keep you updated." />}
+        {lines.length > 0 && <PriorityPicker value={priority} onChange={setPriority} note={`Delivery depends on availability — ${user.company?.name || 'the team'} will keep you updated.`} />}
         {lines.length > 0 && (
           <Field id="where" label="Where? (optional)" hint="Where it should be delivered or installed.">
             <TextInput id="where" value={where} onChange={(e) => setLocation(e.target.value)} maxLength={200} />

@@ -12,6 +12,7 @@ const URL_ERRORS = {
   removed: 'Your ATOM access has been removed.',
   role_changed: 'Your role has changed. Please sign in again.',
   password_changed: 'Your password was changed. Please sign in again.',
+  company_changed: 'Your access to that company has changed. Please sign in again.',
 };
 
 export default function LoginPage() {
@@ -26,7 +27,7 @@ export default function LoginPage() {
   const [error, setError] = useState(() => URL_ERRORS[params.get('error')] || '');
   const notice = location.state?.notice; // e.g. after a password reset
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) return <Navigate to="/choose-company" replace />;
 
   const canSubmit = identifier.length > 0 && password.length > 0 && !submitting;
 
@@ -37,8 +38,9 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(identifier, password);
+      // Every login: choose the company first, then go on to the page they came for.
       const from = location.state?.from;
-      navigate(from && from !== '/login' ? from : '/', { replace: true });
+      navigate('/choose-company', { replace: true, state: { from: from && from !== '/login' ? from : null } });
     } catch (err) {
       setError(errorMessage(err, 'Could not sign in. Please try again.'));
       setSubmitting(false);

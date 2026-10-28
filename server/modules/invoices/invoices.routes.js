@@ -1,4 +1,5 @@
-// /Atom/api/invoices — Engineers and Super Admins only (anyone else: 404). Scope per invoice (404).
+// /Atom/api/invoices — Staff and Admins of the active company only (anyone else: 404). Each company's
+// invoices are separate. Scope per invoice (404). "Super Admin" below = the company's Admin.
 //   GET   /?q=&linked=linked|unlinked&page=&pageSize=      → { invoices, total, page, pageSize }
 //   POST  /    multipart: file, supplier?, reference?, invoiceDate? (YYYY-MM-DD), note?,
 //              requestNumbers? ("T-1001,T-1002" or JSON array), linkExisting? ("true")
@@ -12,7 +13,7 @@
 //   POST  /:number/links/:requestNumber/unlink  { reason }  Super Admin → { invoice }
 const express = require('express');
 const { query, validationResult } = require('express-validator');
-const { requireAuth, requireRole } = require('../../middleware/requireAuth');
+const { requireAuth, requireRole, requireCompany } = require('../../middleware/requireAuth');
 const { invoiceFileField } = require('./invoiceFiles');
 const svc = require('./invoices.service');
 
@@ -28,7 +29,7 @@ const handle = (fn) => async (req, res, next) => {
 
 function createInvoicesRouter() {
   const router = express.Router();
-  router.use(requireAuth, requireRole('ENGINEER', 'SUPER_ADMIN'));
+  router.use(requireAuth, requireCompany, requireRole('ENGINEER', 'ADMIN', 'SUPER_ADMIN'));
 
   router.get(
     '/',

@@ -9,11 +9,13 @@
 //   user:<id>              every socket of that user (notifications about their own tickets)
 //   user:<id>:<role>       sockets signed in with that active role (role notifications)
 //   role:<role>            everyone currently in that role (e.g. role:SUPER_ADMIN)
+//   co:<id>:admins         Admins (and the Super Admin) working in that company — list refreshes
 //
 // Sessions are re-checked every RECHECK_MS, so a user deactivated by the Task Scheduler sync
 // (a separate process that can't reach these sockets) is dropped within a few minutes.
 const { Server } = require('socket.io');
 const { checkSession, DENY } = require('../middleware/requireAuth');
+const { isAdmin } = require('../utils/roles');
 
 const RECHECK_MS = 5 * 60_000;
 
@@ -23,6 +25,7 @@ let timer = null;
 const userRoom = (id) => `user:${id}`;
 const userRoleRoom = (id, role) => `user:${id}:${role}`;
 const roleRoom = (role) => `role:${role}`;
+const companyAdminsRoom = (companyId) => `co:${companyId}:admins`;
 
 function sessionError(code) {
   const err = new Error(DENY[code] || DENY.session_expired);
@@ -46,8 +49,11 @@ async function authenticate(socket, next) {
 }
 
 function onConnection(socket) {
-  const { id, activeRole } = socket.data.user;
-  socket.join([userRoom(id), userRoleRoom(id, activeRole), roleRoom(activeRole)]);
+  const { user } = socket.data;
+  const { id, activeRole } = user;
+  const rooms = [userRoom(id), userRoleRoom(id, activeRole), roleRoom(activeRole)];
+  if (isAdmin(user)) rooms.push(companyAdminsRoom(user.companyId));
+  socket.join(rooms);
 }
 
 // Drops sockets whose session is no longer valid (deactivated, role removed, password changed).
@@ -101,6 +107,10 @@ function emitToRole(role, event, payload) {
   if (io) io.to(roleRoom(role)).emit(event, payload);
 }
 
+function emitToCompanyAdmins(companyId, event, payload) {
+  if (io && companyId != null) io.to(companyAdminsRoom(companyId)).emit(event, payload);
+}
+
 // After deactivation, role removal or a password change. `except` = a socket id to keep
 // (the device that changed its own password; it reconnects with its new token).
 function disconnectUser(userId, { except } = {}) {
@@ -124,7 +134,8 @@ module.exports = {
   emitToUser,
   emitToUserRole,
   emitToRole,
+  emitToCompanyAdmins,
   disconnectUser,
   _setIo,
-  rooms: { userRoom, userRoleRoom, roleRoom },
+  rooms: { userRoom, userRoleRoom, roleRoom, companyAdminsRoom },
 };

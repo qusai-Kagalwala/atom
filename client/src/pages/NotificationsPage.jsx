@@ -54,7 +54,7 @@ export default function NotificationsPage() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{roleLabel(user.activeRole)}</p>
+          <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company ? `${user.company.name} · ` : ''}{roleLabel(user.activeRole, user)}</p>
           <h1 className="mt-1 text-3xl">Notifications</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">Updates on your tickets and on work for your current role.</p>
         </div>

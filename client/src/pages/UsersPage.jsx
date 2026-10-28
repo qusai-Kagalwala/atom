@@ -17,12 +17,14 @@ function StatusBadge({ active }) {
   return <span className={active ? 'status-resolved' : 'status-closed'}>{active ? 'Active' : 'Inactive'}</span>;
 }
 
-function RoleBadges({ roles }) {
+// Staff show their occupation; Admin / Staff roles show the company they belong to.
+function RoleBadges({ user }) {
   return (
     <span className="flex flex-wrap gap-1">
-      {sortRoles(roles).map((r) => (
+      {sortRoles(user.roles).map((r) => (
         <span key={r} className={roleBadgeClass(r)}>
-          {roleLabel(r)}
+          {roleLabel(r, user)}
+          {user.company && (r === 'ADMIN' || r === 'ENGINEER') ? ` · ${user.company.name}` : ''}
         </span>
       ))}
     </span>
@@ -228,7 +230,8 @@ export default function UsersPage() {
         <select aria-label="Role" className={selectClass} value={filters.role} onChange={setFilter('role')}>
           <option value="">All roles</option>
           <option value="SUPER_ADMIN">Super Admin</option>
-          <option value="ENGINEER">Engineer</option>
+          <option value="ADMIN">Admin</option>
+          <option value="ENGINEER">Staff</option>
           <option value="EMPLOYEE">Employee</option>
         </select>
         <select aria-label="Status" className={selectClass} value={filters.status} onChange={setFilter('status')}>
@@ -283,7 +286,7 @@ export default function UsersPage() {
                       {u.departments.join(', ') || '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <RoleBadges roles={u.roles} />
+                      <RoleBadges user={u} />
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge active={u.isActive} />
@@ -308,7 +311,7 @@ export default function UsersPage() {
                   </p>
                   {u.departments.length > 0 && <p className="mt-1 truncate font-ui text-sm text-ink-2">{u.departments.join(', ')}</p>}
                   <div className="mt-2">
-                    <RoleBadges roles={u.roles} />
+                    <RoleBadges user={u} />
                   </div>
                 </Link>
               </li>

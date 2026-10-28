@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom';
 import rolesData from '@shared/roles.json';
 import AppShell from './components/AppShell';
 import ProtectedRoute from './components/ProtectedRoute';
+import ChooseCompanyPage from './pages/ChooseCompanyPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import HomePage from './pages/HomePage';
@@ -19,6 +20,9 @@ const AssetPage = lazy(() => import('./pages/AssetPage'));
 const AssistantPage = lazy(() => import('./pages/AssistantPage'));
 const CataloguePage = lazy(() => import('./pages/CataloguePage'));
 const AssignQueuePage = lazy(() => import('./pages/AssignQueuePage'));
+const AdminsPage = lazy(() => import('./pages/AdminsPage'));
+const AiUsagePage = lazy(() => import('./pages/AiUsagePage'));
+const StaffPage = lazy(() => import('./pages/StaffPage'));
 const FaqEditPage = lazy(() => import('./pages/FaqEditPage'));
 const FaqsPage = lazy(() => import('./pages/FaqsPage'));
 const InventoryFilePage = lazy(() => import('./pages/InventoryFilePage'));
@@ -41,7 +45,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests']);
+const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -55,50 +59,58 @@ export default function App() {
       {/* Signed in */}
       <Route element={<ProtectedRoute />}>
         <Route path="/set-password" element={<SetPasswordPage />} />
+        <Route path="/choose-company" element={<ChooseCompanyPage />} />
         <Route element={<AppShell />}>
-          <Route index element={<HomePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/system-check" element={<SystemCheckPage />} />
-          <Route path="/track" element={<MyRequestsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/my-assets" element={<MyAssetsPage />} />
-          <Route path="/assistant" element={<AssistantPage />} />
-          <Route path="/request" element={<RequestPage />} />
-          <Route path="/tickets/new" element={<RaiseTicketPage />} />
-          <Route path="/tickets/:number" element={<TicketPage />} />
 
-          <Route element={<ProtectedRoute roles={['ENGINEER', 'SUPER_ADMIN']} />}>
-            <Route path="/work-queue" element={<WorkQueuePage />} />
-            <Route path="/invoices" element={<InvoicesPage />} />
-            <Route path="/invoices/:number" element={<InvoicePage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/inventory/assets/:tag" element={<AssetPage />} />
-          </Route>
-
-          {/* Super Admin (UI guard only — the API returns 404 to anyone else) */}
+          {/* Super Admin console — global, works with or without a company (the API returns 404 to anyone else) */}
           <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
-            <Route path="/assign" element={<AssignQueuePage />} />
-            <Route path="/all" element={<AllRequestsPage />} />
+            <Route path="/admins" element={<AdminsPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/users/:id" element={<UserDetailPage />} />
             <Route path="/sync" element={<SyncStatusPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/inventory/import" element={<InventoryImportPage />} />
-            <Route path="/inventory/import-file" element={<InventoryFilePage />} />
-            <Route path="/approvals" element={<ApprovalsPage />} />
-            <Route path="/catalogue" element={<CataloguePage />} />
-            <Route path="/faqs" element={<FaqsPage />} />
-            <Route path="/faqs/new" element={<FaqEditPage />} />
-            <Route path="/faqs/:id" element={<FaqEditPage />} />
+            <Route path="/ai-usage" element={<AiUsagePage />} />
           </Route>
 
-          {PLACEHOLDERS.map(([key, item]) => (
-            <Route
-              key={key}
-              path={item.path}
-              element={<ComingSoonPage title={item.label} />}
-            />
-          ))}
+          {/* Inside the chosen company */}
+          <Route element={<ProtectedRoute company />}>
+            <Route index element={<HomePage />} />
+            <Route path="/track" element={<MyRequestsPage />} />
+            <Route path="/my-assets" element={<MyAssetsPage />} />
+            <Route path="/assistant" element={<AssistantPage />} />
+            <Route path="/request" element={<RequestPage />} />
+            <Route path="/tickets/new" element={<RaiseTicketPage />} />
+            <Route path="/tickets/:number" element={<TicketPage />} />
+
+            <Route element={<ProtectedRoute roles={['ENGINEER', 'ADMIN', 'SUPER_ADMIN']} />}>
+              <Route path="/work-queue" element={<WorkQueuePage />} />
+              <Route path="/invoices" element={<InvoicesPage />} />
+              <Route path="/invoices/:number" element={<InvoicePage />} />
+              <Route path="/inventory" element={<InventoryPage />} />
+              <Route path="/inventory/assets/:tag" element={<AssetPage />} />
+            </Route>
+
+            {/* Company Admin (UI guard only — the API returns 404 to anyone else) */}
+            <Route element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']} />}>
+              <Route path="/assign" element={<AssignQueuePage />} />
+              <Route path="/all" element={<AllRequestsPage />} />
+              <Route path="/staff" element={<StaffPage />} />
+              <Route path="/inventory/import" element={<InventoryImportPage />} />
+              <Route path="/inventory/import-file" element={<InventoryFilePage />} />
+              <Route path="/approvals" element={<ApprovalsPage />} />
+              <Route path="/catalogue" element={<CataloguePage />} />
+              <Route path="/faqs" element={<FaqsPage />} />
+              <Route path="/faqs/new" element={<FaqEditPage />} />
+              <Route path="/faqs/:id" element={<FaqEditPage />} />
+            </Route>
+
+            {PLACEHOLDERS.map(([key, item]) => (
+              <Route key={key} path={item.path} element={<ComingSoonPage title={item.label} />} />
+            ))}
+          </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

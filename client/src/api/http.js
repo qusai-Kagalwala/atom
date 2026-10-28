@@ -8,7 +8,8 @@ export const LOGIN_PATH = `${import.meta.env.BASE_URL}login`;
 
 // These answer 401 for a wrong password — that is not a lost session.
 const PUBLIC_AUTH = ['/auth/login', '/auth/forgot-password', '/auth/reset-password'];
-const SESSION_CODES = ['session_expired', 'removed', 'role_changed', 'password_changed'];
+const SESSION_CODES = ['session_expired', 'removed', 'role_changed', 'password_changed', 'company_changed'];
+export const CHOOSE_COMPANY_PATH = `${import.meta.env.BASE_URL}choose-company`;
 
 const http = axios.create({
   baseURL: API_BASE,
@@ -40,6 +41,11 @@ http.interceptors.response.use(
         : 'session_expired';
       clearSession();
       window.location.replace(`${LOGIN_PATH}?error=${code}`);
+    }
+    // No company chosen in this session (e.g. a token from before companies): open the picker.
+    if (status === 409 && error.response?.data?.code === 'choose_company' && !redirecting && window.location.pathname !== CHOOSE_COMPANY_PATH) {
+      redirecting = true;
+      window.location.replace(CHOOSE_COMPANY_PATH);
     }
     // Still on a temporary password (e.g. the stored user is out of date): go and set one.
     if (status === 403 && error.response?.data?.code === 'must_change_password' && !redirecting) {

@@ -2,13 +2,15 @@
 //   1. Employee ID found  → compare stored legacy password (constant time).
 //      Wrong → 401 and STOP (never falls through to eJamaat). Inactive → 403.
 //   2. Not an employee ID → must be an 8-digit ITS number → eJamaat (or mock) → ATOM account check.
-//   3. ATOM issues its own JWT carrying the active role.
+//   3. ATOM issues its own JWT carrying the active role and company. Without a company in the
+//      request: their own company (Admin / Staff), else the first active one — the client then
+//      shows the company picker on every login.
 // SECURITY: never log the password or the request body.
 const { config } = require('../../config/env');
 const ejamaat = require('../../services/ejamaatClient');
 const safeCompare = require('../../utils/safeCompare');
 const repo = require('./users.repo');
-const { pickActiveRole, toPublicUser } = require('./session');
+const { pickActiveRole, rolesIn, defaultCompanyId, toPublicUser } = require('./session');
 const { signSession } = require('./tokens');
 
 const MSG = {
@@ -56,7 +58,7 @@ async function checkIts(itsNumber, password) {
   return user.id;
 }
 
-async function login({ identifier, password, preferredRole }) {
+async function login({ identifier, password, preferredRole, companyId: askedCompany }) {
   let userId = await checkEmployeeId(identifier, password);
 
   if (!userId) {
@@ -64,12 +66,18 @@ async function login({ identifier, password, preferredRole }) {
     userId = await checkIts(identifier, password);
   }
 
-  const user = await repo.loadSessionUser(userId);
+  let user = await repo.loadSessionUser(userId);
   if (!user || !user.is_active) throw new AuthError(403, MSG.inactive, 'inactive');
   if (!user.roles.length) throw new AuthError(403, MSG.noRole, 'no_role');
 
-  const activeRole = pickActiveRole(user.roles, preferredRole);
-  return { token: signSession(user.id, activeRole, user.session_version), user: toPublicUser(user, activeRole) };
+  const companies = await repo.listCompanies();
+  let companyId = askedCompany && companies.some((c) => c.id === String(askedCompany)) ? String(askedCompany) : null;
+  if (companyId && !rolesIn(user, companyId).length) companyId = null;
+  companyId = companyId || defaultCompanyId(user, companies);
+  user = await repo.loadSessionUser(userId, companyId);
+  const allowed = companyId ? rolesIn(user, companyId) : user.roles;
+  const activeRole = pickActiveRole(allowed.length ? allowed : user.roles, preferredRole);
+  return { token: signSession(user.id, activeRole, user.session_version, companyId), user: toPublicUser(user, activeRole) };
 }
 
 module.exports = { login, AuthError, MSG };

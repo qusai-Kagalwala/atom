@@ -70,7 +70,7 @@ describe('POST /auth/login — validation', () => {
     [{ identifier: '1002' }, 'no password'],
     [{ identifier: 'abc', password: 'x' }, 'non-digit ID'],
     [{ identifier: '1002', password: '' }, 'empty password'],
-    [{ identifier: '1002', password: 'x', role: 'ADMIN' }, 'unknown role'],
+    [{ identifier: '1002', password: 'x', role: 'BOSS' }, 'unknown role'],
   ])('400 for %j (%s)', async (body) => {
     const res = await request(app).post(LOGIN).send(body);
     expect(res.status).toBe(400);
@@ -306,11 +306,82 @@ describe('POST /auth/switch-role', () => {
 
   it('400 for an unknown role', async () => {
     const token = await qusaiToken();
-    const res = await request(app).post(SWITCH).set('Authorization', `Bearer ${token}`).send({ role: 'ADMIN' });
+    const res = await request(app).post(SWITCH).set('Authorization', `Bearer ${token}`).send({ role: 'BOSS' });
     expect(res.status).toBe(400);
   });
 
   it('401 without a token', async () => {
     expect((await request(app).post(SWITCH).send({ role: 'ENGINEER' })).status).toBe(401);
+  });
+});
+
+describe('companies: login, picker, switch (28 Oct 2026)', () => {
+  const COMPANIES = '/Atom/api/auth/companies';
+  const SWITCH_CO = '/Atom/api/auth/switch';
+  const as = (token) => (r) => r.set('Authorization', `Bearer ${token}`);
+
+  beforeEach(() => {
+    ejamaat.authenticate.mockResolvedValue({ success: true });
+    ids.siyAdmin = db.add({ login_type: 'ITS', its_number: '40000010', name: 'Siy Admin' }, ['EMPLOYEE', 'ADMIN'], { companyId: '2' });
+    ids.carpenter = db.add({ login_type: 'ITS', its_number: '40000011', name: 'Carp' }, ['EMPLOYEE', 'ENGINEER'], {
+      companyId: '2', occupationId: '7', occupationName: 'Carpenter',
+    });
+  });
+
+  it('login opens their own company (Admin / Staff), else the first one; the token carries it', async () => {
+    const emp = await login('1002', EMP_PASSWORD);
+    expect(emp.body.user).toMatchObject({ company: { code: 'AVIT' }, companyId: '1', rolesHere: ['EMPLOYEE'] });
+    expect(jwt.decode(emp.body.token).co).toBe('1');
+
+    const admin = await login('40000010', ITS_PASSWORD);
+    expect(admin.body.user).toMatchObject({ company: { code: 'SIYANAAT' }, activeRole: 'ADMIN', rolesHere: ['EMPLOYEE', 'ADMIN'] });
+
+    const carp = await login('40000011', ITS_PASSWORD);
+    expect(carp.body.user).toMatchObject({ activeRole: 'ENGINEER', occupation: 'Carpenter', staffCompany: { code: 'SIYANAAT' } });
+
+    // Asking for a company where they can't use their roles: their own instead.
+    const asked = await login('40000010', ITS_PASSWORD, { companyId: '3' });
+    expect(asked.body.user).toMatchObject({ company: { code: 'TANZEEM' }, activeRole: 'EMPLOYEE' });
+  });
+
+  it('picker lists each company with the roles there; switching signs a token for it', async () => {
+    const token = (await login('40000010', ITS_PASSWORD)).body.token;
+    const list = (await as(token)(request(app).get(COMPANIES))).body.companies;
+    expect(list.map((c) => [c.code, c.roles])).toEqual([
+      ['AVIT', ['EMPLOYEE']],
+      ['SIYANAAT', ['EMPLOYEE', 'ADMIN']],
+      ['TANZEEM', ['EMPLOYEE']],
+    ]);
+
+    const toAvit = await as(token)(request(app).post(SWITCH_CO).send({ companyId: '1' }));
+    expect(toAvit.body.user).toMatchObject({ company: { code: 'AVIT' }, activeRole: 'EMPLOYEE' });
+    expect(jwt.decode(toAvit.body.token)).toMatchObject({ co: '1', role: 'EMPLOYEE' });
+
+    // Admin only in their own company.
+    const bad = await as(token)(request(app).post(SWITCH_CO).send({ companyId: '1', role: 'ADMIN' }));
+    expect(bad.status).toBe(403);
+    // Only the Super Admin may work without a company.
+    expect((await as(token)(request(app).post(SWITCH_CO).send({ companyId: null }))).status).toBe(403);
+    expect((await as(token)(request(app).post(SWITCH_CO).send({ companyId: '99' }))).status).toBe(404);
+
+    const sa = (await login('30328701', ITS_PASSWORD)).body.token;
+    const console = await as(sa)(request(app).post(SWITCH_CO).send({ companyId: null }));
+    expect(console.body.user).toMatchObject({ company: null, activeRole: 'SUPER_ADMIN', rolesHere: ['SUPER_ADMIN'] });
+    expect(jwt.decode(console.body.token).co).toBeNull();
+  });
+
+  it('a session whose company role went away, or a forged company, is refused (company_changed)', async () => {
+    const forged = jwt.sign({ role: 'ADMIN', co: '1', sv: 0 }, config.sessionSecret, { subject: ids.siyAdmin });
+    const res = await request(app).get(ME).set('Authorization', `Bearer ${forged}`);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('company_changed');
+  });
+
+  it('a token from before companies (no co) still signs in, but company routes ask to choose one', async () => {
+    const old = jwt.sign({ role: 'EMPLOYEE', sv: 0 }, config.sessionSecret, { subject: ids.employee });
+    expect((await request(app).get(ME).set('Authorization', `Bearer ${old}`)).body.user.company).toBeNull();
+    const res = await request(app).get('/Atom/api/requests/mine').set('Authorization', `Bearer ${old}`);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('choose_company');
   });
 });

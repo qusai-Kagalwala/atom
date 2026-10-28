@@ -22,19 +22,36 @@ async function findItsUser(itsNumber) {
   return rows[0] || null;
 }
 
-// Session view of a user: profile fields + granted roles (enum order: EMPLOYEE, ENGINEER, SUPER_ADMIN).
-async function loadSessionUser(userId) {
+// Session view of a user: profile fields, granted roles (enum order: EMPLOYEE, ENGINEER, ADMIN,
+// SUPER_ADMIN), the one company they work for as Admin / Staff (+ occupation), and — when
+// companyId is given — that company if it exists and is active (else company = null).
+async function loadSessionUser(userId, companyId = null) {
   const { rows } = await pool.query(
     `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic, u.name_language,
             u.email, u.is_active, u.session_version, u.must_change_password,
-            COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles
+            COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
+            uc.service_unit_id AS staff_company_id, sc.code AS staff_company_code, sc.name AS staff_company_name,
+            uc.occupation_id, o.name AS occupation_name,
+            (SELECT json_build_object('id', s.id::text, 'code', s.code, 'name', s.name)
+               FROM service_units s WHERE s.id = $2::bigint AND s.is_active) AS company
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id
+       LEFT JOIN user_company uc ON uc.user_id = u.id
+       LEFT JOIN service_units sc ON sc.id = uc.service_unit_id
+       LEFT JOIN occupations o ON o.id = uc.occupation_id
       WHERE u.id = $1::bigint
-      GROUP BY u.id`,
-    [userId]
+      GROUP BY u.id, uc.user_id, sc.id, o.id`,
+    [userId, companyId]
   );
   return rows[0] || null;
+}
+
+// Companies people can choose after login (active ones, in picker order).
+async function listCompanies() {
+  const { rows } = await pool.query(
+    `SELECT id::text AS id, code, name, tagline FROM service_units WHERE is_active ORDER BY sort_order, id`
+  );
+  return rows;
 }
 
 // 'en' | 'ar'. Arabic only when the user has an Arabic name (checked here, not just in the UI).
@@ -47,4 +64,4 @@ async function setNameLanguage(userId, language) {
   return rowCount === 1;
 }
 
-module.exports = { findEmployeeForLogin, findItsUser, loadSessionUser, setNameLanguage };
+module.exports = { findEmployeeForLogin, findItsUser, loadSessionUser, listCompanies, setNameLanguage };

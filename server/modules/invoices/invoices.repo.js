@@ -1,6 +1,8 @@
 // Invoice queries (Phase 11).
-// Scope: Super Admin sees every invoice; an Engineer sees invoices they uploaded plus invoices
-// linked (actively) to a ticket assigned to them. Anyone else sees none.
+// Scope (inside the session's company only): the Admin sees every invoice of the company; Staff see
+// invoices they uploaded plus invoices linked (actively) to a ticket assigned to them. Anyone else none.
+
+const { isAdmin } = require('../../utils/roles');
 
 const PERSON = (alias) => `json_build_object(
     'id', ${alias}.id::text, 'name', COALESCE(${alias}.name, 'Employee ' || ${alias}.employee_id))`;
@@ -14,15 +16,18 @@ const INVOICE_SELECT = `
     FROM invoices i
     JOIN users ub ON ub.id = i.uploaded_by_id`;
 
-// SQL scope filter for invoice alias "i". Placeholder $<n> = the user's id.
+// SQL scope filter for invoice alias "i". Placeholders $<n> = the company, $<n+1> = the user's id.
 function scopeClause(user, n) {
-  if (user?.activeRole === 'SUPER_ADMIN') return { clause: 'TRUE', params: [] };
-  if (user?.activeRole === 'ENGINEER') {
+  if (!user?.companyId) return { clause: 'FALSE', params: [] };
+  const inCompany = `i.service_unit_id = $${n}::bigint`;
+  if (isAdmin(user)) return { clause: inCompany, params: [user.companyId] };
+  if (user.activeRole === 'ENGINEER') {
+    const me = `$${n + 1}::bigint`;
     return {
-      clause: `(i.uploaded_by_id = $${n}::bigint OR EXISTS (
+      clause: `(${inCompany} AND (i.uploaded_by_id = ${me} OR EXISTS (
                  SELECT 1 FROM invoice_links sl JOIN requests sr ON sr.id = sl.request_id
-                  WHERE sl.invoice_id = i.id AND sl.unlinked_at IS NULL AND sr.assigned_engineer_id = $${n}::bigint))`,
-      params: [user.id],
+                  WHERE sl.invoice_id = i.id AND sl.unlinked_at IS NULL AND sr.assigned_engineer_id = ${me})))`,
+      params: [user.companyId, user.id],
     };
   }
   return { clause: 'FALSE', params: [] };
@@ -44,8 +49,9 @@ async function isVisible(db, user, invoiceId) {
   return rows.length === 1;
 }
 
-async function findBySha(db, sha) {
-  const { rows } = await db.query(`${INVOICE_SELECT} WHERE i.file_sha256 = $1::text`, [sha]);
+// Same file already uploaded in this company.
+async function findBySha(db, sha, companyId) {
+  const { rows } = await db.query(`${INVOICE_SELECT} WHERE i.file_sha256 = $1::text AND i.service_unit_id = $2::bigint`, [sha, companyId]);
   return rows[0] || null;
 }
 

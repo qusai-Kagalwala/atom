@@ -27,6 +27,7 @@ maybe('invoices on real PostgreSQL', () => {
   const request = require('supertest');
   const sharp = require('sharp');
   const pool = require('../../db/pool');
+  const { staffOf, adminOf } = require('../helpers/companyPeople');
   const ejamaat = require('../../services/ejamaatClient');
   const { config } = require('../../config/env');
   const { runMigrations } = require('../../db/migrate');
@@ -118,7 +119,7 @@ maybe('invoices on real PostgreSQL', () => {
     ids.eng2 = await addUser('40000004', 'Eng Two', ['EMPLOYEE', 'ENGINEER']);
     const avit = (await pool.query(`SELECT id FROM service_units WHERE code='AVIT'`)).rows[0].id;
     for (const e of [ids.eng1, ids.eng2]) {
-      await pool.query('INSERT INTO user_service_units (user_id, service_unit_id) VALUES ($1, $2)', [e, avit]);
+      await staffOf(pool, e);
     }
     cat = String((await pool.query(`SELECT id FROM categories WHERE name='Printer / Scanner'`)).rows[0].id);
 

@@ -4,22 +4,23 @@
 //   OPEN → ASSIGNED → IN_PROGRESS ⇄ WAITING_FOR_USER / WAITING_FOR_EQUIPMENT → RESOLVED → CLOSED
 //   REJECTED from any non-final stage (note required). CLOSED and REJECTED are final — no reopening.
 //
-//   Service requests (Phase 9) start at PENDING_APPROVAL: the Super Admin approves / rejects each
+//   Service requests (Phase 9) start at PENDING_APPROVAL: the Admin approves / rejects each
 //   item (any approved → OPEN, all rejected → REJECTED). They are not "resolved" by hand: the
 //   request becomes RESOLVED ("Delivered") when the last approved item is delivered.
 //
-//   Super Admin (active role): everything.
-//   Engineer (active role) assigned to the ticket: start, wait, resume, resolve.
-//   Everyone in scope: comment (until final). Only Super Admin assigns, closes, rejects,
-//   and changes priority / category.
+//   Admin of the company (or the Super Admin inside it): everything.
+//   Staff (Engineer role) assigned to the ticket: start, wait, resume, resolve.
+//   Everyone in scope: comment (until final). Only the Admin assigns, closes, rejects,
+//   and changes priority / category. (Scope — same company — is checked before this.)
 const { HttpError } = require('../../utils/httpError');
+const roles = require('../../utils/roles');
 
 const FINAL = new Set(['CLOSED', 'REJECTED']);
 const WORKING = new Set(['IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT']);
 const ASSIGNABLE = new Set(['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT']);
 
 // action → { to: next status (null = unchanged), from: allowed current statuses, who: 'admin' | 'worker' }
-//   'worker' = Super Admin, or the assigned engineer acting as Engineer.
+//   'worker' = Admin, or the assigned staff member acting as Staff.
 const ACTIONS = {
   assign: { to: null, from: ASSIGNABLE, who: 'admin' }, // OPEN → ASSIGNED; otherwise reassign, status kept
   start: { to: 'IN_PROGRESS', from: new Set(['ASSIGNED']), who: 'worker' },
@@ -34,7 +35,7 @@ const ACTIONS = {
 const ACTION_KEYS = Object.keys(ACTIONS);
 
 const same = (a, b) => a != null && b != null && String(a) === String(b);
-const isAdmin = (user) => user?.activeRole === 'SUPER_ADMIN';
+const isAdmin = (user) => roles.isAdmin(user);
 const isAssignedEngineer = (user, req) => user?.activeRole === 'ENGINEER' && same(req.assigned_engineer_id, user.id);
 
 function canDo(user, req, action) {
@@ -52,7 +53,7 @@ function allowedActions(user, req) {
 const canComment = (user, req) => !FINAL.has(req.status) && Boolean(user);
 const canSeeInternal = (user, req) => isAdmin(user) || isAssignedEngineer(user, req);
 const canEditTriage = (user, req) => isAdmin(user) && !FINAL.has(req.status); // priority / category
-// Service requests: decide items (Super Admin, while waiting for approval) · deliver approved items.
+// Service requests: decide items (Admin, while waiting for approval) · deliver approved items.
 const canDecideItems = (user, req) => req.type === 'SERVICE_REQUEST' && isAdmin(user) && req.status === 'PENDING_APPROVAL';
 const canDeliverItems = (user, req) =>
   req.type === 'SERVICE_REQUEST' && WORKING.has(req.status) && (isAdmin(user) || isAssignedEngineer(user, req));
