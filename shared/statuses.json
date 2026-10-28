@@ -148,19 +148,13 @@
     "HIGH": {
       "key": "HIGH",
       "label": "High",
-      "requesterLabel": "High",
-      "badge": "badge bg-warning-bg text-warning"
-    },
-    "URGENT": {
-      "key": "URGENT",
-      "label": "Urgent",
-      "requesterLabel": "Urgent — work is stopped",
+      "requesterLabel": "High — work is stopped",
       "badge": "badge bg-error-bg text-error"
     }
   },
   "requesterPriorities": [
     "LOW",
     "NORMAL",
-    "URGENT"
+    "HIGH"
   ]
 }

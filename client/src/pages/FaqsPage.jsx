@@ -395,7 +395,7 @@ function SavedAnswers() {
                   →{' '}
                   {l.faqs.length
                     ? l.faqs.map((f) => `${f.item} · ${f.subItem}${f.isActive ? '' : ' (FAQ off)'}`).join(' / ')
-                    : `No FAQ — ticket${l.suggestion?.category ? ` (${l.suggestion.category}${l.suggestion.priority === 'URGENT' ? ', urgent' : ''})` : ''}`}
+                    : `No FAQ — ticket${l.suggestion?.category ? ` (${l.suggestion.category}${l.suggestion.priority === 'HIGH' ? ', high priority' : ''})` : ''}`}
                 </span>
                 <span className="block text-xs text-ink-3">
                   Reused {l.hits} {l.hits === 1 ? 'time' : 'times'}

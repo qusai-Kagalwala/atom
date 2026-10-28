@@ -7,9 +7,9 @@ import { listUsers } from '../api/users';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import PhotoPicker from '../components/PhotoPicker';
+import PriorityPicker from '../components/PriorityPicker';
 import useAuth from '../hooks/useAuth';
 import { loginIdLabel } from '../utils/format';
-import { PRIORITIES, REQUESTER_PRIORITIES } from '../utils/requests';
 
 const MAX_PHOTOS = 5;
 const selectClass =
@@ -108,7 +108,6 @@ export default function RaiseTicketPage() {
   const [photoError, setPhotoError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const priorities = isAdmin ? Object.keys(PRIORITIES) : REQUESTER_PRIORITIES;
   const missing = !form.categoryId || form.title.trim().length < 3 || !form.description.trim() || (forSomeoneElse && !person);
 
   async function submit(e) {
@@ -228,22 +227,7 @@ export default function RaiseTicketPage() {
           />
         </Field>
 
-        <fieldset>
-          <legend className="mb-1.5 font-ui text-sm font-medium text-ink">How urgent?</legend>
-          <div className={`grid gap-2 ${priorities.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
-            {priorities.map((p) => (
-              <label
-                key={p}
-                className={`flex min-h-tap cursor-pointer items-center justify-center rounded-btn border px-3 text-center font-ui text-sm ${
-                  form.priority === p ? 'border-primary bg-primary-tint text-primary' : 'border-line text-ink hover:border-gold'
-                }`}
-              >
-                <input type="radio" name="priority" value={p} checked={form.priority === p} onChange={set('priority')} className="sr-only" />
-                {isAdmin ? PRIORITIES[p].label : PRIORITIES[p].requesterLabel}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <PriorityPicker value={form.priority} onChange={(p) => setForm((f) => ({ ...f, priority: p }))} />
 
         <Field id="photos" label="Photos (optional)">
           <PhotoPicker

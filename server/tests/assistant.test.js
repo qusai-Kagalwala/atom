@@ -157,13 +157,13 @@ describe('GPT fallback', () => {
   });
 
   test('reply is cleaned: unknown ids / categories dropped, priority defaulted', () => {
-    expect(gpt.parseReply('{"faq_ids":[12,"99",12],"category":"network / internet","priority":"urgent","title":"LAN down in 1615"}', ['11', '12'], CATS)).toEqual({
+    expect(gpt.parseReply('{"faq_ids":[12,"99",12],"category":"network / internet","priority":"high","title":"LAN down in 1615"}', ['11', '12'], CATS)).toEqual({
       faqIds: ['12'],
       category: 'Network / Internet',
-      priority: 'URGENT',
+      priority: 'HIGH',
       title: 'LAN down in 1615',
     });
-    expect(gpt.parseReply('{"faq_ids":[],"category":"Hacking","priority":"HIGH","title":"x"}', ['11'], CATS)).toEqual({
+    expect(gpt.parseReply('{"faq_ids":[],"category":"Hacking","priority":"URGENT","title":"x"}', ['11'], CATS)).toEqual({
       faqIds: [],
       category: null,
       priority: 'NORMAL',

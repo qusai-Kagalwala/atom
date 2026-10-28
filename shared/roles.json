@@ -27,7 +27,8 @@
     "users": { "label": "Users & roles", "path": "/users", "icon": "Users" },
     "analytics": { "label": "Analytics", "path": "/analytics", "icon": "BarChart3" },
     "reports": { "label": "Reports (PDF)", "path": "/reports", "icon": "FileDown" },
-    "syncStatus": { "label": "Sync status", "path": "/sync", "icon": "RefreshCw" }
+    "syncStatus": { "label": "Sync status", "path": "/sync", "icon": "RefreshCw" },
+    "settings": { "label": "Settings", "path": "/settings", "icon": "Settings" }
   },
   "navPersonal": ["home", "assistant", "request", "track", "myAssets", "notifications"],
   "navByRole": {
@@ -36,7 +37,7 @@
     "SUPER_ADMIN": [
       "home", "assistant", "request", "track", "myAssets", "notifications", "workQueue",
       "assignQueue", "approvals", "allRequests", "inventory", "catalogue", "faqs", "invoices",
-      "onboarding", "users", "analytics", "reports", "syncStatus"
+      "onboarding", "users", "analytics", "reports", "syncStatus", "settings"
     ]
   }
 }

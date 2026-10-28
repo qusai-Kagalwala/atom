@@ -231,12 +231,12 @@ maybe('AI assistant on real PostgreSQL', () => {
 
   test('GPT finds nothing → ticket draft uses its category, priority and title', async () => {
     await admin.patch('/settings', { gptEnabled: true });
-    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Projector / Display', priority: 'URGENT', title: 'Hall B projector no picture' }));
+    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Projector / Display', priority: 'HIGH', title: 'Hall B projector no picture' }));
     const id = await chat(alice);
     expect((await alice.post(`/sessions/${id}/ask`, { text: 'hall b projector dead before majlis' })).body).toEqual({ type: 'none' });
     const d = (await alice.get(`/sessions/${id}/draft`)).body.draft;
     const cat = (await pool.query(`SELECT id FROM categories WHERE name = 'Projector / Display'`)).rows[0].id;
-    expect(d).toMatchObject({ assistantSessionId: String(id), categoryId: String(cat), priority: 'URGENT', title: 'Hall B projector no picture', description: 'hall b projector dead before majlis' });
+    expect(d).toMatchObject({ assistantSessionId: String(id), categoryId: String(cat), priority: 'HIGH', title: 'Hall B projector no picture', description: 'hall b projector dead before majlis' });
     expect((await admin.get('/usage')).body.unmatched[0]).toMatchObject({ text: 'hall b projector dead before majlis', language: 'en' });
   });
 
@@ -388,7 +388,7 @@ maybe('AI assistant on real PostgreSQL', () => {
 
     // Its FAQ switched off → the saved answer is ignored, GPT again.
     await admin.patch(`/faqs/${lan}`, { isActive: false });
-    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Network / Internet', priority: 'URGENT', title: 'WiFi down in office' }));
+    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Network / Internet', priority: 'HIGH', title: 'WiFi down in office' }));
     const c3 = await chat(bob);
     expect((await bob.post(`/sessions/${c3}/ask`, { text: 'wifi gaya office me' })).body).toEqual({ type: 'none' });
     expect(classify).toHaveBeenCalledTimes(3);
@@ -399,14 +399,14 @@ maybe('AI assistant on real PostgreSQL', () => {
 
   test('saved "no FAQ" answer: no GPT next time, and the ticket draft still gets GPT’s category / priority / title', async () => {
     await admin.patch('/settings', { gptEnabled: true });
-    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Projector / Display', priority: 'URGENT', title: 'Hall B projector no picture' }));
+    classify.mockResolvedValue(gptReply({ faqIds: [], category: 'Projector / Display', priority: 'HIGH', title: 'Hall B projector no picture' }));
     const a = await chat(alice);
     await alice.post(`/sessions/${a}/ask`, { text: 'hall b projector dead' });
     const b = await chat(bob);
     expect((await bob.post(`/sessions/${b}/ask`, { text: 'projector dead hall b' })).body).toEqual({ type: 'none' });
     expect(classify).toHaveBeenCalledTimes(1);
     const d = (await bob.get(`/sessions/${b}/draft`)).body.draft;
-    expect(d).toMatchObject({ priority: 'URGENT', title: 'Hall B projector no picture', description: 'projector dead hall b' });
+    expect(d).toMatchObject({ priority: 'HIGH', title: 'Hall B projector no picture', description: 'projector dead hall b' });
     expect(d.categoryId).toBeTruthy();
   });
 

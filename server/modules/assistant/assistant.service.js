@@ -387,7 +387,7 @@ async function buildDraft(db, session) {
     categoryId: faq?.ticket_category_id || sug?.categoryId || null,
     title: clean(title).slice(0, 120),
     description: lines.join('\n').trim().slice(0, 5000),
-    priority: !faq && sug?.priority ? sug.priority : 'NORMAL',
+    priority: !faq && sug?.priority ? (sug.priority === 'URGENT' ? 'HIGH' : sug.priority) : 'NORMAL', // older saved answers may say URGENT
     info: faq?.ticket_info || [],
   };
 }

@@ -167,12 +167,12 @@ maybe('tickets on real PostgreSQL', () => {
     expect((await bob.get('/mine')).body).toMatchObject({ total: 0 });
   });
 
-  test('validation: category, title, priority (requester may not pick HIGH), file types', async () => {
+  test('validation: category, title, priority (High / Normal / Low only), file types', async () => {
     expect((await alice.raise({ ...base(), categoryId: '999' })).body.code).toBe('bad_category');
     expect((await alice.raise({ ...base(), title: 'x' })).body.code).toBe('bad_title');
-    expect((await alice.raise({ ...base(), priority: 'HIGH' })).body.code).toBe('bad_priority');
-    expect((await alice.raise({ ...base(), priority: 'URGENT' })).status).toBe(201);
-    expect((await admin.raise({ ...base(), priority: 'HIGH' })).status).toBe(201);
+    expect((await alice.raise({ ...base(), priority: 'URGENT' })).body.code).toBe('bad_priority');
+    expect((await alice.raise({ ...base(), priority: 'HIGH' })).status).toBe(201);
+    expect((await admin.raise({ ...base(), priority: 'LOW' })).status).toBe(201);
 
     const gif = await sharp({ create: { width: 5, height: 5, channels: 3, background: 'red' } }).gif().toBuffer();
     expect((await alice.raise(base(), [[gif, 'x.gif', 'image/gif']])).body.code).toBe('bad_file_type');

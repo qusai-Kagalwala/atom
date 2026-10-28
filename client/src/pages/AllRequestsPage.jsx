@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoaderCircle, Search } from 'lucide-react';
 import { listAllRequests, listCategories, listEngineers } from '../api/requests';
 import RequestList, { Pager } from '../components/RequestList';
+import { Alert } from '../components/FormControls';
 import { PRIORITIES } from '../utils/requests';
 
 const selectClass =
@@ -21,7 +22,8 @@ const STATUS_OPTIONS = [
 ];
 const SORT_OPTIONS = [
   ['updated', 'Recently updated'],
-  ['priority', 'Urgent first'],
+  ['priority', 'High priority first'],
+  ['due', 'Due soonest'],
   ['oldest', 'Oldest first'],
 ];
 const PAGE_SIZE = 25;
@@ -30,6 +32,8 @@ const PAGE_SIZE = 25;
 export default function AllRequestsPage() {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
+  const queryClient = useQueryClient();
+  const [notice, setNotice] = useState('');
   const f = {
     q: params.get('q') || '',
     status: params.get('status') || 'open',
@@ -154,7 +158,16 @@ export default function AllRequestsPage() {
         {query.isSuccess && `${query.data.total} ${query.data.total === 1 ? 'ticket' : 'tickets'}`}
       </p>
 
-      <RequestList query={query} from={from} emptyText="No tickets match these filters." />
+      {notice && <Alert tone="success">{notice}</Alert>}
+      <RequestList
+        query={query}
+        from={from}
+        emptyText="No tickets match these filters."
+        onPriorityChanged={(fresh, message) => {
+          setNotice(message);
+          queryClient.invalidateQueries({ queryKey: ['requests'] });
+        }}
+      />
       {query.data && <Pager page={f.page} total={query.data.total} pageSize={PAGE_SIZE} onPage={(p) => set({ page: String(p) })} />}
     </section>
   );

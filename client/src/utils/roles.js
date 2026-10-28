@@ -12,6 +12,7 @@ import {
   PackagePlus,
   Receipt,
   RefreshCw,
+  Settings,
   ShieldCheck,
   ShoppingCart,
   Store,
@@ -26,7 +27,7 @@ export const ROLES = rolesData.roles;
 
 const ICONS = {
   BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, House, Package, PackagePlus,
-  Receipt, RefreshCw, ShieldCheck, ShoppingCart, Store, Ticket, Tickets, UserCheck, Users,
+  Receipt, RefreshCw, Settings, ShieldCheck, ShoppingCart, Store, Ticket, Tickets, UserCheck, Users,
 };
 
 // Nav items for the ACTIVE role, in order. UI only — the server decides access.

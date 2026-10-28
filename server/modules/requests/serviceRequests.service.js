@@ -12,6 +12,7 @@ const notifications = require('../notifications/notifications.service');
 const repo = require('./requests.repo');
 const lifecycle = require('./lifecycle');
 const tickets = require('./requests.service');
+const timeFrames = require('./timeFrames');
 
 const bad = (message, code) => new HttpError(400, message, code);
 const clean = (v) => (v == null ? '' : String(v).replace(/\s+/g, ' ').trim());
@@ -151,6 +152,7 @@ async function createServiceRequest(user, body = {}) {
       [priority, title, description, location, serviceUnitId, requesterId, user.id]
     );
     const row = rows[0];
+    const due = await timeFrames.setDue(db, row.id); // the clock starts when it is raised
     let order = 0;
     for (const it of items) {
       await db.query(
@@ -166,7 +168,7 @@ async function createServiceRequest(user, body = {}) {
       toStatus: 'PENDING_APPROVAL',
       data: requesterId !== String(user.id) ? { raisedFor: requesterId } : null,
     });
-    const ticket = { ...row, type: 'SERVICE_REQUEST', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null };
+    const ticket = { ...row, type: 'SERVICE_REQUEST', status: 'PENDING_APPROVAL', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null, due_by: due?.due_by };
     const sent = await notifications.recordTicketEvent(db, ticket, { kind: 'created', actorId: user.id, raisedFor: requesterId !== String(user.id) });
     afterCommit(() => notifications.publish(sent, ticket));
     return row;

@@ -43,3 +43,4 @@ export const updateCatalogueItem = (id, body) => http.patch(`/requests/catalogue
 export const raiseServiceRequest = (body) => http.post('/requests/service', body).then((r) => r.data.request);
 export const decideItems = (number, decisions) => http.post(`/requests/${number}/items/decide`, { decisions }).then((r) => r.data.request);
 export const deliverItem = (number, itemId, body) => http.post(`/requests/${number}/items/${itemId}/deliver`, body).then((r) => r.data.request);
+export const getTimeFrames = () => http.get('/requests/time-frames').then((r) => r.data.timeFrames);

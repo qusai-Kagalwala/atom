@@ -8,7 +8,8 @@
 //   GET    /:number                                            → { request }
 //   POST   /:number/actions/:action  { note?, engineerId? }    → { request }
 //          action = assign | start | wait_user | wait_equipment | resume | resolve | close | reject
-//   PATCH  /:number        { priority?, categoryId? }  (Super Admin)           → { request }
+//   PATCH  /:number        { priority?, categoryId?, message? }  (Super Admin; priority change tells requester + engineer) → { request }
+//   GET    /time-frames                                        → { timeFrames }  window per priority
 //   POST   /:number/comments  multipart: note, internal, photos[]              → { request }
 //   GET    /:number/engineers  (Super Admin: who can be assigned)              → { engineers }
 //   GET    /:number/attachments/:attachmentId                  → the image (scope-checked)
@@ -31,6 +32,7 @@ const { photosField } = require('./attachments');
 const lifecycle = require('./lifecycle');
 const svc = require('./requests.service');
 const sr = require('./serviceRequests.service');
+const timeFrames = require('./timeFrames');
 
 const handle = (fn) => async (req, res, next) => {
   const err = validationResult(req).array({ onlyFirstError: true })[0];
@@ -129,6 +131,8 @@ function createRequestsRouter() {
 
   // ---------- Phase 9: catalogue + service requests ----------
   const admin = requireRole('SUPER_ADMIN');
+  // Time frame per priority (everyone: shown when raising) — edited in /Atom/api/settings.
+  router.get('/time-frames', handle(async (req, res) => res.json({ timeFrames: await timeFrames.listTargets() })));
   router.get('/catalogue', handle(async (req, res) => res.json({ items: await sr.listCatalogue(req.user, { includeInactive: req.query.includeInactive === '1' }) })));
   router.post('/catalogue', admin, handle(async (req, res) => res.status(201).json({ item: await sr.createCatalogueItem(req.user, req.body || {}) })));
   router.patch('/catalogue/:id', admin, handle(async (req, res) => res.json({ item: await sr.updateCatalogueItem(req.user, req.params.id, req.body || {}) })));
@@ -155,8 +159,8 @@ function createRequestsRouter() {
   router.patch(
     '/:number',
     handle(async (req, res) => {
-      const { priority, categoryId } = req.body || {};
-      res.json({ request: await svc.triage(req.user, req.params.number, { priority, categoryId }) });
+      const { priority, categoryId, message } = req.body || {};
+      res.json({ request: await svc.triage(req.user, req.params.number, { priority, categoryId, message }) });
     })
   );
 

@@ -123,7 +123,7 @@ export default function AssignQueuePage() {
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
         <h1 className="mt-1 text-3xl">Assign queue</h1>
         <p className="mt-1 font-ui text-sm text-ink-2">
-          New tickets waiting for an engineer (urgent first, then oldest), and resolved tickets waiting for you to close.
+          New tickets and approved requests waiting for an engineer (high priority first, then oldest), and resolved tickets waiting for you to close.
         </p>
       </div>
       {notice && <Alert tone="success">{notice}</Alert>}
@@ -142,6 +142,7 @@ export default function AssignQueuePage() {
         from={`/assign?view=${view}`}
         emptyText={view === 'unassigned' ? 'Every ticket has an engineer.' : 'Nothing waiting to be closed.'}
         showEngineer={view !== 'unassigned'}
+        onPriorityChanged={(fresh, message) => done(message)}
         renderActions={(t) =>
           view === 'unassigned' ? (
             <QuickAssign ticket={t} engineers={engineers.data || []} onDone={done} />

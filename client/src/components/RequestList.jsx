@@ -3,11 +3,14 @@ import { ChevronLeft, ChevronRight, LoaderCircle, MapPin, Ticket } from 'lucide-
 import { errorMessage } from '../api/http';
 import { Alert } from './FormControls';
 import { timeAgo } from '../utils/format';
-import { priorityBadge, priorityLabel, statusBadge, statusLabel } from '../utils/requests';
+import { FINAL_STATUSES, priorityBadge, priorityLabel, statusBadge, statusLabel } from '../utils/requests';
+import PriorityChange from './PriorityChange';
+import { TimeBadge } from './TimeFrame';
 
 // Card list of tickets used by the work queue, assign queue and All tickets.
 // `renderActions(ticket)` adds per-row buttons (quick assign / close) under the card.
-export default function RequestList({ query, emptyText = 'Nothing here.', renderActions, showEngineer = true, from }) {
+// onPriorityChanged: Super Admin lists — a "Priority" control on each open row.
+export default function RequestList({ query, emptyText = 'Nothing here.', renderActions, showEngineer = true, from, onPriorityChanged }) {
   if (query.isError) return <Alert tone="error">{errorMessage(query.error, 'Could not load the list.')}</Alert>;
   if (query.isPending) {
     return (
@@ -40,6 +43,7 @@ export default function RequestList({ query, emptyText = 'Nothing here.', render
                 <p className="mt-0.5 truncate font-ui font-medium text-ink">{t.title}</p>
               </div>
               <div className="flex flex-wrap gap-1.5">
+                <TimeBadge t={t} />
                 {t.priority !== 'NORMAL' && <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>}
                 <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester: false, type: t.type })}</span>
               </div>
@@ -58,7 +62,16 @@ export default function RequestList({ query, emptyText = 'Nothing here.', render
               </span>
             </div>
           </Link>
-          {renderActions && <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2">{renderActions(t)}</div>}
+          {(renderActions || (onPriorityChanged && !FINAL_STATUSES.has(t.status))) && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2">
+              {renderActions?.(t)}
+              {onPriorityChanged && !FINAL_STATUSES.has(t.status) && (
+                <span className="ml-auto">
+                  <PriorityChange ticket={t} compact onDone={onPriorityChanged} />
+                </span>
+              )}
+            </div>
+          )}
         </li>
       ))}
     </ul>

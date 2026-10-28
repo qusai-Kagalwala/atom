@@ -18,7 +18,7 @@ const EMPTY = {
   resolved: 'Nothing resolved and waiting to be closed.',
 };
 
-// Engineer: tickets assigned to me. Urgent first, then oldest.
+// Engineer: tickets assigned to me. High priority first, then oldest.
 export default function WorkQueuePage() {
   const [params, setParams] = useSearchParams();
   const group = params.get('group') || 'active';
@@ -35,7 +35,7 @@ export default function WorkQueuePage() {
       <div>
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Engineer</p>
         <h1 className="mt-1 text-3xl">My work queue</h1>
-        <p className="mt-1 font-ui text-sm text-ink-2">Tickets assigned to you. Urgent ones are at the top.</p>
+        <p className="mt-1 font-ui text-sm text-ink-2">Tickets assigned to you. High-priority ones are at the top.</p>
       </div>
       <Tabs tabs={TABS} value={group} onChange={(g) => setParams({ group: g })} />
       <RequestList query={query} emptyText={EMPTY[group]} showEngineer={false} from="/work-queue" />

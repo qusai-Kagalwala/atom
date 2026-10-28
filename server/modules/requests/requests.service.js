@@ -2,8 +2,10 @@
 // one timeline event written. Out of scope = 404 (assertRecordInScope).
 // Phase 13: notifications are written in the same transaction and pushed after COMMIT.
 const pool = require('../../db/pool');
+const { config } = require('../../config/env');
 const repo = require('./requests.repo');
 const itemsRepo = require('./requestItems.repo');
+const timeFrames = require('./timeFrames');
 const lifecycle = require('./lifecycle');
 const files = require('./attachments');
 const notifications = require('../notifications/notifications.service');
@@ -13,8 +15,9 @@ const { locationLabel } = require('../sync/hrPlan');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const { HttpError, notFound } = require('../../utils/httpError');
 
-const REQUESTER_PRIORITIES = new Set(['LOW', 'NORMAL', 'URGENT']); // "How urgent?"
-const ALL_PRIORITIES = new Set(['LOW', 'NORMAL', 'HIGH', 'URGENT']);
+// High / Normal / Low for everyone (Urgent retired 28 Oct 2026). Each has a time frame (timeFrames.js).
+const REQUESTER_PRIORITIES = new Set(['LOW', 'NORMAL', 'HIGH']); // "How urgent?"
+const ALL_PRIORITIES = REQUESTER_PRIORITIES;
 
 const bad = (message, code) => new HttpError(400, message, code);
 const displayNumber = (r) => `${r.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${r.number}`;
@@ -46,6 +49,11 @@ async function inTransaction(fn) {
   return result;
 }
 
+const DUE_FMT = new Intl.DateTimeFormat('en-IN', {
+  timeZone: config.timeZone, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true,
+});
+const dueText = (d) => DUE_FMT.format(new Date(d));
+
 // "T-1001" or "1001" → 1001
 function parseNumber(value) {
   const m = /^(?:[TR]-)?(\d{1,9})$/i.exec(String(value || '').trim());
@@ -74,6 +82,10 @@ function toSummary(r) {
     assignedEngineer: r.assigned_engineer || null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    // Time frame (24/7, from when it was raised) and when it was done (resolved / delivered, or rejected / closed).
+    dueFrom: r.due_from ?? null,
+    dueBy: r.due_by ?? null,
+    doneAt: r.resolved_at || r.rejected_at || r.closed_at || null,
   };
 }
 
@@ -239,13 +251,14 @@ async function createTicket(user, input, uploads) {
         data: requesterId !== String(user.id) ? { raisedFor: requesterId } : null,
       });
       written.requestId = row.id;
+      const due = await timeFrames.setDue(db, row.id);
       written.files = await savePhotos(db, row, uploads, user.id, null);
       // Raised from the AI assistant: link the chat (only the requester's own open chat).
       if (input.assistantSessionId && String(requesterId) === String(user.id)) {
         await assistant.linkTicket(db, user, input.assistantSessionId, row.id);
       }
 
-      const ticket = { ...row, type: 'TICKET', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null };
+      const ticket = { ...row, type: 'TICKET', status: 'OPEN', title, requester_id: requesterId, raised_by_id: user.id, assigned_engineer_id: null, due_by: due?.due_by };
       const sent = await notifications.recordTicketEvent(db, ticket, {
         kind: 'created',
         actorId: user.id,
@@ -323,7 +336,11 @@ async function act(user, numberParam, action, body = {}) {
 }
 
 // Super Admin triage: priority / category.
-async function triage(user, numberParam, { priority, categoryId }) {
+// Super Admin: priority (with an optional message to the requester and engineer — in-app + email;
+// the time frame is recalculated from when it was raised) and category.
+async function triage(user, numberParam, { priority, categoryId, message }) {
+  const note = clean(message);
+  if (note.length > 1000) throw bad('Keep the message under 1000 characters.', 'message_too_long');
   return inTransaction(async (db, afterCommit) => {
     const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
     afterCommit(() => notifications.publish([], r)); // no one is notified; open lists refresh
@@ -336,7 +353,11 @@ async function triage(user, numberParam, { priority, categoryId }) {
       if (!ALL_PRIORITIES.has(p)) throw bad('Choose a priority.', 'bad_priority');
       if (p !== r.priority) {
         await repo.setPriority(db, r.id, p);
-        await repo.insertEvent(db, { requestId: r.id, type: 'priority', actorId: user.id, data: { from: r.priority, to: p } });
+        const due = await timeFrames.setDue(db, r.id);
+        await repo.insertEvent(db, { requestId: r.id, type: 'priority', actorId: user.id, note: note || null, data: { from: r.priority, to: p } });
+        const event = { kind: 'priority', actorId: user.id, from: r.priority, to: p, message: note, dueText: due?.due_by ? dueText(due.due_by) : null };
+        const sent = await notifications.recordTicketEvent(db, { ...r, priority: p, due_by: due?.due_by }, event);
+        afterCommit(() => notifications.publish(sent, r));
       }
     }
     if (categoryId !== undefined) {
@@ -483,7 +504,7 @@ async function listAll(user, f) {
   if (f.priority && !ALL_PRIORITIES.has(f.priority)) throw bad('Unknown priority.', 'bad_priority');
   if (f.categoryId && !/^\d{1,18}$/.test(f.categoryId)) throw bad('Unknown category.', 'bad_category');
   if (f.engineerId && f.engineerId !== 'none' && !/^\d{1,18}$/.test(f.engineerId)) throw bad('Unknown engineer.', 'bad_engineer');
-  if (f.sort && !['updated', 'priority', 'oldest'].includes(f.sort)) throw bad('Unknown sort.', 'bad_sort');
+  if (f.sort && !['updated', 'priority', 'oldest', 'due'].includes(f.sort)) throw bad('Unknown sort.', 'bad_sort');
   if (f.type && !['TICKET', 'SERVICE_REQUEST'].includes(f.type)) throw bad('Unknown type.', 'bad_type');
 
   const { rows, total } = await repo.listRequests(pool, recordScopeSql(user, 'r', 1), {

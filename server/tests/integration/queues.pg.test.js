@@ -93,7 +93,7 @@ maybe('queues and All tickets on real PostgreSQL', () => {
 
     // T-1001 normal printer, T-1002 urgent network, T-1003 low printer, T-1004 normal (rejected later)
     await alice.raise({ title: 'Printer jams', description: 'x', categoryId: cat, location: 'Library' });
-    await alice.raise({ title: 'No internet in 1102', description: 'x', categoryId: cat2, priority: 'URGENT' });
+    await alice.raise({ title: 'No internet in 1102', description: 'x', categoryId: cat2, priority: 'HIGH' });
     await alice.raise({ title: 'Toner low', description: 'x', categoryId: cat, priority: 'LOW' });
     await alice.raise({ title: 'Duplicate', description: 'x', categoryId: cat });
   });
@@ -102,7 +102,7 @@ maybe('queues and All tickets on real PostgreSQL', () => {
     const q = await admin.get('/queue/assign');
     expect(q.status).toBe(200);
     expect(numbers(q)).toEqual(['T-1002', 'T-1001', 'T-1004', 'T-1003']);
-    expect(q.body.requests[0]).toMatchObject({ priority: 'URGENT', requester: { name: 'Alice Hamid' } });
+    expect(q.body.requests[0]).toMatchObject({ priority: 'HIGH', requester: { name: 'Alice Hamid' } });
     expect(q.body.requests[0].statusSince).toBeTruthy();
 
     for (const c of [alice, eng1]) expect((await c.get('/queue/assign')).status).toBe(404);
@@ -144,7 +144,7 @@ maybe('queues and All tickets on real PostgreSQL', () => {
     expect(numbers(await admin.get('/all?status=all&sort=oldest'))).toEqual(['T-1001', 'T-1002', 'T-1003', 'T-1004']);
     expect(numbers(await admin.get('/all?status=rejected'))).toEqual(['T-1004']);
     expect(numbers(await admin.get('/all?status=unassigned&sort=priority'))).toEqual(['T-1002', 'T-1003']);
-    expect(numbers(await admin.get('/all?priority=URGENT'))).toEqual(['T-1002']);
+    expect(numbers(await admin.get('/all?priority=HIGH'))).toEqual(['T-1002']);
     expect(numbers(await admin.get(`/all?categoryId=${cat}&sort=oldest`))).toEqual(['T-1001', 'T-1003']);
     expect(numbers(await admin.get(`/all?engineerId=${ids.eng1}`))).toEqual(['T-1001']);
     expect(numbers(await admin.get('/all?engineerId=none&sort=oldest'))).toEqual(['T-1002', 'T-1003']);

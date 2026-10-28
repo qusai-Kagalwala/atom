@@ -9,11 +9,15 @@
 //   Service requests (Phase 9):
 //   items_decided     → the requester (how many items approved / rejected)
 //   item_delivered    → the requester ("Headset delivered")
+//   priority          → the requester · the engineer (new priority, time frame, the Super Admin's message)
+//   overdue           → Super Admins · the engineer (once, by the background job)
+// Every row is also queued as an email when email is switched on (email.js).
 //   public comment    → the requester wrote it: the engineer (or Super Admins if none yet)
 //                       anyone else wrote it:   the requester (+ the engineer if someone else wrote it)
 //   internal note     → the engineer, when someone else wrote it. Never the requester.
 // The person who caused the event is never notified. One row per person per event.
 const repo = require('./notifications.repo');
+const email = require('./email');
 const realtime = require('../../realtime');
 
 const ticketNumber = (t) => `${t.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${t.number}`;
@@ -78,6 +82,17 @@ function planTicket(ticket, e) {
         short(e.note) || short(ticket.title)
       );
       break;
+    case 'priority': {
+      const label = { HIGH: 'High', NORMAL: 'Normal', LOW: 'Low' }[e.to] || e.to;
+      const body = short([e.message, e.dueText && `Now expected by ${e.dueText}.`].filter(Boolean).join(' '), 280);
+      toRequester(`Priority of ${num} changed to ${label}`, body);
+      toEngineer(engineer, `Priority of ${num} changed to ${label}`, body);
+      break;
+    }
+    case 'overdue':
+      toAdmins(`${num} is overdue`, short(ticket.title));
+      toEngineer(engineer, `${num} is overdue`, short(ticket.title));
+      break;
     case 'item_delivered':
       toRequester(`${num}: ${short(e.itemName, 60)} delivered`, short(e.note));
       break;
@@ -132,6 +147,7 @@ async function recordTicketEvent(db, ticket, e) {
       if (row) rows.push(row);
     }
   }
+  await email.queueForRows(db, rows, ticket);
   return rows;
 }
 

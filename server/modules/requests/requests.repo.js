@@ -7,7 +7,7 @@ const REQUEST_SELECT = `
   SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.description, r.location,
          r.category_id, c.name AS category_name, r.service_unit_id, s.code AS service_unit_code,
          r.requester_id, r.raised_by_id, r.assigned_engineer_id, r.resolution, r.rejection_note,
-         r.created_at, r.updated_at, r.assigned_at, r.resolved_at, r.closed_at, r.rejected_at,
+         r.created_at, r.updated_at, r.assigned_at, r.resolved_at, r.closed_at, r.rejected_at, r.due_from, r.due_by,
          ${PERSON('req')} AS requester,
          ${PERSON('rb')} AS raised_by,
          CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer
@@ -208,6 +208,7 @@ async function getAttachment(db, requestId, attachmentId) {
 async function listMine(db, userId, { open, limit, offset }) {
   const { rows } = await db.query(
     `SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.created_at, r.updated_at,
+            r.due_from, r.due_by, r.resolved_at, r.closed_at, r.rejected_at,
             c.name AS category_name, ${PERSON('req')} AS requester,
             CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer,
             count(*) OVER () AS total
@@ -236,7 +237,8 @@ async function listMine(db, userId, { open, limit, offset }) {
 const SORTS = {
   updated: 'r.updated_at DESC, r.id DESC',
   oldest: 'r.created_at ASC, r.id ASC',
-  priority: `CASE r.priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, r.created_at ASC, r.id ASC`,
+  priority: `CASE r.priority WHEN 'HIGH' THEN 0 WHEN 'URGENT' THEN 0 WHEN 'NORMAL' THEN 1 ELSE 2 END, r.created_at ASC, r.id ASC`,
+  due: 'r.due_by ASC NULLS LAST, r.id ASC',
 };
 
 async function listRequests(db, scope, f) {
@@ -271,6 +273,7 @@ async function listRequests(db, scope, f) {
   params.push(f.limit, f.offset);
   const { rows } = await db.query(
     `SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.location, r.created_at, r.updated_at,
+            r.due_from, r.due_by, r.resolved_at, r.closed_at, r.rejected_at,
             c.name AS category_name, ${PERSON('req')} AS requester,
             CASE WHEN eng.id IS NULL THEN NULL ELSE ${PERSON('eng')} END AS assigned_engineer,
             (SELECT max(e.created_at) FROM request_events e

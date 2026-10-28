@@ -7,6 +7,7 @@ import { Alert } from '../components/FormControls';
 import useAuth from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
 import { priorityBadge, priorityLabel, statusBadge, statusLabel } from '../utils/requests';
+import { TimeBadge } from '../components/TimeFrame';
 
 const TABS = [
   ['open', 'Open'],
@@ -104,6 +105,7 @@ export default function MyRequestsPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-ui text-xs text-ink-2">
                   {t.priority !== 'NORMAL' && <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>}
+                  <TimeBadge t={t} />
                   {!forMe && <span>For {t.requester.name}</span>}
                   {t.assignedEngineer && <span>Engineer: {t.assignedEngineer.name}</span>}
                   <span className="text-ink-3">Updated {formatDateTime(t.updatedAt)}</span>

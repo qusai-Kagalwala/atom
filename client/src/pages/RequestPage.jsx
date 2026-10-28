@@ -6,6 +6,7 @@ import { getDefaultLocation, listCatalogue, raiseServiceRequest } from '../api/r
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import { ITEM_KINDS } from '../utils/requests';
+import PriorityPicker from '../components/PriorityPicker';
 
 const MAX_ITEMS = 10;
 const areaClass =
@@ -21,6 +22,7 @@ export default function RequestPage() {
   const suggested = useQuery({ queryKey: ['requests', 'default-location', 'me'], queryFn: () => getDefaultLocation(), staleTime: 5 * 60_000 });
   const [lines, setLines] = useState([]);
   const [location, setLocation] = useState(null); // null = use the suggestion
+  const [priority, setPriority] = useState('NORMAL');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const where = location ?? suggested.data ?? '';
@@ -41,6 +43,7 @@ export default function RequestPage() {
     try {
       const r = await raiseServiceRequest({
         location: where,
+        priority,
         items: lines.map((x) => ({
           catalogueItemId: x.catalogueItemId || undefined,
           name: x.catalogueItemId ? undefined : x.name,
@@ -146,6 +149,7 @@ export default function RequestPage() {
             </li>
           ))}
         </ul>
+        {lines.length > 0 && <PriorityPicker value={priority} onChange={setPriority} note="Delivery depends on availability — AVIT will keep you updated." />}
         {lines.length > 0 && (
           <Field id="where" label="Where? (optional)" hint="Where it should be delivered or installed.">
             <TextInput id="where" value={where} onChange={(e) => setLocation(e.target.value)} maxLength={200} />

@@ -10,11 +10,12 @@ import Modal from '../components/Modal';
 import PhotoPicker from '../components/PhotoPicker';
 import TicketInvoices from '../components/TicketInvoices';
 import ServiceItems from '../components/ServiceItems';
+import PriorityChange from '../components/PriorityChange';
+import TimeFrame from '../components/TimeFrame';
 import useAuth from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
 import {
   ACTION_BUTTONS,
-  PRIORITIES,
   eventText,
   priorityBadge,
   priorityLabel,
@@ -196,15 +197,13 @@ function Triage({ ticket, onDone }) {
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Field id="tri-priority" label="Priority">
-        <select id="tri-priority" className={selectClass} value={ticket.priority} disabled={busy} onChange={(e) => change({ priority: e.target.value })}>
-          {Object.values(PRIORITIES).map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div>
+        <p className="mb-1.5 font-ui text-sm font-medium text-ink">Priority</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={priorityBadge(ticket.priority)}>{priorityLabel(ticket.priority)}</span>
+          <PriorityChange ticket={ticket} onDone={onDone} />
+        </div>
+      </div>
       {!isService && (
         <Field id="tri-category" label="Category">
           <select id="tri-category" className={selectClass} value={ticket.categoryId || ''} disabled={busy} onChange={(e) => change({ categoryId: e.target.value })}>
@@ -341,6 +340,11 @@ export default function TicketPage() {
             <dd className="text-ink">{formatDateTime(t.createdAt)}</dd>
           </div>
         </dl>
+
+        <TimeFrame t={t} isService={t.type === 'SERVICE_REQUEST'} />
+        {t.type === 'SERVICE_REQUEST' && !t.doneAt && (
+          <p className="mt-2 font-ui text-xs text-ink-3">Delivery depends on availability. AVIT will keep you updated.</p>
+        )}
 
         <p className="mt-4 whitespace-pre-wrap font-ui text-sm text-ink">{t.description}</p>
 

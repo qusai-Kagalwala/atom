@@ -183,12 +183,17 @@ maybe('notifications on real PostgreSQL', () => {
     expect(pushed).toEqual([]);
   });
 
-  test('reject tells the requester with the reason; triage notifies no one but refreshes lists', async () => {
+  test('reject tells the requester with the reason; a priority change tells the requester (with the message), a category change no one', async () => {
     await alice.raise({ title: 'Printer jams', description: 'x', categoryId: cat });
     pushed = [];
-    await admin.triage('T-1001', { priority: 'HIGH' });
+    const cat2 = String((await pool.query(`SELECT id FROM categories WHERE name='Software'`)).rows[0].id);
+    await admin.triage('T-1001', { categoryId: cat2 });
     expect(pushed.map(([, e]) => e)).toEqual(['requests:changed', 'requests:changed']);
     expect(await rowsFor(ids.alice)).toEqual([]);
+    await admin.triage('T-1001', { priority: 'HIGH', message: 'Moved up — exam papers are waiting.' });
+    const p = (await alice.list()).body.notifications[0];
+    expect(p.title).toBe('Priority of T-1001 changed to High');
+    expect(p.body).toMatch(/^Moved up — exam papers are waiting\. Now expected by /);
 
     await admin.act('T-1001', 'reject', { note: 'Duplicate of T-1000' });
     const n = (await alice.list()).body.notifications[0];
