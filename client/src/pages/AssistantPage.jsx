@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bot, ChevronLeft, CircleCheck, Languages, LoaderCircle, RotateCcw, Send, ShieldAlert, Ticket } from 'lucide-react';
-import { askChat, chatDraft, chatFeedback, getAssistantConfig, showFaq, startChat } from '../api/assistant';
+import { Bot, ChevronLeft, CircleCheck, Languages, LoaderCircle, RotateCcw, Send, ShieldAlert, ShoppingCart, Ticket } from 'lucide-react';
+import { askChat, chatDraft, chatFeedback, chatToRequest, getAssistantConfig, showFaq, showProblem, startChat } from '../api/assistant';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import { makeT } from '../utils/assistantText';
@@ -27,6 +27,7 @@ const textClass = (lang) => (lang === 'ar' ? 'arabic text-lg leading-relaxed' : 
 
 let nextId = 1;
 const msg = (m) => ({ id: nextId++, ...m });
+const rupees = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 function Bubble({ from, children, lang }) {
   const mine = from === 'user';
@@ -48,7 +49,8 @@ function Bubble({ from, children, lang }) {
   );
 }
 
-// Category → item → problem buttons. No AI involved.
+// Category → item → problem buttons (the company's problem list, step C). No AI involved.
+// An entry has an FAQ (id) or only a problem (problemId → ticket).
 function Browse({ tree, lang, t, onPick }) {
   const [cat, setCat] = useState(null);
   const [item, setItem] = useState(null);
@@ -88,7 +90,7 @@ function Browse({ tree, lang, t, onPick }) {
       {back(() => setItem(null))}
       <div className="grid gap-2">
         {item.faqs.map((f) => (
-          <button key={f.id} type="button" className={btn} onClick={() => onPick(f.id)} dir={DIRS[lang] || 'ltr'}>
+          <button key={f.id || `p${f.problemId}`} type="button" className={btn} onClick={() => onPick(f)} dir={DIRS[lang] || 'ltr'}>
             <span className="block font-medium">{f.subItem}</span>
             {f.questions?.[lang] && <span className={`block text-ink-2 ${lang === 'ar' ? 'arabic' : ''}`}>{f.questions[lang]}</span>}
           </button>
@@ -148,7 +150,9 @@ export default function AssistantPage() {
 
   const languages = config.data?.languages || [];
   const known = languages.some((l) => l.code === lang);
-  const t = makeT(config.data?.uiText, known ? lang : 'en');
+  const companyName = config.data?.company?.name || null;
+  const requestMode = config.data?.mode === 'request'; // Tanzeem: request first, ticket for replacements
+  const t = makeT(config.data?.uiText, known ? lang : 'en', companyName);
   const guidelines = config.data?.guidelines?.[lang] || config.data?.guidelines?.en || [];
 
   useEffect(() => {
@@ -211,17 +215,39 @@ export default function AssistantPage() {
       const s = await ensureSession();
       const r = await askChat(s.id, q);
       if (r.type === 'answer') showAnswer(r.faq);
+      else if (r.type === 'problem') push({ from: 'bot', kind: 'problem', problem: r.problem, lang });
+      else if (r.type === 'catalogue') push({ from: 'bot', kind: 'catalogue', items: r.items, lang });
       else if (r.type === 'choices') push({ from: 'bot', kind: 'choices', faqs: r.faqs, lang });
       else push({ from: 'bot', kind: 'none', lang });
     });
   }
 
-  async function pick(faqId, via) {
+  // An FAQ, a problem of the list (→ its FAQ, or a ticket) or a catalogue item (→ Request page).
+  async function pick(entry, via) {
+    if (entry.kind === 'catalogue') {
+      await requestItems([entry.catalogueItemId]);
+      return;
+    }
     resolveLast();
     setBrowsing(false);
     await run(async () => {
       const s = await ensureSession();
-      showAnswer(await showFaq(s.id, faqId, via));
+      if (entry.id) {
+        showAnswer(await showFaq(s.id, entry.id, via));
+        return;
+      }
+      const r = await showProblem(s.id, entry.problemId, via);
+      if (r.faq) showAnswer(r.faq);
+      else push({ from: 'bot', kind: 'problem', problem: r.problem, lang });
+    });
+  }
+
+  // Tanzeem: to the Request page, with the chosen catalogue items already added.
+  async function requestItems(ids = []) {
+    resolveLast();
+    await run(async () => {
+      if (session && !ended) await chatToRequest(session.id, ids);
+      navigate('/request', { state: { add: ids } });
     });
   }
 
@@ -280,6 +306,51 @@ export default function AssistantPage() {
             )}
           </>
         );
+      case 'problem':
+        return (
+          <div className="space-y-3">
+            <p className="font-medium" dir="ltr">
+              {m.problem.category} › {m.problem.item} › {m.problem.problem}
+            </p>
+            <p>{t('no_guide')}</p>
+            <button type="button" className="btn-primary" onClick={() => raiseTicket()} disabled={busy || m.done || ended}>
+              <Ticket size={18} aria-hidden="true" /> {t('raise_ticket_button')}
+            </button>
+          </div>
+        );
+      case 'catalogue':
+        return (
+          <div className="space-y-2">
+            <p>{t('catalogue_found')}</p>
+            <ul className="grid gap-2">
+              {m.items.map((x) => (
+                <li key={x.id} className="flex items-center justify-between gap-2 rounded-btn border border-line bg-white px-3 py-2">
+                  <span className="min-w-0 font-ui text-sm" dir="ltr">
+                    <span className="block text-ink">{x.name}</span>
+                    <span className="block text-xs text-ink-3">
+                      {x.group}
+                      {x.price != null && ` · approx. ${rupees(x.price)} each`}
+                    </span>
+                  </span>
+                  <button type="button" className="btn-secondary shrink-0" disabled={!live} onClick={() => requestItems([x.id])}>
+                    <ShoppingCart size={16} aria-hidden="true" /> {t('request_button')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              disabled={!live}
+              onClick={() => {
+                resolveLast();
+                push({ from: 'bot', kind: 'none', lang });
+              }}
+              className="min-h-tap rounded-btn px-3 text-start font-ui text-sm text-primary hover:underline disabled:opacity-60"
+            >
+              {t('none_of_these')}
+            </button>
+          </div>
+        );
       case 'choices':
         return (
           <div className="space-y-2">
@@ -287,10 +358,10 @@ export default function AssistantPage() {
             <div className="grid gap-2">
               {m.faqs.map((f) => (
                 <button
-                  key={f.id}
+                  key={f.id || `${f.kind}${f.problemId || f.catalogueItemId}`}
                   type="button"
                   disabled={!live}
-                  onClick={() => pick(f.id, 'choice')}
+                  onClick={() => pick(f, 'choice')}
                   className="min-h-tap rounded-btn border border-line bg-white px-3 py-2 text-start hover:border-gold hover:bg-gold-muted disabled:opacity-60"
                 >
                   <span className="block">{f.question}</span>
@@ -315,6 +386,22 @@ export default function AssistantPage() {
         );
       case 'none':
       case 'ticket':
+        // Tanzeem: most things are requested; a ticket only when something is broken / needs replacing.
+        if (requestMode) {
+          return (
+            <div className="space-y-3">
+              <p>{t('request_hint')}</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-primary" onClick={() => requestItems([])} disabled={busy || m.done || ended}>
+                  <ShoppingCart size={18} aria-hidden="true" /> {t('request_something')}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => raiseTicket(m.draft)} disabled={busy || m.done}>
+                  <Ticket size={18} aria-hidden="true" /> {t('replace_button')}
+                </button>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="space-y-3">
             {(m.kind === 'none' || m.note) && <p>{m.kind === 'none' ? t('no_match') : m.note}</p>}
@@ -347,7 +434,7 @@ export default function AssistantPage() {
   if (!known) {
     return (
       <section className="mx-auto max-w-xl space-y-4">
-        <h1 className="text-3xl">AI assistant</h1>
+        <h1 className="text-3xl">AI assistant{companyName ? ` · ${companyName}` : ''}</h1>
         <div className="card space-y-3">
           <p className="flex items-center gap-2 font-ui font-medium">
             <Languages size={18} aria-hidden="true" /> {languages.map((l) => makeT(config.data.uiText, l.code)('choose_language')).filter((v, i, a) => a.indexOf(v) === i).join(' · ')}
@@ -374,7 +461,11 @@ export default function AssistantPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl">AI assistant</h1>
-          <p className="mt-1 font-ui text-sm text-ink-2">Answers from the AVIT help guide. Not solved? Raise a ticket from here.</p>
+          <p className="mt-1 font-ui text-sm text-ink-2">
+            {requestMode
+              ? `Find what you need from ${companyName}. Something broken? Raise a ticket from here.`
+              : `Answers from the ${companyName || 'AVIT'} help guide. Not solved? Raise a ticket from here.`}
+          </p>
         </div>
         <label className="flex items-center gap-2 font-ui text-sm text-ink-2">
           <Languages size={16} aria-hidden="true" />
@@ -418,7 +509,7 @@ export default function AssistantPage() {
 
         {browsing && !ended && (
           <Bubble from="bot" lang={lang}>
-            <Browse tree={config.data.tree} lang={lang} t={t} onPick={(id) => pick(id, 'browse')} />
+            <Browse tree={config.data.tree} lang={lang} t={t} onPick={(entry) => pick(entry, 'browse')} />
           </Bubble>
         )}
 
@@ -462,9 +553,17 @@ export default function AssistantPage() {
             </button>
           </form>
           <div className="flex flex-wrap items-center justify-between gap-2 font-ui text-sm">
-            <button type="button" className="min-h-tap text-primary hover:underline" onClick={() => setBrowsing((v) => !v)} disabled={busy} aria-expanded={browsing}>
-              {t('browse')}
-            </button>
+            {config.data.tree.length > 0 ? (
+              <button type="button" className="min-h-tap text-primary hover:underline" onClick={() => setBrowsing((v) => !v)} disabled={busy} aria-expanded={browsing}>
+                {t('browse')}
+              </button>
+            ) : requestMode ? (
+              <button type="button" className="min-h-tap text-primary hover:underline" onClick={() => requestItems([])} disabled={busy}>
+                {t('request_something')}
+              </button>
+            ) : (
+              <span />
+            )}
             <div className="flex items-center gap-3">
               {messages.length > 0 && (
                 <button type="button" className="min-h-tap text-ink-2 hover:underline" onClick={startOver} disabled={busy}>

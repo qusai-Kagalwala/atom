@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, LoaderCircle, Minus, PenLine, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { getDefaultLocation, listCatalogue, raiseServiceRequest } from '../api/requests';
@@ -42,6 +42,16 @@ export default function RequestPage() {
   const shown = matches.slice(0, SHOW_MAX);
   const priceOf = (x) => (x.catalogueItemId ? all.find((c) => c.id === x.catalogueItemId)?.price ?? null : null);
   const priced = lines.filter((x) => priceOf(x) != null);
+
+  // From the AI assistant (Tanzeem): the items it suggested are added once the catalogue is loaded.
+  const fromChat = useLocation().state?.add;
+  const added = useRef(false);
+  useEffect(() => {
+    if (added.current || !fromChat?.length || !catalogue.data) return;
+    added.current = true;
+    const items = fromChat.map((id) => catalogue.data.find((c) => c.id === String(id))).filter(Boolean).slice(0, MAX_ITEMS);
+    setLines(items.map((item) => ({ key: nextKey++, catalogueItemId: item.id, name: item.name, kind: item.kind, quantity: 1, reason: '' })));
+  }, [fromChat, catalogue.data]);
   const total = priced.reduce((n, x) => n + priceOf(x) * x.quantity, 0);
 
   const add = (item) => {

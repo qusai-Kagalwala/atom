@@ -37,12 +37,14 @@ const ICONS = {
 // Admin of the active company (or the Super Admin inside it).
 export const isAdminRole = (role) => role === 'ADMIN' || role === 'SUPER_ADMIN';
 
-// Nav items for the ACTIVE role, in order. Items limited to some companies (e.g. the AI assistant,
-// AVIT only for now) are left out elsewhere. UI only — the server decides access.
-export function navForRole(role, companyCode) {
+// Nav items for the ACTIVE role, in order. Items limited to some companies are left out elsewhere;
+// the AI assistant shows only while the company's assistant is switched on (Super Admin, step C).
+// UI only — the server decides access.
+export function navForRole(role, company) {
   return (rolesData.navByRole[role] || [])
     .map((key) => ({ key, ...rolesData.navItems[key] }))
-    .filter((item) => !item.companies || item.companies.includes(companyCode))
+    .filter((item) => !item.companies || item.companies.includes(company?.code))
+    .filter((item) => item.needs !== 'assistant' || company?.assistantEnabled !== false)
     .map((item) => ({ ...item, Icon: ICONS[item.icon] || CircleHelp }));
 }
 
@@ -54,7 +56,7 @@ const PERSONAL = new Set(rolesData.navPersonal);
 const CONSOLE = new Set(rolesData.navConsole);
 export function navSectionsForUser(user) {
   const role = user?.activeRole;
-  const items = navForRole(role, user?.company?.code);
+  const items = navForRole(role, user?.company);
   const console = items.filter((i) => CONSOLE.has(i.key));
   if (!user?.company) return console.length ? [{ key: 'console', label: 'Super Admin', items: console }] : [];
   const personal = items.filter((i) => PERSONAL.has(i.key));

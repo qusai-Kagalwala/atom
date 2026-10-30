@@ -243,10 +243,11 @@ maybe('company isolation on real PostgreSQL', () => {
     }
   });
 
-  test('the AI assistant and FAQs are AVIT\'s for now', async () => {
-    expect((await aliceSiy.get('/assistant/config')).status).toBe(404);
-    expect((await siyAdmin.get('/assistant/faqs')).status).toBe(404);
-    expect((await aliceAvit.get('/assistant/config')).status).toBe(200);
+  test('each company has its own AI assistant and FAQs (step C); details in stepC.pg.test.js', async () => {
+    await pool.query('UPDATE service_units SET assistant_enabled = TRUE');
+    expect((await aliceSiy.get('/assistant/config')).body.company).toMatchObject({ code: 'SIYANAAT' });
+    expect((await siyAdmin.get('/assistant/faqs')).status).toBe(200);
+    expect((await aliceAvit.get('/assistant/config')).body.company).toMatchObject({ code: 'AVIT' });
     expect((await avitAdmin.get('/assistant/faqs')).status).toBe(200);
   });
 });

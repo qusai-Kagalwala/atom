@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, LoaderCircle, Save } from 'lucide-react';
 import { createFaq, getFaq, updateFaq } from '../api/assistant';
 import { listCategories } from '../api/requests';
+import { getProblemTree } from '../api/problems';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 
@@ -33,6 +34,7 @@ function toForm(faq, from) {
     return {
       category: '', item: '', subItem: '',
       ticketCategoryId: from.suggestion?.categoryId || '',
+      ticketProblemId: '',
       directTicket: false, isActive: true,
       keywords: from.text.toLowerCase().replace(/,/g, ' '),
       detailsEn: '', ticketInfo: '', answers,
@@ -43,6 +45,7 @@ function toForm(faq, from) {
     item: faq?.item || '',
     subItem: faq?.subItem || '',
     ticketCategoryId: faq?.ticketCategory?.id || '',
+    ticketProblemId: faq?.problem?.id || '',
     directTicket: faq?.directTicket || false,
     isActive: faq?.isActive ?? true,
     keywords: (faq?.keywords || []).join(', '),
@@ -56,6 +59,11 @@ function Editor({ faq, from }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories, staleTime: 10 * 60_000 });
+  // The company's problem list: an FAQ answers one problem (browse buttons, ticket item / problem).
+  const tree = useQuery({ queryKey: ['problems', 'tree'], queryFn: () => getProblemTree(false), staleTime: 5 * 60_000 });
+  const problems = (tree.data?.categories || []).flatMap((c) =>
+    c.items.flatMap((i) => i.problems.map((p) => ({ id: p.id, label: `${c.name} › ${i.name} › ${p.name}`, category: c, item: i, problem: p })))
+  );
   const [f, setF] = useState(() => toForm(faq, from));
   const [lang, setLang] = useState(from?.language && from.language !== 'en' ? from.language : 'en');
   const [busy, setBusy] = useState(false);
@@ -80,6 +88,8 @@ function Editor({ faq, from }) {
       item: f.item,
       subItem: f.subItem,
       ticketCategoryId: f.ticketCategoryId || null,
+      // New FAQ with no problem chosen: ATOM links the problem of the same item and name, if any.
+      ...(faq || f.ticketProblemId ? { ticketProblemId: f.ticketProblemId || null } : {}),
       directTicket: f.directTicket,
       keywords: f.keywords.split(',').map((k) => k.trim()).filter(Boolean),
       detailsEn: lines(f.detailsEn),
@@ -132,6 +142,37 @@ function Editor({ faq, from }) {
             ))}
           </select>
         </Field>
+        <div className="sm:col-span-2">
+          <Field id="faq-problem" label="Answers this problem (problem list)" hint="Shown under it in “Browse topics”; a ticket raised from it carries the item and problem.">
+            <select
+              id="faq-problem"
+              className={selectClass}
+              value={f.ticketProblemId}
+              onChange={(e) => {
+                const p = problems.find((x) => x.id === e.target.value);
+                setF((x) => ({
+                  ...x,
+                  ticketProblemId: e.target.value,
+                  ...(p
+                    ? {
+                        category: x.category || p.category.name,
+                        item: x.item || p.item.name,
+                        subItem: x.subItem || p.problem.name,
+                        ticketCategoryId: x.ticketCategoryId || p.category.id,
+                      }
+                    : {}),
+                }));
+              }}
+            >
+              <option value="">{tree.isPending ? 'Loading…' : 'None'}</option>
+              {problems.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
         <div className="sm:col-span-2">
           <Field id="faq-kw" label="Keywords" hint="Comma separated — words people type, e.g. paper jam, paper stuck">
             <TextInput id="faq-kw" value={f.keywords} onChange={set('keywords')} />
@@ -199,7 +240,7 @@ function Editor({ faq, from }) {
   );
 }
 
-// Super Admin: add or edit one FAQ (4 languages).
+// Company Admin: add or edit one of the company's FAQs (4 languages).
 export default function FaqEditPage() {
   const { id } = useParams();
   const isNew = !id;

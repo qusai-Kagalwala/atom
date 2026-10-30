@@ -284,7 +284,7 @@ async function createTicket(user, input, uploads) {
       written.files = await savePhotos(db, row, uploads, user.id, null);
       // Raised from the AI assistant: link the chat (only the requester's own open chat).
       if (input.assistantSessionId && String(requesterId) === String(user.id)) {
-        await assistant.linkTicket(db, user, input.assistantSessionId, row.id);
+        await assistant.linkTicket(db, user, input.assistantSessionId, row.id, serviceUnitId);
       }
 
       // Auto-assign (company switch on + an occupation linked to the category).

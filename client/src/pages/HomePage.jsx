@@ -3,8 +3,8 @@ import { ArrowRight, Bot, ShoppingCart, Ticket, TriangleAlert } from 'lucide-rea
 import UserName from '../components/UserName';
 import useAuth from '../hooks/useAuth';
 
-// Same three cards for every role — Admins and Staff raise tickets too. The AI assistant is AVIT's
-// for now; in the other companies the first card raises a ticket directly.
+// Same three cards for every role — Admins and Staff raise tickets too. Each company has its own AI
+// assistant (step C); when the Super Admin switches it off, the first card raises a ticket directly.
 const RAISE = {
   to: '/tickets/new',
   Icon: TriangleAlert,
@@ -16,7 +16,7 @@ const CARDS = [
     to: '/assistant',
     Icon: Bot,
     title: 'Talk to the AI assistant',
-    text: "Something isn't working? Get an answer first; raise a ticket if it doesn't help.",
+    text: "Something isn't working or you need something? Get an answer first; raise a ticket if it doesn't help.",
   },
   {
     to: '/request',
@@ -34,7 +34,7 @@ const CARDS = [
 
 export default function HomePage() {
   const { user } = useAuth();
-  const cards = user.company?.code === 'AVIT' ? CARDS : [RAISE, ...CARDS.slice(1)];
+  const cards = user.company?.assistantEnabled !== false ? CARDS : [RAISE, ...CARDS.slice(1)];
 
   return (
     <section>

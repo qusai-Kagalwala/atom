@@ -87,15 +87,15 @@ export default function RaiseTicketPage() {
 
   const [form, setForm] = useState({
     categoryId: draft?.categoryId || '',
-    itemId: '',
-    problemId: '', // '' · an id · 'other'
+    itemId: draft?.itemId || '',
+    problemId: draft?.problemId || '', // '' · an id · 'other'
     problemText: '',
     title: draft?.title || '',
     description: draft?.description || '',
     location: '',
     priority: draft?.priority || 'NORMAL',
   });
-  const [titleEdited, setTitleEdited] = useState(Boolean(draft?.title));
+  const [titleEdited, setTitleEdited] = useState(Boolean(draft?.title) && !draft?.itemId);
   const category = categories.find((c) => c.id === form.categoryId) || null;
   const item = category?.items.find((i) => i.id === form.itemId) || null;
   const problem = item?.problems.find((p) => p.id === form.problemId) || null;
@@ -174,7 +174,7 @@ export default function RaiseTicketPage() {
           </Alert>
         </div>
       ) : (
-        user.company?.code === 'AVIT' && <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        user.company?.assistantEnabled !== false && <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
           <Bot size={16} aria-hidden="true" /> Try the AI assistant first — many problems are fixed in a minute
         </Link>
       )}

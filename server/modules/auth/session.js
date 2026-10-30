@@ -40,7 +40,10 @@ function toPublicUser(row, activeRole) {
   const name = row.name || (row.employee_id ? `Employee ${row.employee_id}` : null);
   const nameArabic = row.name_arabic || null;
   const nameLanguage = row.name_language === 'ar' && nameArabic ? 'ar' : 'en';
-  const company = row.company ? { id: String(row.company.id), code: row.company.code, name: row.company.name } : null;
+  // assistantEnabled: the company's AI assistant is switched on (Super Admin, step C).
+  const company = row.company
+    ? { id: String(row.company.id), code: row.company.code, name: row.company.name, assistantEnabled: row.company.assistant !== false }
+    : null;
   return {
     id: String(row.id),
     loginType: row.login_type,

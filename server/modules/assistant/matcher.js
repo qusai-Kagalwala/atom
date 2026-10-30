@@ -173,7 +173,7 @@ function match(index, text, lang = 'en') {
   const hits = index
     .map((e) => ({ faqId: e.id, score: scoreFaq(e, q, lang) }))
     .filter((h) => h.score > 0)
-    .sort((a, b) => b.score - a.score || Number(a.faqId) - Number(b.faqId));
+    .sort((a, b) => b.score - a.score || String(a.faqId).localeCompare(String(b.faqId), 'en', { numeric: true }));
   const top = hits[0];
   if (!top || top.score < CHOICE_MIN) return { kind: 'none', hits: hits.slice(0, 5) };
   const second = hits[1]?.score ?? 0;

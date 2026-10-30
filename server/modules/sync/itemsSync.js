@@ -16,6 +16,8 @@ const defaultPool = require('../../db/pool');
 const { readSupportLogItems } = require('./sqlServer');
 const { buildItemsPlan, checkCompanyGuard, CODES, DEFAULT_OCCUPATION } = require('./itemsPlan');
 const { readMirrorColumns, compareColumns, loadMirror, ITEM_MIRROR, MAIN_ITEM_MIRROR } = require('./mirror');
+const { autoLinkProblems } = require('../assistant/faqAdmin.service');
+const assistant = require('../assistant/assistant.service');
 
 const JOB = 'items';
 const LOCK_KEY = 727308; // 727306 occupancy · 727307 FAQ import
@@ -346,10 +348,13 @@ async function runItemsSync({
           const applied = code === 'TANZEEM'
             ? await applyCatalogue(client, unit, c.entries, { keepAtomEdits, actorId: triggeredBy })
             : await applyProblems(client, unit, c.entries, { keepAtomEdits });
+          // New problems may match FAQs of the company (assistant browse buttons, step C).
+          if (code !== 'TANZEEM') await autoLinkProblems(client, unit.id);
           summary.companies[code] = { ...base, ...applied };
         }
         if (preview) throw new Rollback();
         await client.query('COMMIT');
+        assistant.bust();
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         if (!(err instanceof Rollback)) throw err;

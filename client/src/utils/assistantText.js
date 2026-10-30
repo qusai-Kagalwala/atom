@@ -30,6 +30,28 @@ export const CHAT_TEXT = {
     gu: 'છોડો — સીધી ટિકિટ નોંધાવો',
   },
   thinking: { en: 'Looking…', ar: 'جارٍ البحث…', hi: 'खोज रहे हैं…', gu: 'શોધી રહ્યા છીએ…' },
+  // Step C (each company's assistant; Tanzeem: requests first).
+  no_guide: {
+    en: 'There is no step-by-step guide for this yet. Raise a ticket and the right person is sent.',
+    ar: 'لا يوجد دليل خطوة بخطوة لهذا بعد. افتح تذكرة وسيتم إرسال الشخص المناسب.',
+    hi: 'इसके लिए अभी कोई स्टेप-बाय-स्टेप गाइड नहीं है। टिकट दर्ज करें, सही व्यक्ति भेजा जाएगा।',
+    gu: 'આ માટે હજુ કોઈ સ્ટેપ-બાય-સ્ટેપ માર્ગદર્શિકા નથી. ટિકિટ નોંધાવો, યોગ્ય વ્યક્તિ મોકલવામાં આવશે.',
+  },
+  catalogue_found: { en: 'You can request these:', ar: 'يمكنك طلب هذه:', hi: 'आप इन्हें मंगवा सकते हैं:', gu: 'તમે આ મંગાવી શકો છો:' },
+  request_button: { en: 'Request', ar: 'اطلب', hi: 'मंगवाएँ', gu: 'મંગાવો' },
+  request_something: { en: 'Request something', ar: 'اطلب شيئًا', hi: 'कुछ मंगवाएँ', gu: 'કંઈક મંગાવો' },
+  replace_button: {
+    en: 'Something broken — raise a ticket',
+    ar: 'شيء معطّل — افتح تذكرة',
+    hi: 'कुछ खराब है — टिकट दर्ज करें',
+    gu: 'કંઈક બગડ્યું છે — ટિકિટ નોંધાવો',
+  },
+  request_hint: {
+    en: 'Need something? Request it. Is something broken or does it need replacing? Raise a ticket.',
+    ar: 'تحتاج شيئًا؟ اطلبه. هل هناك شيء معطّل أو يحتاج إلى استبدال؟ افتح تذكرة.',
+    hi: 'कुछ चाहिए? अनुरोध करें। कुछ खराब है या बदलना है? टिकट दर्ज करें।',
+    gu: 'કંઈક જોઈએ છે? વિનંતી કરો. કંઈક બગડ્યું છે અથવા બદલવાની જરૂર છે? ટિકિટ નોંધાવો.',
+  },
 };
 
 // Built-in fallbacks for the FAQ file's ui_text keys (used before the file is imported).
@@ -43,8 +65,11 @@ const UI_FALLBACK = {
   choose_language: 'Choose your language',
 };
 
-// t(key): the FAQ file's ui_text first, then CHAT_TEXT, then English.
-export function makeT(uiText, lang) {
-  return (key) =>
-    uiText?.[key]?.[lang] || CHAT_TEXT[key]?.[lang] || uiText?.[key]?.en || CHAT_TEXT[key]?.en || UI_FALLBACK[key] || key;
+// t(key): the FAQ file's ui_text first, then CHAT_TEXT, then English. The texts were written for AVIT;
+// in another company "AVIT" is replaced by that company's name.
+export function makeT(uiText, lang, companyName = null) {
+  return (key) => {
+    const text = uiText?.[key]?.[lang] || CHAT_TEXT[key]?.[lang] || uiText?.[key]?.en || CHAT_TEXT[key]?.en || UI_FALLBACK[key] || key;
+    return companyName && companyName !== 'AVIT' ? text.replace(/\bAVIT\b/g, companyName) : text;
+  };
 }

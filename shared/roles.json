@@ -45,9 +45,7 @@
       "label": "AI assistant",
       "path": "/assistant",
       "icon": "Bot",
-      "companies": [
-        "AVIT"
-      ]
+      "needs": "assistant"
     },
     "request": {
       "label": "Request",
@@ -112,10 +110,7 @@
     "faqs": {
       "label": "FAQs",
       "path": "/faqs",
-      "icon": "CircleHelp",
-      "companies": [
-        "AVIT"
-      ]
+      "icon": "CircleHelp"
     },
     "staff": {
       "label": "Staff & occupations",

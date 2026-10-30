@@ -120,6 +120,9 @@ maybe('AI assistant on real PostgreSQL', () => {
     await pool.query(`UPDATE assistant_settings SET gpt_enabled = FALSE, model = 'gpt-4o-mini', temperature = 0.4,
                       daily_token_limit = 200000, monthly_token_limit = 3000000, user_daily_calls = 20, content = '{}' WHERE id = 1`);
     await pool.query(`SELECT setval('request_number_seq', 1001, false)`);
+    // These tests use FAQs only: no AVIT problem list (step C tests cover it); assistants on.
+    await pool.query(`UPDATE ticket_problems SET is_active = FALSE WHERE service_unit_id = (SELECT id FROM service_units WHERE code = 'AVIT')`);
+    await pool.query('UPDATE service_units SET assistant_enabled = TRUE');
     ejamaat.authenticate.mockReset().mockResolvedValue({ success: true });
     classify.mockReset();
     config.openai.apiKey = 'sk-test';

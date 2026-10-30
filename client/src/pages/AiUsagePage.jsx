@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { EyeOff, LoaderCircle, Plus, TriangleAlert } from 'lucide-react';
-import { dismissQuestion, getAiSettings, getAiUsage, updateAiSettings } from '../api/assistant';
+import { dismissQuestion, getAiSettings, getAiUsage, setAssistantCompany, updateAiSettings } from '../api/assistant';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import useAuth from '../hooks/useAuth';
@@ -124,11 +124,82 @@ function SettingsForm({ settings }) {
   );
 }
 
+// Each company's assistant on / off, and what it did in the period (step C).
+function Companies({ list, days }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  async function toggle(code, enabled) {
+    setBusy(code);
+    setError('');
+    try {
+      await setAssistantCompany(code, enabled);
+      await queryClient.invalidateQueries({ queryKey: ['assistant'] });
+    } catch (err) {
+      setError(errorMessage(err, 'Could not change it.'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div>
+        <h2 className="text-xl">Assistant per company</h2>
+        <p className="font-ui text-sm text-ink-2">
+          Each company has its own assistant, FAQs and saved answers. Switched off: it leaves that company’s menu and Home page; its Admin can still edit FAQs.
+        </p>
+      </div>
+      {error && <Alert tone="error">{error}</Alert>}
+      <div className="overflow-x-auto">
+        <table className="w-full font-ui text-sm">
+          <thead className="text-left text-xs uppercase tracking-wider text-ink-3">
+            <tr>
+              <th className="py-2 pr-3 font-medium">Company</th>
+              <th className="py-2 pr-3 font-medium">Assistant</th>
+              <th className="py-2 pr-3 text-right font-medium">Chats ({days} d)</th>
+              <th className="py-2 pr-3 text-right font-medium">Solved</th>
+              <th className="py-2 pr-3 text-right font-medium">GPT calls</th>
+              <th className="py-2 text-right font-medium">Cost</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {list.map((c) => (
+              <tr key={c.code}>
+                <td className="py-2 pr-3 font-medium text-ink">{c.name}</td>
+                <td className="py-2 pr-3">
+                  <label className="flex min-h-tap items-center gap-2">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={c.assistantEnabled}
+                      disabled={busy === c.code}
+                      onChange={(e) => toggle(c.code, e.target.checked)}
+                      className="h-5 w-5 rounded border-line accent-primary"
+                      aria-label={`${c.name} assistant`}
+                    />
+                    {c.assistantEnabled ? 'On' : 'Off'}
+                  </label>
+                </td>
+                <td className="py-2 pr-3 text-right tabular-nums">{c.sessions}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{c.solved}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{c.calls}</td>
+                <td className="py-2 text-right tabular-nums">{usd(c.costUsd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // Typed questions that found no FAQ (last 90 days), same words grouped, most asked first.
+// "Add as FAQ" works for the company that is open (FAQs belong to a company).
 function Unmatched({ list }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canAddFaq = user.company?.code === 'AVIT'; // FAQs are AVIT's for now
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -151,7 +222,7 @@ function Unmatched({ list }) {
       <h2 className="text-xl">Questions with no FAQ</h2>
       <p className="font-ui text-sm text-ink-2">
         Last 90 days, most asked first. Add an FAQ for the ones that keep coming up; dismiss junk. Once an FAQ answers a question, it leaves this list.
-        {!canAddFaq && ' Open AVIT (switch company) to add FAQs from here.'}
+        {' '}To add an FAQ from here, open that company first (switch company).
       </p>
       {error && <Alert tone="error">{error}</Alert>}
       {list.length === 0 ? (
@@ -159,18 +230,18 @@ function Unmatched({ list }) {
       ) : (
         <ul className="divide-y divide-line font-ui text-sm">
           {list.map((x) => (
-            <li key={x.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <li key={`${x.company}:${x.key}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <span className="min-w-0 flex-1">
                 <span dir="auto" className={`block ${x.language === 'ar' ? 'arabic text-base' : ''}`}>
                   {x.text}
                 </span>
                 <span className="block text-xs text-ink-3">
-                  Asked {x.count} {x.count === 1 ? 'time' : 'times'} · last {formatDateTime(x.lastAt)}
+                  {x.company} · asked {x.count} {x.count === 1 ? 'time' : 'times'} · last {formatDateTime(x.lastAt)}
                   {x.suggestion?.category && ` · GPT suggests ${x.suggestion.category}`}
                 </span>
               </span>
               <span className="flex shrink-0 gap-2">
-                {canAddFaq && (
+                {user.company?.name === x.company && (
                   <button
                     type="button"
                     className="btn-secondary"
@@ -192,7 +263,8 @@ function Unmatched({ list }) {
 }
 
 function AiUsage() {
-  const usage = useQuery({ queryKey: ['assistant', 'usage'], queryFn: () => getAiUsage(30) });
+  const [company, setCompany] = useState('');
+  const usage = useQuery({ queryKey: ['assistant', 'usage', company], queryFn: () => getAiUsage(30, company), placeholderData: (prev) => prev });
   const settings = useQuery({ queryKey: ['assistant', 'settings'], queryFn: getAiSettings });
   if (usage.isPending || settings.isPending) return <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />;
   if (usage.isError || settings.isError) return <Alert tone="error">Could not load AI settings.</Alert>;
@@ -203,6 +275,25 @@ function AiUsage() {
   return (
     <div className="space-y-5">
       <SettingsForm key={settings.data.updatedAt} settings={settings.data} />
+
+      <Companies list={u.companies} days={s.days} />
+
+      <label className="flex flex-wrap items-center gap-2 font-ui text-sm text-ink-2">
+        Show
+        <select
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          className="min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+        >
+          <option value="">All companies</option>
+          {u.companies.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-ink-3">Limits below are shared by all companies.</span>
+      </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Meter label={`Today · ${usd(u.today.costUsd)} · ${u.today.calls} calls`} used={u.today.tokens} limit={u.settings.dailyTokenLimit} />
@@ -227,8 +318,9 @@ function AiUsage() {
         </div>
         <p className="font-ui text-xs text-ink-3">
           Answer found by: buttons {s.via.browse} · “did you mean” {s.via.choice} · search {s.via.search} · saved answers {s.via.learned} · GPT{' '}
-          {s.via.gpt} · no FAQ {s.via.none}
+          {s.via.gpt} · no FAQ {s.via.none} (problem list {s.via.problem || 0})
         </p>
+        {s.sentToRequest > 0 && <p className="font-ui text-xs text-ink-3">Sent to the Request page: {s.sentToRequest}</p>}
         <p className="font-ui text-xs text-ink-3">GPT calls saved by reusing earlier answers: {s.savedAnswersUsed}</p>
       </div>
 
@@ -268,7 +360,8 @@ function AiUsage() {
             {u.recentCalls.map((c) => (
               <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2">
                 <span>
-                  {formatDateTime(c.at)} · {c.user} · {c.model}
+                  {formatDateTime(c.at)} · {c.company ? `${c.company} · ` : ''}
+                  {c.user} · {c.model}
                 </span>
                 {c.status === 'ok' ? (
                   <span className="tabular-nums text-ink-2">

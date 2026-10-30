@@ -5,6 +5,7 @@ import { FileUp, LoaderCircle, Plus, Search } from 'lucide-react';
 import { importFaqs, listFaqs, listLearned, setLearned } from '../api/assistant';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
+import useAuth from '../hooks/useAuth';
 import { Tabs } from '../components/RequestList';
 import { formatDateTime } from '../utils/format';
 
@@ -241,9 +242,10 @@ const TABS = [
   ['saved', 'Saved answers'],
 ];
 
-// Company Admin (AVIT for now): the FAQ bank the assistant answers from, and saved GPT answers.
+// Company Admin: the company's FAQ bank its assistant answers from, and its saved GPT answers (step C).
 // GPT switch / limits / spend and unanswered questions are on the Super Admin's "AI & usage" page.
 export default function FaqsPage() {
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'faqs';
   return (
@@ -251,7 +253,10 @@ export default function FaqsPage() {
       <div>
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Admin</p>
         <h1 className="mt-1 text-3xl">FAQs</h1>
-        <p className="mt-1 font-ui text-sm text-ink-2">What the AI assistant answers from, and the GPT answers it saved for reuse.</p>
+        <p className="mt-1 font-ui text-sm text-ink-2">
+          What {user.company?.name || 'this company'}’s AI assistant answers from, and the GPT answers it saved for reuse.
+          {user.company?.assistantEnabled === false && ' The assistant is switched off for this company (Super Admin).'}
+        </p>
       </div>
       <Tabs tabs={TABS} value={tab} onChange={(v) => setParams(v === 'faqs' ? {} : { tab: v })} />
       {tab === 'faqs' && <FaqList />}
