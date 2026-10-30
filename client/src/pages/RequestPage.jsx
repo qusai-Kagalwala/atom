@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, LoaderCircle, Minus, PenLine, Plus, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Minus, PenLine, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { getDefaultLocation, listCatalogue, raiseServiceRequest } from '../api/requests';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
@@ -12,6 +12,9 @@ import useAuth from '../hooks/useAuth';
 const MAX_ITEMS = 10;
 const areaClass =
   'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+
+const SHOW_MAX = 30; // long catalogues (e.g. Tanzeem stationery): search or pick a group
+const rupees = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 let nextKey = 1;
 
@@ -28,6 +31,18 @@ export default function RequestPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const where = location ?? suggested.data ?? '';
+  const [q, setQ] = useState('');
+  const [group, setGroup] = useState('');
+  const all = useMemo(() => catalogue.data || [], [catalogue.data]);
+  const groups = useMemo(() => [...new Set(all.map((c) => c.group).filter(Boolean))].sort(), [all]);
+  const matches = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return all.filter((c) => (!group || c.group === group) && (!term || `${c.name} ${c.group || ''} ${c.description || ''}`.toLowerCase().includes(term)));
+  }, [all, q, group]);
+  const shown = matches.slice(0, SHOW_MAX);
+  const priceOf = (x) => (x.catalogueItemId ? all.find((c) => c.id === x.catalogueItemId)?.price ?? null : null);
+  const priced = lines.filter((x) => priceOf(x) != null);
+  const total = priced.reduce((n, x) => n + priceOf(x) * x.quantity, 0);
 
   const add = (item) => {
     if (lines.length >= MAX_ITEMS) return;
@@ -79,8 +94,39 @@ export default function RequestPage() {
         <h2 className="text-xl">What do you need?</h2>
         {catalogue.isPending && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
         {catalogue.isError && <Alert tone="error">Could not load the catalogue.</Alert>}
+        {all.length > 12 && (
+          <div className="flex flex-wrap gap-2">
+            <label className="relative min-w-0 flex-1">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+              <span className="sr-only">Search</span>
+              <input
+                type="search"
+                className="min-h-tap w-full rounded-btn border border-line bg-white pl-9 pr-3 font-ui text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                placeholder="Search, e.g. pen, file, envelope"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            {groups.length > 1 && (
+              <select
+                aria-label="Group"
+                className="min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+              >
+                <option value="">All groups</option>
+                {groups.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+        {all.length > 0 && matches.length === 0 && <p className="font-ui text-sm text-ink-3">Nothing matches — use “Something else”.</p>}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {(catalogue.data || []).map((c) => (
+          {shown.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -92,7 +138,11 @@ export default function RequestPage() {
                 <span className="text-sm font-medium text-ink">{c.name}</span>
                 <Plus size={16} className="shrink-0 text-primary" aria-hidden="true" />
               </span>
-              <span className="text-xs text-ink-3">{ITEM_KINDS[c.kind]}</span>
+              <span className="text-xs text-ink-3">
+                {c.group || ITEM_KINDS[c.kind]}
+                {c.price != null && ` · approx. ${rupees(c.price)} each`}
+                {c.packSize > 1 && ` · comes in packs of ${c.packSize}`}
+              </span>
               {c.description && <span className="mt-0.5 text-xs text-ink-2">{c.description}</span>}
             </button>
           ))}
@@ -109,6 +159,11 @@ export default function RequestPage() {
             <span className="text-xs text-ink-2">Not in the list? Type what you need.</span>
           </button>
         </div>
+        {matches.length > shown.length && (
+          <p className="font-ui text-xs text-ink-3">
+            Showing {shown.length} of {matches.length}. Search or pick a group to find more.
+          </p>
+        )}
       </div>
 
       <form onSubmit={submit} className="card space-y-4" noValidate>
@@ -121,6 +176,7 @@ export default function RequestPage() {
                 {x.catalogueItemId ? (
                   <p className="font-ui text-sm font-medium text-ink">
                     {n + 1}. {x.name} <span className="font-normal text-ink-3">· {ITEM_KINDS[x.kind]}</span>
+                    {priceOf(x) != null && <span className="block text-xs font-normal text-ink-3">approx. {rupees(priceOf(x))} × {x.quantity} = {rupees(priceOf(x) * x.quantity)}</span>}
                   </p>
                 ) : (
                   <div className="flex-1">
@@ -151,6 +207,12 @@ export default function RequestPage() {
             </li>
           ))}
         </ul>
+        {priced.length > 0 && (
+          <p className="font-ui text-sm text-ink">
+            Approx. total <span className="font-medium tabular-nums">{rupees(total)}</span>
+            {priced.length < lines.length && <span className="text-ink-3"> (items without a price not included)</span>}
+          </p>
+        )}
         {lines.length > 0 && <PriorityPicker value={priority} onChange={setPriority} note={`Delivery depends on availability — ${user.company?.name || 'the team'} will keep you updated.`} />}
         {lines.length > 0 && (
           <Field id="where" label="Where? (optional)" hint="Where it should be delivered or installed.">

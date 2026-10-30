@@ -11,6 +11,7 @@ const files = require('./attachments');
 const notifications = require('../notifications/notifications.service');
 const invoices = require('../invoices/invoices.service');
 const assistant = require('../assistant/assistant.service');
+const problems = require('../problems/problems.service');
 const { locationLabel } = require('../sync/hrPlan');
 const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const roles = require('../../utils/roles');
@@ -100,6 +101,10 @@ async function toDetail(db, user, r) {
     description: r.description,
     location: r.location,
     categoryId: r.category_id ? String(r.category_id) : null,
+    // From the problem list (step B): item and problem, or "Other" with the person's words.
+    problem: r.ticket_item_id
+      ? { itemId: String(r.ticket_item_id), item: r.item_name, problemId: r.ticket_problem_id ? String(r.ticket_problem_id) : null, problem: r.problem_name || null, text: r.problem_text || null }
+      : null,
     raisedBy: r.raised_by,
     raisedForSomeoneElse: String(r.raised_by_id) !== String(r.requester_id),
     resolution: r.resolution,
@@ -202,15 +207,23 @@ async function savePhotos(db, request, uploads, uploaderId, eventId) {
 }
 
 // ---------- create ----------
+// Step B (30 Oct 2026): the person may pick Category > Item > Problem from the company's list, or
+// "Other" with their own words (problemText). Then the title fills itself in ("Door – Hinges") and
+// the description is optional. With auto-assign on and an occupation linked to the category, the
+// ticket goes straight to a staff member of that occupation (problems.pickAutoAssignee).
 async function createTicket(user, input, uploads) {
-  const title = clean(input.title);
-  const description = clean(input.description);
+  let title = clean(input.title);
+  let description = clean(input.description);
+  const problemText = clean(input.problemText) || null;
   const location = clean(input.location) || null;
   const isAdmin = roles.isAdmin(user);
   const priority = clean(input.priority).toUpperCase() || 'NORMAL';
+  const fromList = Boolean(input.itemId);
 
-  if (title.length < 3 || title.length > 120) throw bad('Give the ticket a short title (3–120 characters).', 'bad_title');
-  if (!description || description.length > 5000) throw bad('Describe the problem (up to 5000 characters).', 'bad_description');
+  if (!fromList && (title.length < 3 || title.length > 120)) throw bad('Give the ticket a short title (3–120 characters).', 'bad_title');
+  if (!fromList && (!description || description.length > 5000)) throw bad('Describe the problem (up to 5000 characters).', 'bad_description');
+  if (description.length > 5000) throw bad('Keep the description under 5000 characters.', 'bad_description');
+  if (problemText && problemText.length > 200) throw bad('Keep the problem under 200 characters.', 'bad_problem_text');
   if (location && location.length > 200) throw bad('Keep the location under 200 characters.', 'bad_location');
   if (!(isAdmin ? ALL_PRIORITIES : REQUESTER_PRIORITIES).has(priority)) throw bad('Choose how urgent it is.', 'bad_priority');
 
@@ -226,6 +239,15 @@ async function createTicket(user, input, uploads) {
       const category = await repo.getCategory(db, input.categoryId);
       if (!category || !category.is_active || String(category.service_unit_id) !== String(serviceUnitId)) {
         throw bad('Choose a category.', 'bad_category');
+      }
+
+      // Item and problem from the list (they must belong to this category and be active).
+      const choice = await problems.resolveChoice(db, serviceUnitId, category.id, { itemId: input.itemId, problemId: input.problemId });
+      if (choice.item) {
+        const what = choice.problem ? choice.problem.name : problemText;
+        if (!title) title = `${choice.item.name}${what ? ` – ${what}` : ''}`.slice(0, 120);
+        if (title.length < 3) title = `${category.name} – ${title}`.slice(0, 120);
+        if (!description) description = [category.name, choice.item.name, what].filter(Boolean).join(' › ');
       }
 
       // Raise for someone else: Admin only (Decisions §9).
@@ -246,6 +268,9 @@ async function createTicket(user, input, uploads) {
         serviceUnitId,
         requesterId,
         raisedById: user.id,
+        itemId: choice.item?.id ?? null,
+        problemId: choice.problem?.id ?? null,
+        problemText: choice.problem ? null : problemText,
       });
       await repo.insertEvent(db, {
         requestId: row.id,
@@ -262,16 +287,34 @@ async function createTicket(user, input, uploads) {
         await assistant.linkTicket(db, user, input.assistantSessionId, row.id);
       }
 
+      // Auto-assign (company switch on + an occupation linked to the category).
+      const staff = await problems.pickAutoAssignee(db, serviceUnitId, category.id);
       const ticket = {
         ...row, type: 'TICKET', status: 'OPEN', title, requester_id: requesterId, raised_by_id: user.id,
         assigned_engineer_id: null, due_by: due?.due_by, service_unit_name: user.company?.name,
       };
-      const sent = await notifications.recordTicketEvent(db, ticket, {
+      let sent = await notifications.recordTicketEvent(db, ticket, {
         kind: 'created',
         actorId: user.id,
         raisedFor: requesterId !== String(user.id),
+        autoAssignedTo: staff ? `${staff.occupation}: ${staff.name}` : null,
       });
-      afterCommit(() => notifications.publish(sent, ticket));
+      if (staff) {
+        await repo.assignEngineer(db, row.id, staff.id, 'ASSIGNED');
+        await repo.insertEvent(db, {
+          requestId: row.id,
+          type: 'assigned',
+          actorId: null,
+          fromStatus: 'OPEN',
+          toStatus: 'ASSIGNED',
+          data: { engineerId: staff.id, engineerName: staff.name, occupation: staff.occupation, auto: true },
+        });
+        const assign = { kind: 'assign', actorId: null, engineerId: staff.id, engineerName: staff.name, occupation: staff.occupation };
+        sent = [...sent, ...(await notifications.recordTicketEvent(db, { ...ticket, status: 'ASSIGNED' }, assign))];
+        afterCommit(() => notifications.publish(sent, ticket, [staff.id]));
+      } else {
+        afterCommit(() => notifications.publish(sent, ticket));
+      }
       return row;
     });
   } catch (err) {
@@ -308,6 +351,7 @@ async function act(user, numberParam, action, body = {}) {
         data: {
           engineerId,
           engineerName: engineer.name,
+          occupation: engineer.occupation,
           previousEngineerId: r.assigned_engineer_id ? String(r.assigned_engineer_id) : null,
           previousEngineerName: r.assigned_engineer?.name || null,
         },
@@ -316,6 +360,7 @@ async function act(user, numberParam, action, body = {}) {
         ...event,
         engineerId,
         engineerName: engineer.name,
+        occupation: engineer.occupation,
         previousEngineerId: r.assigned_engineer_id ? String(r.assigned_engineer_id) : null,
       };
     } else {

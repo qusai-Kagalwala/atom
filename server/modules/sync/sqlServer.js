@@ -2,6 +2,10 @@
 //   1. SELECT * FROM dbo.Vw_Idarah_Tafveez_CurrentYR     (Idarah sync)
 //   2. SELECT * FROM dbo.Vw_User_Department_Details_New  (HR staff sync, Phase 3.1)
 //   3. SELECT User_Id, Password FROM dbo.Login_Master    (one-time employee-ID import)
+//   4. Support Log items (companies step B, 30 Oct 2026), named columns only, from the database in
+//      SUPPORTLOG_DB (default SupportLog_New) on the same server and login:
+//        dbo.Item_Master       Company_Id, Item_Id, Category, Item, Sub_Item, Description, Tag, Price, Qty, Qty_Multiples, M_ID
+//        dbo.Main_Item_Master  Item_Id, Item, Category
 // Nothing here ever writes to SQL Server.
 const sql = require('mssql');
 const { config } = require('../../config/env');
@@ -71,15 +75,29 @@ async function withConnection(fn) {
   }
 }
 
+const asTable = (result) => {
+  const meta = Object.values(result.recordset.columns).sort((a, b) => a.index - b.index);
+  return { columns: meta.map((c) => ({ name: c.name, pgType: toPgType(c) })), rows: result.recordset };
+};
+
 // -> { columns: [{ name, pgType }], rows: [ { ColumnName: value, … } ] }
 function readView(view) {
+  return withConnection(async (pool) => asTable(await pool.request().query(`SELECT * FROM ${view}`)));
+}
+
+const ITEM_MASTER_COLUMNS = ['Company_Id', 'Item_Id', 'Category', 'Item', 'Sub_Item', 'Description', 'Tag', 'Price', 'Qty', 'Qty_Multiples', 'M_ID'];
+const MAIN_ITEM_COLUMNS = ['Item_Id', 'Item', 'Category'];
+
+// Support Log item lists (all companies). The database name comes from .env and must be a plain name.
+// A removed or renamed column makes SQL Server refuse the query — the sync then stops and says so.
+// -> { items: { columns, rows }, main: { columns, rows } }
+function readSupportLogItems() {
+  const db = String(config.supportlog.database || '');
+  if (!/^[A-Za-z0-9_]{1,128}$/.test(db)) throw new Error('SUPPORTLOG_DB must be a plain database name.');
   return withConnection(async (pool) => {
-    const result = await pool.request().query(`SELECT * FROM ${view}`);
-    const meta = Object.values(result.recordset.columns).sort((a, b) => a.index - b.index);
-    return {
-      columns: meta.map((c) => ({ name: c.name, pgType: toPgType(c) })),
-      rows: result.recordset,
-    };
+    const items = await pool.request().query(`SELECT ${ITEM_MASTER_COLUMNS.join(', ')} FROM [${db}].dbo.Item_Master`);
+    const main = await pool.request().query(`SELECT ${MAIN_ITEM_COLUMNS.join(', ')} FROM [${db}].dbo.Main_Item_Master`);
+    return { items: asTable(items), main: asTable(main) };
   });
 }
 
@@ -94,4 +112,14 @@ async function readLoginMaster() {
   });
 }
 
-module.exports = { readIdarahView, readHrView, readLoginMaster, toPgType, IDARAH_VIEW, HR_VIEW };
+module.exports = {
+  readIdarahView,
+  readHrView,
+  readLoginMaster,
+  readSupportLogItems,
+  toPgType,
+  IDARAH_VIEW,
+  HR_VIEW,
+  ITEM_MASTER_COLUMNS,
+  MAIN_ITEM_COLUMNS,
+};

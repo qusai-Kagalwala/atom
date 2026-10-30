@@ -13,6 +13,9 @@ const REQUEST_SELECT = `
          r.category_id, c.name AS category_name, r.service_unit_id, s.code AS service_unit_code, s.name AS service_unit_name,
          r.requester_id, r.raised_by_id, r.assigned_engineer_id, r.resolution, r.rejection_note,
          r.created_at, r.updated_at, r.assigned_at, r.resolved_at, r.closed_at, r.rejected_at, r.due_from, r.due_by,
+         r.ticket_item_id, r.ticket_problem_id, r.problem_text,
+         (SELECT ti.name FROM ticket_items ti WHERE ti.id = r.ticket_item_id) AS item_name,
+         (SELECT tp.name FROM ticket_problems tp WHERE tp.id = r.ticket_problem_id) AS problem_name,
          ${PERSON('req')} AS requester,
          ${PERSON('rb')} AS raised_by,
          ${STAFF('eng')} AS assigned_engineer
@@ -73,10 +76,13 @@ async function getActiveUser(db, id) {
 
 async function insertRequest(db, r) {
   const { rows } = await db.query(
-    `INSERT INTO requests (type, priority, title, description, location, category_id, service_unit_id, requester_id, raised_by_id)
-     VALUES ('TICKET', $1::request_priority, $2::text, $3::text, $4::text, $5::bigint, $6::bigint, $7::bigint, $8::bigint)
+    `INSERT INTO requests (type, priority, title, description, location, category_id, service_unit_id, requester_id, raised_by_id,
+                           ticket_item_id, ticket_problem_id, problem_text)
+     VALUES ('TICKET', $1::request_priority, $2::text, $3::text, $4::text, $5::bigint, $6::bigint, $7::bigint, $8::bigint,
+             $9::bigint, $10::bigint, $11::text)
      RETURNING id, number, service_unit_id`,
-    [r.priority, r.title, r.description, r.location, r.categoryId, r.serviceUnitId, r.requesterId, r.raisedById]
+    [r.priority, r.title, r.description, r.location, r.categoryId, r.serviceUnitId, r.requesterId, r.raisedById,
+      r.itemId ?? null, r.problemId ?? null, r.problemText ?? null]
   );
   return rows[0];
 }

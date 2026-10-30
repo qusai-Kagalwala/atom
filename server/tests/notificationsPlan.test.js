@@ -45,9 +45,24 @@ describe('planTicket', () => {
     expect(who(plan)).toEqual([
       '21:ENGINEER T-1001 is assigned to you',
       '10:any An engineer is on T-1001',
-      '20:ENGINEER T-1001 moved to another engineer',
+      '20:ENGINEER T-1001 moved to someone else',
     ]);
     expect(plan[1].body).toBe('Murtaza will help with: Projector not working');
+  });
+
+  test('assign with an occupation: "A carpenter is on …", the full name with the occupation in the body', () => {
+    const plan = planTicket(ticket({ assigned_engineer_id: null }), {
+      kind: 'assign', actorId: null, engineerId: ENG, engineerName: 'Abbas Test Carpenter', occupation: 'Carpenter',
+    });
+    expect(who(plan)).toEqual(['20:ENGINEER T-1001 is assigned to you', '10:any A carpenter is on T-1001']);
+    expect(plan[1].body).toBe('Carpenter: Abbas Test Carpenter will help with: Projector not working');
+    const ac = planTicket(ticket(), { kind: 'assign', actorId: ADMIN, engineerId: ENG2, engineerName: 'X Y', occupation: 'AC Technician' });
+    expect(ac[1].title).toBe('An AC technician is on T-1001');
+  });
+
+  test('created + auto-assigned: the Admins hear who got it', () => {
+    const plan = planTicket(ticket({ assigned_engineer_id: null }), { kind: 'created', actorId: REQ, autoAssignedTo: 'Carpenter: Abbas Test Carpenter' });
+    expect(plan[0]).toMatchObject({ title: 'New ticket T-1001', body: 'Projector not working · assigned automatically to Carpenter: Abbas Test Carpenter' });
   });
 
   test('engineer status changes tell the requester; the note is the body when given', () => {

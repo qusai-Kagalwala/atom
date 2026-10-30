@@ -9,6 +9,7 @@ import {
   FileDown,
   HardHat,
   House,
+  ListTree,
   Package,
   PackagePlus,
   Receipt,
@@ -29,7 +30,7 @@ import rolesData from '@shared/roles.json';
 export const ROLES = rolesData.roles;
 
 const ICONS = {
-  BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, HardHat, House, Package, PackagePlus,
+  BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, HardHat, House, ListTree, Package, PackagePlus,
   Receipt, RefreshCw, Settings, ShieldCheck, ShieldUser, ShoppingCart, Sparkles, Store, Ticket, Tickets, UserCheck, Users,
 };
 
@@ -80,7 +81,7 @@ export function sortRoles(roles = []) {
   return [...roles].sort((a, b) => (ROLES[b]?.rank ?? 0) - (ROLES[a]?.rank ?? 0));
 }
 
-// "Qusai Kagalwala" → "QK"; "Employee 1002" → "E1"
+// "Alice Hamid" → "AH"; "Employee 1002" → "E1"
 export function initials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';

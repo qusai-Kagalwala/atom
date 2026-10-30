@@ -87,6 +87,9 @@ maybe('company isolation on real PostgreSQL', () => {
     co.siy = await companyId(pool, 'SIYANAAT');
     // A Siyanaat ticket category (the problem list arrives in step B).
     await pool.query(`INSERT INTO categories (service_unit_id, name, sort_order) VALUES ($1, 'Carpentry', 10) ON CONFLICT DO NOTHING`, [co.siy]);
+    // Manual assignment here: no occupation link, auto-assign off (step B tests cover auto-assign).
+    await pool.query(`UPDATE categories SET occupation_id = NULL, is_active = TRUE WHERE service_unit_id = $1 AND name = 'Carpentry'`, [co.siy]);
+    await pool.query('UPDATE service_units SET auto_assign = FALSE WHERE id = $1', [co.siy]);
     cat.siy = String((await pool.query(`SELECT id FROM categories WHERE service_unit_id = $1 AND name = 'Carpentry'`, [co.siy])).rows[0].id);
     cat.avit = String((await pool.query(`SELECT id FROM categories WHERE name = 'Printer / Scanner'`)).rows[0].id);
 

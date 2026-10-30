@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { LoaderCircle, RefreshCw, TriangleAlert, UserX } from 'lucide-react';
-import { listOldAccounts, listSyncRuns, runSync } from '../api/users';
+import { Eye, LoaderCircle, RefreshCw, TriangleAlert, UserX } from 'lucide-react';
+import { listOldAccounts, listSyncRuns, runItemsSync, runSync } from '../api/users';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import Modal from '../components/Modal';
@@ -49,10 +49,174 @@ const JOBS = {
     schedule: 'Runs automatically once a day once ATOM is on the server.',
     forceText: 'returned far fewer seats than last time. Running anyway will end the seats of everyone missing from it.',
   },
+  items: {
+    tab: 'Support Log items',
+    text: 'Problem lists and the request catalogue from the Support Log (Item_Master): AVIT and Siyanaat get Category › Item › Problem, Tanzeem gets its catalogue with price, pack size and stock.',
+    peopleLabel: 'Rows used',
+    people: (s) => (s?.companies ? Object.values(s.companies).reduce((n, c) => n + (c.valid || 0), 0) : undefined),
+    schedule: 'Runs automatically once a night once ATOM is on the server. Preview first to see what would change.',
+    custom: true,
+  },
 };
+
+const COMPANIES = [
+  ['AVIT', 'AVIT', 'problem list'],
+  ['SIYANAAT', 'Siyanaat', 'problem list'],
+  ['TANZEEM', 'Tanzeem', 'catalogue, prices, stock'],
+];
+
+// One company's line in an items run (or preview).
+function ItemsCompany({ code, c }) {
+  const n = c.problems || c.catalogue;
+  const what = c.problems ? 'problems' : 'catalogue items';
+  return (
+    <div>
+      <p>
+        <span className="font-medium">{c.name || code}</span> · {c.valid} of {c.rows} rows used
+        {c.inactive > 0 && ` (${c.inactive} switched off in the Support Log)`}
+      </p>
+      {n && (
+        <p className="text-ink-2">
+          {what}: new {n.created} · changed {n.updated} · same {n.unchanged} · switched off {n.switchedOff + (n.missing || 0)}
+          {n.kept > 0 && ` · ATOM edits kept ${n.kept}`}
+          {c.categoriesCreated > 0 && ` · new categories ${c.categoriesCreated}`}
+          {c.itemsCreated > 0 && ` · new items ${c.itemsCreated}`}
+          {n.stockSet > 0 && ` · stock set ${n.stockSet}`}
+          {n.stockKept > 0 && ` · stock kept ${n.stockKept}`}
+        </p>
+      )}
+      {c.duplicates > 0 && (
+        <p className="text-xs text-ink-3">
+          Duplicates skipped {c.duplicates}
+          {c.duplicateSample?.length > 0 && `: ${c.duplicateSample.map((d) => d.name).join('; ')}${c.duplicates > c.duplicateSample.length ? '; …' : ''}`}
+        </p>
+      )}
+      {c.errors?.length > 0 && <p className="text-xs text-error">Rows with problems: {c.errors.map((e) => `#${e.legacyId ?? '?'} ${e.message}`).join('; ')}</p>}
+    </div>
+  );
+}
+
+// Super Admin: preview or sync the Support Log items for all companies or some of them.
+function ItemsSyncPanel({ onDone }) {
+  const [chosen, setChosen] = useState(() => new Set(COMPANIES.map(([c]) => c)));
+  const [keep, setKeep] = useState(true);
+  const [busy, setBusy] = useState(null); // 'preview' | 'sync'
+  const [result, setResult] = useState(null);
+  const [confirmForce, setConfirmForce] = useState(false);
+
+  async function go(preview, force = false) {
+    setConfirmForce(false);
+    setBusy(preview ? 'preview' : 'sync');
+    setResult(null);
+    try {
+      const r = await runItemsSync({ companies: [...chosen], keepAtomEdits: keep, preview, force });
+      setResult(r);
+    } catch (err) {
+      setResult({ status: 'failed', message: errorMessage(err, 'Could not start the sync.') });
+    } finally {
+      setBusy(null);
+      if (!preview) onDone();
+    }
+  }
+
+  const toggle = (code) =>
+    setChosen((s) => {
+      const n = new Set(s);
+      if (n.has(code)) n.delete(code);
+      else n.add(code);
+      return n;
+    });
+  const tone = result?.status === 'success' ? 'success' : result?.status === 'busy' ? 'info' : 'error';
+
+  return (
+    <div className="card space-y-4">
+      <fieldset>
+        <legend className="font-ui text-sm font-medium text-ink">Companies</legend>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
+          {COMPANIES.map(([code, name, what]) => (
+            <label key={code} className="flex min-h-tap items-center gap-2 font-ui text-sm text-ink">
+              <input type="checkbox" className="h-4 w-4 accent-primary" checked={chosen.has(code)} onChange={() => toggle(code)} disabled={Boolean(busy)} />
+              {name} <span className="text-ink-3">({what})</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className="flex items-start gap-2 font-ui text-sm text-ink">
+        <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={keep} onChange={(e) => setKeep(e.target.checked)} disabled={Boolean(busy)} />
+        <span>
+          Keep changes made in ATOM
+          <span className="block text-ink-2">Names, switched-off rows, prices and stock that Admins changed in ATOM stay. Untick to overwrite them with the Support Log.</span>
+        </span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-secondary" onClick={() => go(true)} disabled={Boolean(busy) || chosen.size === 0}>
+          {busy === 'preview' ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />} Preview
+        </button>
+        <button type="button" className="btn-primary" onClick={() => go(false)} disabled={Boolean(busy) || chosen.size === 0}>
+          <RefreshCw size={18} className={busy === 'sync' ? 'animate-spin' : ''} aria-hidden="true" /> {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+        </button>
+      </div>
+
+      {result && (
+        <Alert tone={tone}>
+          {result.status === 'success'
+            ? result.preview
+              ? 'Preview only — nothing was saved. This is what Sync now would do:'
+              : `Sync finished: ${result.counts.validRows} of ${result.counts.sourceRows} rows used.`
+            : result.message || 'Sync did not complete.'}
+          {result.status === 'blocked' && (
+            <button type="button" className="ml-2 font-medium underline" onClick={() => setConfirmForce(true)}>
+              Run anyway…
+            </button>
+          )}
+        </Alert>
+      )}
+      {result?.summary?.companies && (
+        <div className="space-y-3 font-ui text-sm">
+          {Object.entries(result.summary.companies).map(([code, c]) => (
+            <ItemsCompany key={code} code={code} c={c} />
+          ))}
+        </div>
+      )}
+
+      {confirmForce && (
+        <Modal
+          title="Run the sync anyway?"
+          onClose={() => setConfirmForce(false)}
+          footer={
+            <>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmForce(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn-danger" onClick={() => go(false, true)}>
+                <TriangleAlert size={18} aria-hidden="true" /> Run anyway
+              </button>
+            </>
+          }
+        >
+          <p className="font-ui text-sm text-ink-2">
+            The Support Log returned far fewer rows than last time. Running anyway will <strong>switch off everything missing</strong> from it. Only do this
+            if you know the change is real.
+          </p>
+        </Modal>
+      )}
+    </div>
+  );
+}
 
 function RunSummary({ run }) {
   const s = run.summary;
+  if (s?.companies) {
+    return (
+      <div className="space-y-2">
+        {Object.entries(s.companies).map(([code, c]) => (
+          <ItemsCompany key={code} code={code} c={c} />
+        ))}
+        {s.keepAtomEdits === false && <p className="text-xs text-ink-3">ATOM edits overwritten.</p>}
+        {run.message && <p className="text-xs text-ink-3">{run.message}</p>}
+      </div>
+    );
+  }
   if (!s?.users && !s?.staff && !s?.seats) return <span className="text-ink-2">{run.message || '—'}</span>;
   const skipped = Object.entries(s.skipped || {}).filter(([, n]) => n > 0);
   return (
@@ -195,10 +359,12 @@ export default function SyncStatusPage() {
           <h1 className="mt-1 text-3xl">Sync status</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">{meta.schedule || 'The people syncs run automatically about every 10 minutes once ATOM is on the server.'}</p>
         </div>
-        <button type="button" className="btn-primary" onClick={() => syncNow(false)} disabled={running}>
-          <RefreshCw size={18} className={running ? 'animate-spin' : ''} aria-hidden="true" />
-          {running ? 'Syncing…' : `Sync ${meta.tab} now`}
-        </button>
+        {!meta.custom && (
+          <button type="button" className="btn-primary" onClick={() => syncNow(false)} disabled={running}>
+            <RefreshCw size={18} className={running ? 'animate-spin' : ''} aria-hidden="true" />
+            {running ? 'Syncing…' : `Sync ${meta.tab} now`}
+          </button>
+        )}
       </div>
 
       <Tabs
@@ -237,6 +403,8 @@ export default function SyncStatusPage() {
           <p className="mt-1 font-display text-2xl text-brown">{meta.people(lastGood?.summary) ?? '—'}</p>
         </div>
       </div>
+
+      {job === 'items' && <ItemsSyncPanel onDone={() => queryClient.invalidateQueries({ queryKey: ['sync'] })} />}
 
       {job === 'hr' && <OldAccounts />}
 

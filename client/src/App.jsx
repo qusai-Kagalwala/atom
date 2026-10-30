@@ -33,6 +33,7 @@ const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const MyAssetsPage = lazy(() => import('./pages/MyAssetsPage'));
 const MyRequestsPage = lazy(() => import('./pages/MyRequestsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const ProblemsPage = lazy(() => import('./pages/ProblemsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const RaiseTicketPage = lazy(() => import('./pages/RaiseTicketPage'));
 const RequestPage = lazy(() => import('./pages/RequestPage'));
@@ -45,7 +46,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage']);
+const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -102,6 +103,7 @@ export default function App() {
               <Route path="/inventory/import-file" element={<InventoryFilePage />} />
               <Route path="/approvals" element={<ApprovalsPage />} />
               <Route path="/catalogue" element={<CataloguePage />} />
+              <Route path="/problems" element={<ProblemsPage />} />
               <Route path="/faqs" element={<FaqsPage />} />
               <Route path="/faqs/new" element={<FaqEditPage />} />
               <Route path="/faqs/:id" element={<FaqEditPage />} />

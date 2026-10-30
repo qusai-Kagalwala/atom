@@ -19,7 +19,8 @@ const roles = require('../../utils/roles');
 const bad = (message, code) => new HttpError(400, message, code);
 const clean = (v) => (v == null ? '' : String(v).replace(/\s+/g, ' ').trim());
 const isId = (v) => /^\d{1,18}$/.test(String(v ?? ''));
-const KINDS = ['physical', 'software', 'service'];
+// supply = a consumable taken from stock (Tanzeem: stationery, crockery …), no asset tags.
+const KINDS = ['physical', 'software', 'service', 'supply'];
 const MAX_ITEMS = 10;
 const MAX_ASSETS = 50;
 
@@ -30,6 +31,12 @@ function toCatalogue(c) {
     name: c.name,
     kind: c.kind,
     description: c.description,
+    group: c.group_name || null,
+    // Approximate price per unit requested (shown to requesters with a total); pack size; stock (null = not tracked).
+    price: c.price == null ? null : Number(c.price),
+    packSize: c.pack_size ?? null,
+    stock: c.stock ?? null,
+    source: c.source,
     assetCategory: c.asset_category_id ? { id: String(c.asset_category_id), name: c.asset_category_name } : null,
     sortOrder: c.sort_order,
     isActive: c.is_active,
@@ -43,7 +50,7 @@ async function listCatalogue(user, { includeInactive = false } = {}) {
     `SELECT ci.*, ac.name AS asset_category_name
        FROM catalogue_items ci LEFT JOIN asset_categories ac ON ac.id = ci.asset_category_id
       WHERE ci.service_unit_id = $1::bigint ${all ? '' : 'AND ci.is_active'}
-      ORDER BY ci.sort_order, lower(ci.name)`,
+      ORDER BY ci.sort_order, lower(ci.group_name) NULLS FIRST, lower(ci.name)`,
     [user.companyId]
   );
   return rows.map(toCatalogue);
@@ -51,9 +58,23 @@ async function listCatalogue(user, { includeInactive = false } = {}) {
 
 async function catalogueFields(db, user, body, current = {}) {
   const name = 'name' in body ? clean(body.name) : current.name;
-  if (!name || name.length < 2 || name.length > 80) throw bad('Give the item a name (2–80 characters).', 'bad_name');
+  if (!name || name.length < 2 || name.length > 120) throw bad('Give the item a name (2–120 characters).', 'bad_name');
   const kind = 'kind' in body ? clean(body.kind) : current.kind || 'physical';
-  if (!KINDS.includes(kind)) throw bad('Choose physical item, software or service.', 'bad_kind');
+  if (!KINDS.includes(kind)) throw bad('Choose item, supply, software or service.', 'bad_kind');
+  const group = 'group' in body ? clean(body.group).slice(0, 60) || null : current.group_name ?? null;
+  let price = 'price' in body ? body.price : current.price ?? null;
+  if (price === '' || price == null) price = null;
+  else {
+    price = Number(price);
+    if (!Number.isFinite(price) || price < 0 || price > 10000000) throw bad('Enter a price in rupees, or leave it empty.', 'bad_price');
+    price = Math.round(price * 100) / 100;
+  }
+  let packSize = 'packSize' in body ? body.packSize : current.pack_size ?? null;
+  if (packSize === '' || packSize == null) packSize = null;
+  else {
+    packSize = Number(packSize);
+    if (!Number.isInteger(packSize) || packSize < 1 || packSize > 100000) throw bad('Pack size must be a whole number.', 'bad_pack');
+  }
   const description = 'description' in body ? clean(body.description).slice(0, 300) || null : current.description ?? null;
   let assetCategoryId = 'assetCategoryId' in body ? body.assetCategoryId || null : current.asset_category_id ?? null;
   if (kind !== 'physical') assetCategoryId = null;
@@ -69,7 +90,7 @@ async function catalogueFields(db, user, body, current = {}) {
   if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 10000) throw bad('Order must be a whole number.', 'bad_order');
   if ('isActive' in body && typeof body.isActive !== 'boolean') throw bad('Bad status value.', 'invalid');
   const isActive = 'isActive' in body ? body.isActive : current.is_active ?? true;
-  return { name, kind, description, assetCategoryId, sortOrder, isActive };
+  return { name, kind, description, assetCategoryId, sortOrder, isActive, group, price, packSize };
 }
 
 const nameTaken = (err) => err.code === '23505' ? new HttpError(409, 'An item with this name already exists.', 'duplicate') : err;
@@ -79,9 +100,10 @@ async function createCatalogueItem(user, body = {}) {
   const unitId = user.companyId;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO catalogue_items (name, kind, description, asset_category_id, sort_order, is_active, service_unit_id)
-       VALUES ($1::text, $2::text, $3::text, $4::bigint, $5::int, $6::boolean, $7::bigint) RETURNING id`,
-      [f.name, f.kind, f.description, f.assetCategoryId, f.sortOrder, f.isActive, unitId]
+      `INSERT INTO catalogue_items (name, kind, description, asset_category_id, sort_order, is_active, service_unit_id,
+                                    group_name, price, pack_size)
+       VALUES ($1::text, $2::text, $3::text, $4::bigint, $5::int, $6::boolean, $7::bigint, $8::text, $9::numeric, $10::int) RETURNING id`,
+      [f.name, f.kind, f.description, f.assetCategoryId, f.sortOrder, f.isActive, unitId, f.group, f.price, f.packSize]
     );
     return (await listCatalogue(user, { includeInactive: true })).find((c) => c.id === String(rows[0].id));
   } catch (err) {
@@ -97,13 +119,68 @@ async function updateCatalogueItem(user, id, body = {}) {
   try {
     await pool.query(
       `UPDATE catalogue_items SET name = $2::text, kind = $3::text, description = $4::text, asset_category_id = $5::bigint,
-              sort_order = $6::int, is_active = $7::boolean WHERE id = $1::bigint`,
-      [id, f.name, f.kind, f.description, f.assetCategoryId, f.sortOrder, f.isActive]
+              sort_order = $6::int, is_active = $7::boolean, group_name = $8::text, price = $9::numeric, pack_size = $10::int,
+              edited_in_atom_at = CASE WHEN source = 'supportlog' THEN now() ELSE edited_in_atom_at END
+        WHERE id = $1::bigint`,
+      [id, f.name, f.kind, f.description, f.assetCategoryId, f.sortOrder, f.isActive, f.group, f.price, f.packSize]
     );
   } catch (err) {
     throw nameTaken(err);
   }
   return (await listCatalogue(user, { includeInactive: true })).find((c) => c.id === String(id));
+}
+
+// ---------- stock (Admin) ----------
+// body: { change: ±n } or { setTo: n }, reason (required). setTo on an untracked item starts tracking it.
+async function adjustStock(user, id, body = {}) {
+  if (!isId(id)) throw notFound();
+  const reason = clean(body.reason);
+  if (reason.length < 3 || reason.length > 500) throw bad('Say why the stock changes (3–500 characters).', 'reason_required');
+  const hasChange = body.change !== undefined && body.change !== null && body.change !== '';
+  const hasSet = body.setTo !== undefined && body.setTo !== null && body.setTo !== '';
+  if (hasChange === hasSet) throw bad('Enter how many to add or remove, or the new count.', 'bad_stock');
+  const n = Number(hasChange ? body.change : body.setTo);
+  if (!Number.isInteger(n) || Math.abs(n) > 1000000) throw bad('Stock must be a whole number.', 'bad_stock');
+  const changedId = await tickets.inTransaction(async (db) => {
+    const { rows } = await db.query(
+      'SELECT id, stock FROM catalogue_items WHERE id = $1::bigint AND service_unit_id = $2::bigint FOR UPDATE',
+      [id, user.companyId]
+    );
+    const item = rows[0];
+    if (!item) throw notFound();
+    if (hasChange && item.stock == null) throw bad('Stock isn’t counted for this item yet — enter the current count first.', 'not_tracked');
+    const before = item.stock ?? 0;
+    const after = hasChange ? before + n : n;
+    if (after < 0) throw bad(`Only ${before} in stock.`, 'negative_stock');
+    await db.query('UPDATE catalogue_items SET stock = $2::int, stock_edited_at = now() WHERE id = $1::bigint', [item.id, after]);
+    await db.query(
+      `INSERT INTO stock_movements (catalogue_item_id, kind, change, stock_after, reason, actor_id)
+       VALUES ($1::bigint, 'adjust', $2::int, $3::int, $4::text, $5::bigint)`,
+      [item.id, after - before, after, reason, user.id]
+    );
+    return String(item.id);
+  });
+  return (await listCatalogue(user, { includeInactive: true })).find((c) => c.id === changedId);
+}
+
+// Latest stock movements of one item (Admin).
+async function stockHistory(user, id) {
+  if (!isId(id)) throw notFound();
+  const { rows: own } = await pool.query('SELECT id FROM catalogue_items WHERE id = $1::bigint AND service_unit_id = $2::bigint', [id, user.companyId]);
+  if (!own[0]) throw notFound();
+  const { rows } = await pool.query(
+    `SELECT m.id::text, m.kind, m.change, m.stock_after, m.reason, m.created_at,
+            CASE WHEN u.id IS NULL THEN NULL ELSE COALESCE(u.name, 'Employee ' || u.employee_id) END AS by,
+            CASE WHEN r.id IS NULL THEN NULL ELSE (CASE r.type WHEN 'SERVICE_REQUEST' THEN 'R-' ELSE 'T-' END || r.number) END AS request
+       FROM stock_movements m
+       LEFT JOIN users u ON u.id = m.actor_id
+       LEFT JOIN request_items ri ON ri.id = m.request_item_id
+       LEFT JOIN requests r ON r.id = ri.request_id
+      WHERE m.catalogue_item_id = $1::bigint
+      ORDER BY m.created_at DESC, m.id DESC LIMIT 50`,
+    [id]
+  );
+  return rows.map((m) => ({ id: m.id, kind: m.kind, change: m.change, stockAfter: m.stock_after, reason: m.reason, at: m.created_at, by: m.by, request: m.request }));
 }
 
 // ---------- create ----------
@@ -120,7 +197,7 @@ async function createServiceRequest(user, body = {}) {
   if (!(isAdmin ? tickets.ALL_PRIORITIES : tickets.REQUESTER_PRIORITIES).has(priority)) throw bad('Choose how urgent it is.', 'bad_priority');
 
   const { rows: catalogue } = await pool.query(
-    'SELECT id, name, kind FROM catalogue_items WHERE is_active AND service_unit_id = $1::bigint',
+    'SELECT id, name, kind, price FROM catalogue_items WHERE is_active AND service_unit_id = $1::bigint',
     [user.companyId]
   );
   const byId = new Map(catalogue.map((c) => [String(c.id), c]));
@@ -133,11 +210,11 @@ async function createServiceRequest(user, body = {}) {
     if (raw?.catalogueItemId) {
       const c = byId.get(String(raw.catalogueItemId));
       if (!c) throw bad(`Item ${n} is not in the catalogue any more.`, 'bad_item');
-      return { catalogueItemId: String(c.id), name: c.name, kind: c.kind, quantity, reason };
+      return { catalogueItemId: String(c.id), name: c.name, kind: c.kind, quantity, reason, unitPrice: c.price ?? null };
     }
     const name = clean(raw?.name);
     if (name.length < 2 || name.length > 200) throw bad(`Item ${n}: say what you need (2–200 characters).`, 'bad_name');
-    return { catalogueItemId: null, name, kind: 'service', quantity, reason };
+    return { catalogueItemId: null, name, kind: 'service', quantity, reason, unitPrice: null };
   });
 
   const label = (it) => `${it.name}${it.quantity > 1 ? ` ×${it.quantity}` : ''}`;
@@ -166,9 +243,9 @@ async function createServiceRequest(user, body = {}) {
     let order = 0;
     for (const it of items) {
       await db.query(
-        `INSERT INTO request_items (request_id, catalogue_item_id, name, kind, quantity, reason, sort_order)
-         VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::int, $6::text, $7::int)`,
-        [row.id, it.catalogueItemId, it.name, it.kind, it.quantity, it.reason, (order += 1)]
+        `INSERT INTO request_items (request_id, catalogue_item_id, name, kind, quantity, reason, sort_order, unit_price)
+         VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::int, $6::text, $7::int, $8::numeric)`,
+        [row.id, it.catalogueItemId, it.name, it.kind, it.quantity, it.reason, (order += 1), it.unitPrice]
       );
     }
     await repo.insertEvent(db, {
@@ -281,6 +358,24 @@ async function deliverItem(user, numberParam, itemId, body = {}) {
     }
     if (item.kind !== 'physical' && tags.length) throw bad('Assets are handed over only for physical items.', 'not_physical');
 
+    // Supplies come out of stock (when the item's stock is counted): never below zero.
+    let stockAfter = null;
+    if (item.kind === 'supply' && item.catalogue_item_id) {
+      const { rows: ci } = await db.query('SELECT id, name, stock FROM catalogue_items WHERE id = $1::bigint FOR UPDATE', [item.catalogue_item_id]);
+      if (ci[0] && ci[0].stock != null) {
+        if (ci[0].stock < item.quantity) {
+          throw new HttpError(409, `Only ${ci[0].stock} of “${item.name}” in stock — add stock in the Catalogue first.`, 'not_enough_stock');
+        }
+        stockAfter = ci[0].stock - item.quantity;
+        await db.query('UPDATE catalogue_items SET stock = $2::int, stock_edited_at = now() WHERE id = $1::bigint', [ci[0].id, stockAfter]);
+        await db.query(
+          `INSERT INTO stock_movements (catalogue_item_id, kind, change, stock_after, reason, request_item_id, actor_id)
+           VALUES ($1::bigint, 'delivery', $2::int, $3::int, $4::text, $5::bigint, $6::bigint)`,
+          [ci[0].id, -item.quantity, stockAfter, `Delivered for ${tickets.displayNumber(req)}`, item.id, user.id]
+        );
+      }
+    }
+
     const display = tickets.displayNumber(req);
     const handed = [];
     for (const tag of tags) {
@@ -311,7 +406,7 @@ async function deliverItem(user, numberParam, itemId, body = {}) {
       type: 'item_delivered',
       actorId: user.id,
       note: note || null,
-      data: { itemId: String(item.id), name: item.name, assets: handed },
+      data: { itemId: String(item.id), name: item.name, assets: handed, ...(stockAfter != null ? { fromStock: item.quantity, stockLeft: stockAfter } : {}) },
     });
     let sent = await notifications.recordTicketEvent(db, req, { kind: 'item_delivered', actorId: user.id, itemName: item.name, note });
 
@@ -329,4 +424,14 @@ async function deliverItem(user, numberParam, itemId, body = {}) {
   return tickets.getTicket(user, r.number);
 }
 
-module.exports = { listCatalogue, createCatalogueItem, updateCatalogueItem, createServiceRequest, decideItems, deliverItem, KINDS };
+module.exports = {
+  listCatalogue,
+  createCatalogueItem,
+  updateCatalogueItem,
+  adjustStock,
+  stockHistory,
+  createServiceRequest,
+  decideItems,
+  deliverItem,
+  KINDS,
+};

@@ -24,6 +24,7 @@
 // Phase 9 (service requests):
 //   GET    /catalogue?includeInactive=1          catalogue (inactive: Super Admin)          → { items }
 //   POST   /catalogue · PATCH /catalogue/:id     Super Admin                                → { item }
+//   POST   /catalogue/:id/stock { change | setTo, reason }  · GET /catalogue/:id/stock   Admin (stock, step B)
 //   POST   /service   { items: [{ catalogueItemId? | name, quantity, reason }], location?, priority?, requesterId? } → 201 { request }
 //   POST   /:number/items/decide   { decisions: [{ itemId, decision: approve|reject, note? }] }  Super Admin → { request }
 //   POST   /:number/items/:itemId/deliver   { note?, assetTags? }   assigned engineer / Super Admin → { request }
@@ -138,6 +139,8 @@ function createRequestsRouter() {
   router.get('/catalogue', handle(async (req, res) => res.json({ items: await sr.listCatalogue(req.user, { includeInactive: req.query.includeInactive === '1' }) })));
   router.post('/catalogue', admin, handle(async (req, res) => res.status(201).json({ item: await sr.createCatalogueItem(req.user, req.body || {}) })));
   router.patch('/catalogue/:id', admin, handle(async (req, res) => res.json({ item: await sr.updateCatalogueItem(req.user, req.params.id, req.body || {}) })));
+  router.post('/catalogue/:id/stock', admin, handle(async (req, res) => res.json({ item: await sr.adjustStock(req.user, req.params.id, req.body || {}) })));
+  router.get('/catalogue/:id/stock', admin, handle(async (req, res) => res.json({ movements: await sr.stockHistory(req.user, req.params.id) })));
   router.post('/service', handle(async (req, res) => res.status(201).json({ request: await sr.createServiceRequest(req.user, req.body || {}) })));
   router.post('/:number/items/decide', handle(async (req, res) => res.json({ request: await sr.decideItems(req.user, req.params.number, req.body || {}) })));
   router.post(

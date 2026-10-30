@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Bot, LoaderCircle, Send, UserRound, X } from 'lucide-react';
-import { getDefaultLocation, listCategories, raiseTicket } from '../api/requests';
+import { getDefaultLocation, raiseTicket } from '../api/requests';
+import { getProblemTree } from '../api/problems';
 import { listUsers } from '../api/users';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
@@ -80,15 +81,28 @@ export default function RaiseTicketPage() {
   // Pre-filled from the AI assistant (Phase 12): category, title, what was said and tried.
   const draft = useLocation().state?.draft || null;
   const isAdmin = isAdminRole(user.activeRole);
-  const categories = useQuery({ queryKey: ['categories'], queryFn: listCategories, staleTime: 10 * 60_000 });
+  // Category > Item > Problem from the company's list (step B). Categories without items: title + description.
+  const tree = useQuery({ queryKey: ['problems', 'tree'], queryFn: () => getProblemTree(false), staleTime: 5 * 60_000 });
+  const categories = tree.data?.categories || [];
 
   const [form, setForm] = useState({
     categoryId: draft?.categoryId || '',
+    itemId: '',
+    problemId: '', // '' · an id · 'other'
+    problemText: '',
     title: draft?.title || '',
     description: draft?.description || '',
     location: '',
     priority: draft?.priority || 'NORMAL',
   });
+  const [titleEdited, setTitleEdited] = useState(Boolean(draft?.title));
+  const category = categories.find((c) => c.id === form.categoryId) || null;
+  const item = category?.items.find((i) => i.id === form.itemId) || null;
+  const problem = item?.problems.find((p) => p.id === form.problemId) || null;
+  const otherText = form.problemId === 'other' ? form.problemText.trim() : '';
+  const autoTitle = item ? `${item.name}${problem ? ` – ${problem.name}` : otherText ? ` – ${otherText}` : ''}`.slice(0, 120) : '';
+  const title = titleEdited || !item ? form.title : autoTitle;
+  const goesTo = tree.data?.autoAssign && category?.occupation ? category.occupation.name : null;
   const [forSomeoneElse, setForSomeoneElse] = useState(false);
   const [person, setPerson] = useState(null);
   const [locationEdited, setLocationEdited] = useState(false);
@@ -109,7 +123,13 @@ export default function RaiseTicketPage() {
   const [photoError, setPhotoError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const missing = !form.categoryId || form.title.trim().length < 3 || !form.description.trim() || (forSomeoneElse && !person);
+  // From the list: an item and a problem (or "Other" in their own words); the details are optional.
+  const missing =
+    !form.categoryId ||
+    (forSomeoneElse && !person) ||
+    (item
+      ? !(problem || otherText.length >= 3) || title.trim().length < 3
+      : title.trim().length < 3 || !form.description.trim());
 
   async function submit(e) {
     e.preventDefault();
@@ -119,7 +139,13 @@ export default function RaiseTicketPage() {
     try {
       const t = await raiseTicket(
         {
-          ...form,
+          categoryId: form.categoryId,
+          itemId: item ? item.id : undefined,
+          problemId: problem ? problem.id : undefined,
+          problemText: item && !problem ? otherText : undefined,
+          title,
+          description: form.description,
+          priority: form.priority,
           location,
           requesterId: forSomeoneElse ? person.id : undefined,
           assistantSessionId: !forSomeoneElse ? draft?.assistantSessionId : undefined,
@@ -182,10 +208,17 @@ export default function RaiseTicketPage() {
           </div>
         )}
 
-        <Field id="category" label="What kind of problem?">
-          <select id="category" className={selectClass} value={form.categoryId} onChange={set('categoryId')} disabled={categories.isPending}>
-            <option value="">{categories.isPending ? 'Loading…' : 'Choose a category'}</option>
-            {(categories.data || []).map((c) => (
+        {tree.isError && <Alert tone="error">Could not load the list of problems.</Alert>}
+        <Field id="category" label="What kind of problem?" hint={goesTo ? `Goes straight to ${/^[aeiou]/i.test(goesTo) ? 'an' : 'a'} ${goesTo.replace(/\b(?![A-Z]{2,}\b)\w+/g, (w) => w.toLowerCase())}.` : undefined}>
+          <select
+            id="category"
+            className={selectClass}
+            value={form.categoryId}
+            onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value, itemId: '', problemId: '', problemText: '' }))}
+            disabled={tree.isPending}
+          >
+            <option value="">{tree.isPending ? 'Loading…' : 'Choose a category'}</option>
+            {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -193,11 +226,63 @@ export default function RaiseTicketPage() {
           </select>
         </Field>
 
-        <Field id="title" label="Short title" hint="e.g. “Projector in Hall B shows no picture”">
-          <TextInput id="title" value={form.title} onChange={set('title')} maxLength={120} />
+        {category?.items.length > 0 && (
+          <Field id="item" label="What is it?" hint="Not in the list? Choose “Not listed” and describe it below.">
+            <select
+              id="item"
+              className={selectClass}
+              value={form.itemId}
+              onChange={(e) => setForm((f) => ({ ...f, itemId: e.target.value, problemId: '', problemText: '' }))}
+            >
+              <option value="">Not listed / not sure</option>
+              {category.items.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {item && (
+          <Field id="problem" label="What's wrong with it?">
+            <select id="problem" className={selectClass} value={form.problemId} onChange={set('problemId')}>
+              <option value="">Choose the problem</option>
+              {item.problems
+                .filter((p) => p.name.toLowerCase() !== 'other')
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              <option value="other">Other — I’ll type it</option>
+            </select>
+            {form.problemId === 'other' && (
+              <TextInput
+                id="problem-text"
+                className="mt-2"
+                value={form.problemText}
+                onChange={set('problemText')}
+                maxLength={200}
+                placeholder="Say what's wrong in a few words"
+              />
+            )}
+          </Field>
+        )}
+
+        <Field id="title" label="Short title" hint={item ? 'Filled in from your choice — change it if you like.' : 'e.g. “Projector in Hall B shows no picture”'}>
+          <TextInput
+            id="title"
+            value={title}
+            onChange={(e) => {
+              setTitleEdited(true);
+              set('title')(e);
+            }}
+            maxLength={120}
+          />
         </Field>
 
-        <Field id="description" label="What's happening?" hint="What you tried, error messages, since when.">
+        <Field id="description" label={item ? "Anything else? (optional)" : "What's happening?"} hint="What you tried, error messages, since when.">
           <textarea
             id="description"
             value={form.description}

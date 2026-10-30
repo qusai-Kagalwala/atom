@@ -30,3 +30,12 @@ export const runSync = (job, force) =>
       if (err.response?.data?.status) return err.response.data;
       throw err;
     });
+// Support Log item lists (step B). options: { companies, keepAtomEdits, force, preview }.
+export const runItemsSync = (options) =>
+  http
+    .post('/sync/items', options)
+    .then((r) => r.data)
+    .catch((err) => {
+      if (err.response?.data?.status) return err.response.data;
+      throw err;
+    });

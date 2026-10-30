@@ -38,7 +38,7 @@ export const ITEM_STATUS = {
   REJECTED: { label: 'Not approved', badge: 'status-rejected' },
   DELIVERED: { label: 'Delivered', badge: 'status-resolved' },
 };
-export const ITEM_KINDS = { physical: 'Item', software: 'Software', service: 'Service' };
+export const ITEM_KINDS = { physical: 'Item', software: 'Software', service: 'Service', supply: 'Supply (from stock)' };
 
 // One line for a timeline event (comments are rendered separately as bubbles).
 export function eventText(e) {
@@ -51,11 +51,13 @@ export function eventText(e) {
     case 'item_rejected':
       return `Did not approve ${d.name}`;
     case 'item_delivered':
-      return `Delivered ${d.name}${d.assets?.length ? ` (${d.assets.join(', ')})` : ''}`;
-    case 'assigned':
-      return d.previousEngineerId
-        ? `Reassigned from ${d.previousEngineerName || 'another engineer'} to ${d.engineerName || 'an engineer'}`
-        : `Assigned to ${d.engineerName || 'an engineer'}`;
+      return `Delivered ${d.name}${d.assets?.length ? ` (${d.assets.join(', ')})` : ''}${d.fromStock != null ? ` from stock (${d.stockLeft} left)` : ''}`;
+    case 'assigned': {
+      // Full name with the occupation: "Carpenter: Abbas Test Carpenter".
+      const who = d.engineerName ? (d.occupation ? `${d.occupation}: ${d.engineerName}` : d.engineerName) : 'a staff member';
+      if (d.auto) return `Assigned automatically to ${who}`;
+      return d.previousEngineerId ? `Reassigned from ${d.previousEngineerName || 'someone else'} to ${who}` : `Assigned to ${who}`;
+    }
     case 'status':
       return ACTION_TEXT[d.action] || `Changed status to ${statusLabel(e.toStatus)}`;
     case 'priority':

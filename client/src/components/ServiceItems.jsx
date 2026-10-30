@@ -63,6 +63,15 @@ function DeliverModal({ ticket, item, onClose, onDone }) {
     >
       <div className="space-y-4">
         {error && <Alert tone="error">{error}</Alert>}
+        {item.kind === 'supply' && (
+          <p className={`font-ui text-sm ${item.stock != null && item.stock < item.quantity ? 'text-error' : 'text-ink-2'}`}>
+            {item.stock == null
+              ? 'Stock isn’t counted for this item.'
+              : item.stock < item.quantity
+                ? `Only ${item.stock} in stock — ${item.quantity} needed. Add stock in the Catalogue first.`
+                : `${item.quantity} will be taken from stock (${item.stock} now, ${item.stock - item.quantity} after).`}
+          </p>
+        )}
         {physical && (
           <div className="space-y-2">
             <p className="font-ui text-sm text-ink-2">
@@ -135,6 +144,14 @@ export default function ServiceItems({ ticket, onDone }) {
   const canDeliver = ticket.permissions.canDeliverItems;
   const pending = ticket.items.filter((i) => i.status === 'PENDING');
   const set = (id, patch) => setChoice((c) => ({ ...c, [id]: { ...c[id], ...patch } }));
+  // Approx. cost of the line, and (for staff) how much of a supply is in stock.
+  const extra = (i) =>
+    [
+      i.unitPrice != null && `approx. ₹${(i.unitPrice * i.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+      i.kind === 'supply' && i.stock != null && i.status !== 'DELIVERED' && (canDecide || canDeliver) && `${i.stock} in stock`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
   async function submit(decisions) {
     setBusy(true);
@@ -177,6 +194,7 @@ export default function ServiceItems({ ticket, onDone }) {
                     {i.quantity > 1 && <span className="text-ink-2"> ×{i.quantity}</span>}
                     <span className="ml-2 text-xs font-normal text-ink-3">{i.catalogueItemId ? ITEM_KINDS[i.kind] : 'Something else'}</span>
                   </p>
+                  {extra(i) && <p className="text-xs text-ink-3">{extra(i)}</p>}
                   <p className="text-ink-2">{i.reason}</p>
                 </div>
                 <span className={st.badge}>{st.label}</span>

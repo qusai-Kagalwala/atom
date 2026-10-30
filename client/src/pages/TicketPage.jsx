@@ -303,6 +303,7 @@ export default function TicketPage() {
           <div className="min-w-0">
             <p className="font-ui text-xs tabular-nums text-ink-3">
               {t.number} · {t.type === 'SERVICE_REQUEST' ? 'Service request' : t.category || 'No category'}
+              {t.problem && ` › ${t.problem.item} › ${t.problem.problem || t.problem.text || 'Other'}`}
             </p>
             <h1 className="mt-1 text-2xl sm:text-3xl">{t.title}</h1>
           </div>

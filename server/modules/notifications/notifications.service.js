@@ -46,16 +46,24 @@ function planTicket(ticket, e) {
 
   switch (e.kind) {
     case 'created':
-      toAdmins(ticket.type === 'SERVICE_REQUEST' ? `New request ${num} to approve` : `New ticket ${num}`, short(ticket.title));
+      toAdmins(
+        ticket.type === 'SERVICE_REQUEST' ? `New request ${num} to approve` : `New ticket ${num}`,
+        e.autoAssignedTo ? short(`${ticket.title} · assigned automatically to ${e.autoAssignedTo}`, 280) : short(ticket.title)
+      );
       if (e.raisedFor) toRequester(`${num} was raised for you`, short(ticket.title));
       break;
-    case 'assign':
+    case 'assign': {
+      // "An engineer is on T-1001" / "A carpenter is on T-1002" · body: "Carpenter: <full name> will help with: …"
+      // Lower-case the occupation for the sentence, but keep acronyms ("AC technician").
+      const occ = String(e.occupation || 'Engineer').split(' ').map((w) => (/^[A-Z]{2,}$/.test(w) ? w : w.toLowerCase())).join(' ');
+      const who = e.occupation ? `${e.occupation}: ${e.engineerName || ''}`.trim() : e.engineerName || 'An engineer';
       toEngineer(e.engineerId, `${num} is assigned to you`, short(ticket.title));
-      toRequester(`An engineer is on ${num}`, short(`${e.engineerName || 'An engineer'} will help with: ${ticket.title}`));
+      toRequester(`${/^[aeiouAEIOU]/.test(occ) ? 'An' : 'A'} ${occ} is on ${num}`, short(`${who} will help with: ${ticket.title}`));
       if (e.previousEngineerId && !same(e.previousEngineerId, e.engineerId)) {
-        toEngineer(e.previousEngineerId, `${num} moved to another engineer`, short(ticket.title));
+        toEngineer(e.previousEngineerId, `${num} moved to someone else`, short(ticket.title));
       }
       break;
+    }
     case 'start':
       toRequester(`Work started on ${num}`, short(ticket.title));
       break;

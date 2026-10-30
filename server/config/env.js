@@ -46,6 +46,10 @@ const config = {
     encrypt: String(env.MSSQL_ENCRYPT).toLowerCase() === 'true',
     trustServerCertificate: String(env.MSSQL_TRUST_SERVER_CERT ?? 'true').toLowerCase() !== 'false',
   },
+  // Support Log item lists (companies step B): same SQL Server and login as mssql, this database.
+  supportlog: {
+    database: env.SUPPORTLOG_DB || 'SupportLog_New',
+  },
   ejamaat: {
     soapUrl: env.EJAMAAT_SOAP_URL || '',
     appKey: env.EJAMAAT_APP_KEY || '',

@@ -2,10 +2,14 @@
 // §4 rule 1: new column → added; removed, renamed or retyped column → run stops and says which.
 //   src.idarah_tafveez_current_yr  ← dbo.Vw_Idarah_Tafveez_CurrentYR   (default, Idarah sync)
 //   src.user_department_details    ← dbo.Vw_User_Department_Details_New (HR staff sync)
+//   src.supportlog_item_master     ← SupportLog_New.dbo.Item_Master      (items sync, named columns)
+//   src.supportlog_main_item_master ← SupportLog_New.dbo.Main_Item_Master (items sync, named columns)
 // Every function takes an optional mirror name (default: the Idarah mirror).
 const MIRROR = 'src.idarah_tafveez_current_yr';
 const HR_MIRROR = 'src.user_department_details';
-const MIRRORS = new Set([MIRROR, HR_MIRROR]);
+const ITEM_MIRROR = 'src.supportlog_item_master';
+const MAIN_ITEM_MIRROR = 'src.supportlog_main_item_master';
+const MIRRORS = new Set([MIRROR, HR_MIRROR, ITEM_MIRROR, MAIN_ITEM_MIRROR]);
 
 function mirrorName(name = MIRROR) {
   if (!MIRRORS.has(name)) throw new Error(`Unknown mirror ${name}`);
@@ -99,4 +103,4 @@ async function loadMirror(client, { columns, toAdd, creating }, sourceRows, name
   return sourceRows.length;
 }
 
-module.exports = { MIRROR, HR_MIRROR, readMirrorColumns, compareColumns, loadMirror, canonicalType, quoteIdent };
+module.exports = { MIRROR, HR_MIRROR, ITEM_MIRROR, MAIN_ITEM_MIRROR, readMirrorColumns, compareColumns, loadMirror, canonicalType, quoteIdent };
