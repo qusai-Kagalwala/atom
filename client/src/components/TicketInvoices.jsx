@@ -113,7 +113,7 @@ export default function TicketInvoices({ ticket, onChanged }) {
           </div>
         )}
       </div>
-      <p className="mt-1 font-ui text-xs text-ink-3">Only Super Admins and the assigned engineer see invoices.</p>
+      <p className="mt-1 font-ui text-xs text-ink-3">Only the Admin and the assigned staff member see invoices.</p>
 
       {ticket.invoices.length ? (
         <ul className="mt-3 divide-y divide-line">

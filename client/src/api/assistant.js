@@ -38,4 +38,7 @@ export const getAiUsage = (days = 30, company = '') =>
 export const dismissQuestion = (key) => http.post(`${base}/unmatched/dismiss`, { key }).then((r) => r.data);
 export const listLearned = (includeOff) =>
   http.get(`${base}/learned`, { params: includeOff ? { includeOff: 1 } : {} }).then((r) => r.data.learned);
+// "Before you start" tips of the company: { en: [..], ar: [..], … }
+export const getGuidelines = () => http.get(`${base}/guidelines`).then((r) => r.data.guidelines);
+export const saveGuidelines = (guidelines) => http.put(`${base}/guidelines`, { guidelines }).then((r) => r.data.guidelines);
 export const setLearned = (id, isActive) => http.patch(`${base}/learned/${id}`, { isActive }).then((r) => r.data.learned);

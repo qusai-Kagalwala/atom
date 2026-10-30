@@ -7,13 +7,14 @@ import StaffOptions from '../components/StaffOptions';
 import RequestList, { Pager } from '../components/RequestList';
 import { Alert } from '../components/FormControls';
 import { PRIORITIES } from '../utils/requests';
+import useAuth from '../hooks/useAuth';
 
 const selectClass =
   'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 const STATUS_OPTIONS = [
   ['open', 'Open (not closed)'],
-  ['unassigned', 'Waiting for an engineer'],
+  ['unassigned', 'Waiting to be assigned'],
   ['active', 'Being worked on'],
   ['waiting', 'Waiting (requester / equipment)'],
   ['resolved', 'Resolved — ready to close'],
@@ -31,6 +32,7 @@ const PAGE_SIZE = 25;
 
 // Super Admin: every ticket, with search and filters. Filters live in the URL so Back keeps them.
 export default function AllRequestsPage() {
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
   const queryClient = useQueryClient();
@@ -87,7 +89,7 @@ export default function AllRequestsPage() {
   return (
     <section className="space-y-4">
       <div>
-        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
+        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · Admin</p>
         <h1 className="mt-1 text-3xl">All tickets &amp; requests</h1>
       </div>
 

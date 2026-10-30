@@ -45,7 +45,7 @@ export default function MyRequestsPage() {
           <Link to="/request" className="btn-secondary">
             <Plus size={18} aria-hidden="true" /> Request something
           </Link>
-          <Link to={user.company?.code === 'AVIT' ? '/assistant' : '/tickets/new'} className="btn-primary">
+          <Link to={user.company?.assistantEnabled !== false ? '/assistant' : '/tickets/new'} className="btn-primary">
             <Plus size={18} aria-hidden="true" /> Raise a ticket
           </Link>
         </div>

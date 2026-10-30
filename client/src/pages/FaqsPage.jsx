@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileUp, LoaderCircle, Plus, Search } from 'lucide-react';
-import { importFaqs, listFaqs, listLearned, setLearned } from '../api/assistant';
+import { getGuidelines, importFaqs, listFaqs, listLearned, saveGuidelines, setLearned } from '../api/assistant';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import useAuth from '../hooks/useAuth';
@@ -236,8 +236,71 @@ function SavedAnswers() {
   );
 }
 
+// "Before you start": the company's safety tips shown at the top of its assistant, one per line,
+// in each language (English needed if any language has tips). Empty = the section is hidden.
+const TIP_LANGS = [
+  ['en', 'English'],
+  ['ar', 'العربية'],
+  ['hi', 'हिन्दी'],
+  ['gu', 'ગુજરાતી'],
+];
+function GuidelinesTab() {
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ['assistant', 'guidelines'], queryFn: getGuidelines });
+  if (query.isPending) return <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />;
+  if (query.isError) return <Alert tone="error">Could not load the tips.</Alert>;
+  return <GuidelinesForm key={JSON.stringify(query.data)} initial={query.data} onSaved={() => queryClient.invalidateQueries({ queryKey: ['assistant'] })} />;
+}
+function GuidelinesForm({ initial, onSaved }) {
+  const [text, setText] = useState(() => Object.fromEntries(TIP_LANGS.map(([l]) => [l, (initial[l] || []).join('\n')])));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await saveGuidelines(Object.fromEntries(TIP_LANGS.map(([l]) => [l, text[l].split('\n').map((x) => x.trim()).filter(Boolean)])));
+      setMsg({ tone: 'success', text: 'Saved. The assistant shows them within a minute.' });
+      onSaved();
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not save the tips.') });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="card space-y-4">
+      <p className="font-ui text-sm text-ink-2">
+        Safety tips shown under “Before you start” in this company’s AI assistant. One tip per line, up to 10. Leave everything empty to hide the section.
+      </p>
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      <div className="grid gap-4 md:grid-cols-2">
+        {TIP_LANGS.map(([l, name]) => (
+          <label key={l} className="block font-ui text-sm font-medium text-ink">
+            {name}
+            <textarea
+              rows={5}
+              dir={l === 'ar' ? 'rtl' : 'ltr'}
+              lang={l}
+              value={text[l]}
+              onChange={(e) => setText((t) => ({ ...t, [l]: e.target.value }))}
+              className={`mt-1 block w-full rounded-btn border border-line bg-white px-3 py-2 font-normal text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted ${l === 'ar' ? 'arabic text-base' : 'font-ui text-sm'}`}
+            />
+          </label>
+        ))}
+      </div>
+      <div className="flex justify-end">
+        <button type="button" className="btn-primary" onClick={save} disabled={busy}>
+          {busy && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />} Save tips
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   ['faqs', 'FAQs'],
+  ['guidelines', 'Before you start'],
   ['import', 'Import'],
   ['saved', 'Saved answers'],
 ];
@@ -260,6 +323,7 @@ export default function FaqsPage() {
       </div>
       <Tabs tabs={TABS} value={tab} onChange={(v) => setParams(v === 'faqs' ? {} : { tab: v })} />
       {tab === 'faqs' && <FaqList />}
+      {tab === 'guidelines' && <GuidelinesTab />}
       {tab === 'import' && <ImportTab />}
       {tab === 'saved' && <SavedAnswers />}
     </section>

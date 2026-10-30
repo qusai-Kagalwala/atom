@@ -39,7 +39,7 @@ function TimeFrames({ frames, onSaved }) {
           <Timer size={20} aria-hidden="true" /> Time frames
         </h2>
         <p className="font-ui text-sm text-ink-2">
-          Counted 24/7 from when a ticket or request is raised until it is done. Past “up to” it shows as overdue, and Super Admins and the engineer are told.
+          Counted 24/7 from when a ticket or request is raised until it is done. Past “up to” it shows as overdue, and the company’s Admin and the assigned staff member are told.
         </p>
       </div>
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}

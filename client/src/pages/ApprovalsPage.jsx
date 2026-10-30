@@ -4,12 +4,14 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Alert } from '../components/FormControls';
 import { listAllRequests } from '../api/requests';
 import RequestList, { Pager } from '../components/RequestList';
+import useAuth from '../hooks/useAuth';
 
 const PAGE_SIZE = 25;
 
 // Super Admin: service requests waiting for a decision, oldest first. Decisions are made per item
 // on the request page.
 export default function ApprovalsPage() {
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const page = Number(params.get('page')) || 1;
   const queryClient = useQueryClient();
@@ -22,7 +24,7 @@ export default function ApprovalsPage() {
   return (
     <section className="space-y-4">
       <div>
-        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
+        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · Admin</p>
         <h1 className="mt-1 text-3xl">Approvals</h1>
         <p className="mt-1 font-ui text-sm text-ink-2">Service requests waiting for your decision, oldest first. Open one to approve or reject each item.</p>
       </div>

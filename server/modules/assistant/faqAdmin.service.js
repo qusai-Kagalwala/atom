@@ -270,6 +270,13 @@ async function importFaqFile(user, buf, { commit = false, keepAtomEdits = true }
       .map((r) => ({ itemId: r.item_id, item: r.item, subItem: r.sub_item }));
 
     await autoLinkProblems(client, co);
+    // The file's "Before you start" tips become the company's when it has none yet.
+    if (parsed.content.guidelines && Object.keys(parsed.content.guidelines).length) {
+      await client.query(
+        `UPDATE service_units SET assistant_guidelines = $2::jsonb WHERE id = $1::bigint AND assistant_guidelines = '{}'::jsonb`,
+        [co, JSON.stringify(parsed.content.guidelines)]
+      );
+    }
     if (ids.code === 'AVIT' || !(await client.query(`SELECT 1 FROM assistant_settings WHERE id = 1 AND content ? 'languages'`)).rows[0]) {
       await client.query(
         `INSERT INTO assistant_settings (id, content) VALUES (1, $1::jsonb) ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content`,

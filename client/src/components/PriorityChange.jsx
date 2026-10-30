@@ -88,7 +88,7 @@ export default function PriorityChange({ ticket, onDone, compact = false }) {
                 ))}
               </div>
             </fieldset>
-            <Field id="priority-message" label="Message to the requester (optional)" hint="Sent with the change, in the app and by email. The engineer sees it too.">
+            <Field id="priority-message" label="Message to the requester (optional)" hint="Sent with the change, in the app and by email. The assigned staff member sees it too.">
               <textarea id="priority-message" rows={3} maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} className={areaClass} />
             </Field>
           </div>

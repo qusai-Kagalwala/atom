@@ -91,13 +91,13 @@ function resetEmail(link) {
       '',
       'If you did not ask for this, you can ignore this email — your password will not change.',
       '',
-      'ATOM · AVIT Ticketing & Operations Manager · Aljamea-tus-Saifiyah',
+      'ATOM · Ticketing & Operations Manager · AVIT · Siyanaat · Tanzeem · Aljamea-tus-Saifiyah',
     ].join('\n'),
     html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1A1A1A;max-width:520px">
   <p>We received a request to reset your ATOM password. Open the link below within ${minutes} minutes to choose a new one.</p>
   <p><a href="${link}" style="display:inline-block;background:#0F5B5A;color:#FFFFFF;padding:10px 18px;border-radius:8px;text-decoration:none">Reset password</a></p>
   <p style="color:#4B5563;font-size:13px">If you did not ask for this, you can ignore this email — your password will not change.</p>
-  <p style="color:#8C7B6B;font-size:12px">ATOM · AVIT Ticketing &amp; Operations Manager · Aljamea-tus-Saifiyah</p>
+  <p style="color:#8C7B6B;font-size:12px">ATOM · Ticketing &amp; Operations Manager · AVIT · Siyanaat · Tanzeem · Aljamea-tus-Saifiyah</p>
 </div>`,
   };
 }

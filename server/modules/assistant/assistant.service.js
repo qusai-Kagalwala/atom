@@ -42,7 +42,7 @@ async function companyCache(companyId) {
   if (hit && Date.now() - hit.at < CACHE_MS) return hit;
   const db = deps.pool;
   const [unit, faqs, problems] = await Promise.all([
-    db.query('SELECT id::text AS id, code, name, tagline, assistant_enabled FROM service_units WHERE id = $1::bigint', [companyId]),
+    db.query('SELECT id::text AS id, code, name, tagline, assistant_enabled, assistant_guidelines FROM service_units WHERE id = $1::bigint', [companyId]),
     db.query(
       `SELECT f.id::text AS id, f.item_id, f.category, f.item, f.sub_item, f.keywords, f.direct_ticket, f.answers,
               f.details_en, f.ticket_info, f.ticket_category_id::text AS ticket_category_id, c.name AS ticket_category,
@@ -236,9 +236,37 @@ async function getConfig(user) {
       ? content.languages
       : [{ code: 'en', name: 'English', nativeName: 'English', direction: 'ltr' }],
     uiText: content.uiText || {},
-    guidelines: content.guidelines || {},
+    // "Before you start": the company's own safety tips (empty = hidden).
+    guidelines: c.company?.assistant_guidelines || {},
     tree: browseTree(c),
   };
+}
+
+// ---------- "Before you start" tips (company Admin) ----------
+const MAX_TIPS = 10;
+const MAX_TIP = 300;
+async function getGuidelines(user) {
+  const { rows } = await deps.pool.query('SELECT assistant_guidelines FROM service_units WHERE id = $1::bigint', [user.companyId]);
+  return { guidelines: rows[0]?.assistant_guidelines || {} };
+}
+
+// body: { guidelines: { en: [..], ar: [..], hi: [..], gu: [..] } } — empty lists are dropped.
+async function setGuidelines(user, body = {}) {
+  const g = body.guidelines;
+  if (!g || typeof g !== 'object' || Array.isArray(g)) throw bad('Send the tips for each language.', 'invalid');
+  const out = {};
+  for (const [lang, list] of Object.entries(g)) {
+    if (!LANGS.includes(lang)) throw bad('Unknown language.', 'bad_language');
+    if (!Array.isArray(list)) throw bad('Send a list of tips.', 'invalid');
+    const tips = list.map(clean).filter(Boolean);
+    if (tips.length > MAX_TIPS) throw bad(`Up to ${MAX_TIPS} tips per language.`, 'too_many');
+    if (tips.some((t) => t.length > MAX_TIP)) throw bad(`Keep each tip under ${MAX_TIP} characters.`, 'too_long');
+    if (tips.length) out[lang] = tips;
+  }
+  if (Object.keys(out).length && !out.en) throw bad('English tips are needed when other languages have tips.', 'english_required');
+  await deps.pool.query('UPDATE service_units SET assistant_guidelines = $2::jsonb WHERE id = $1::bigint', [user.companyId, JSON.stringify(out)]);
+  bust(user.companyId);
+  return { guidelines: out };
 }
 
 async function startSession(user, { language } = {}) {
@@ -892,6 +920,8 @@ async function setCompanyAssistant(user, code, body = {}) {
 }
 
 module.exports = {
+  getGuidelines,
+  setGuidelines,
   companies,
   setCompanyAssistant,
   assistantOn,

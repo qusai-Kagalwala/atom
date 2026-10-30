@@ -8,6 +8,7 @@ import { Alert } from '../components/FormControls';
 import { formatDateTime } from '../utils/format';
 import { formatBytes } from '../utils/invoices';
 import { statusLabel } from '../utils/assets';
+import useAuth from '../hooks/useAuth';
 
 function Stat({ label, value, tone }) {
   return (
@@ -73,6 +74,7 @@ function Report({ r }) {
 
 // Super Admin: Snipe-IT CSV → preview → import. Re-run it whenever Snipe-IT changes, until switch-over.
 export default function InventoryImportPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const input = useRef(null);
   const [file, setFile] = useState(null);
@@ -132,7 +134,7 @@ export default function InventoryImportPage() {
         <ArrowLeft size={16} aria-hidden="true" /> Inventory
       </Link>
       <div>
-        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
+        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · Admin</p>
         <h1 className="mt-1 text-3xl">Import from Snipe-IT</h1>
         <p className="mt-1 font-ui text-sm text-ink-2">
           In Snipe-IT, export <strong>Reports → Custom Asset Report</strong> as CSV and upload it here <strong>without opening it in Excel</strong> (Excel damages serial numbers). You

@@ -2,6 +2,8 @@ import { useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { listWorkQueue } from '../api/requests';
 import RequestList, { Pager, Tabs } from '../components/RequestList';
+import useAuth from '../hooks/useAuth';
+import { roleLabel } from '../utils/roles';
 
 const TABS = [
   ['active', 'All open'],
@@ -18,8 +20,9 @@ const EMPTY = {
   resolved: 'Nothing resolved and waiting to be closed.',
 };
 
-// Engineer: tickets assigned to me. High priority first, then oldest.
+// Staff: tickets assigned to me. High priority first, then oldest.
 export default function WorkQueuePage() {
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const group = params.get('group') || 'active';
   const page = Number(params.get('page')) || 1;
@@ -33,7 +36,9 @@ export default function WorkQueuePage() {
   return (
     <section className="space-y-4">
       <div>
-        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Engineer</p>
+        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">
+          {user.company?.name} · {roleLabel(user.activeRole, user)}
+        </p>
         <h1 className="mt-1 text-3xl">My work queue</h1>
         <p className="mt-1 font-ui text-sm text-ink-2">Tickets assigned to you. High-priority ones are at the top.</p>
       </div>

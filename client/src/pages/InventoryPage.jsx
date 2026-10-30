@@ -291,7 +291,7 @@ export default function InventoryPage() {
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · {isAdmin ? 'Admin' : roleLabel(user.activeRole, user)}</p>
           <h1 className="mt-1 text-3xl">Inventory</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">
-            Every AV/IT asset, where it is and who has it.{!isAdmin && ' Read only.'}
+            Every asset of {user.company?.name || 'this company'}, where it is and who has it.{!isAdmin && ' Read only.'}
           </p>
         </div>
         {isAdmin && (

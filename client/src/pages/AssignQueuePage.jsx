@@ -7,9 +7,10 @@ import StaffOptions from '../components/StaffOptions';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import RequestList, { Pager, Tabs } from '../components/RequestList';
+import useAuth from '../hooks/useAuth';
 
 const TABS = [
-  ['unassigned', 'Waiting for an engineer'],
+  ['unassigned', 'Waiting to be assigned'],
   ['to_close', 'Resolved — ready to close'],
 ];
 
@@ -35,7 +36,7 @@ function QuickAssign({ ticket, engineers, onDone }) {
   return (
     <>
       <label className="sr-only" htmlFor={`eng-${ticket.id}`}>
-        Engineer for {ticket.number}
+        Who does {ticket.number}
       </label>
       <select
         id={`eng-${ticket.id}`}
@@ -94,6 +95,7 @@ function QuickClose({ ticket, onDone }) {
 
 // Super Admin: new tickets to assign (urgent first, then oldest) and resolved tickets to close.
 export default function AssignQueuePage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const view = params.get('view') || 'unassigned';
@@ -117,14 +119,14 @@ export default function AssignQueuePage() {
   return (
     <section className="space-y-4">
       <div>
-        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
+        <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · Admin</p>
         <h1 className="mt-1 text-3xl">Assign queue</h1>
         <p className="mt-1 font-ui text-sm text-ink-2">
-          New tickets and approved requests waiting for an engineer (high priority first, then oldest), and resolved tickets waiting for you to close.
+          New tickets and approved requests waiting for a staff member (high priority first, then oldest), and resolved tickets waiting for you to close.
         </p>
       </div>
       {notice && <Alert tone="success">{notice}</Alert>}
-      {engineers.isError && <Alert tone="error">Could not load engineers.</Alert>}
+      {engineers.isError && <Alert tone="error">Could not load the staff list.</Alert>}
       <Tabs
         tabs={TABS}
         value={view}
@@ -137,7 +139,7 @@ export default function AssignQueuePage() {
       <RequestList
         query={query}
         from={`/assign?view=${view}`}
-        emptyText={view === 'unassigned' ? 'Every ticket has an engineer.' : 'Nothing waiting to be closed.'}
+        emptyText={view === 'unassigned' ? 'Every ticket has someone on it.' : 'Nothing waiting to be closed.'}
         showEngineer={view !== 'unassigned'}
         onPriorityChanged={(fresh, message) => done(message)}
         renderActions={(t) =>

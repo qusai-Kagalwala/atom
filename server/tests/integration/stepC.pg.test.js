@@ -86,6 +86,7 @@ maybe('step C on real PostgreSQL', () => {
       get: (p) => auth(request(app).get(`/Atom/api${p}`)),
       post: (p, b = {}) => auth(request(app).post(`/Atom/api${p}`)).send(b),
       patch: (p, b = {}) => auth(request(app).patch(`/Atom/api${p}`)).send(b),
+      put: (p, b = {}) => auth(request(app).put(`/Atom/api${p}`)).send(b),
     };
   };
   const q = async (sql, params) => (await pool.query(sql, params)).rows;
@@ -219,6 +220,21 @@ maybe('step C on real PostgreSQL', () => {
     expect((await q(`SELECT changes FROM assistant_settings_log ORDER BY id DESC LIMIT 1`))[0].changes).toEqual({ assistant_SIYANAAT: { from: true, to: false } });
     await sa.patch('/assistant/companies/SIYANAAT', { enabled: true });
     expect((await aliceSiy.get('/assistant/config')).status).toBe(200);
+  });
+
+  test('"Before you start" tips are per company and edited by its Admin', async () => {
+    await pool.query(`UPDATE service_units SET assistant_guidelines = '{"en":["Never open a CPU."]}' WHERE code = 'AVIT'`);
+    await pool.query(`UPDATE service_units SET assistant_guidelines = '{}' WHERE code = 'SIYANAAT'`);
+    assistant.bust();
+    expect((await aliceSiy.get('/assistant/config')).body.guidelines).toEqual({});
+    expect((await aliceAvit.get('/assistant/config')).body.guidelines).toEqual({ en: ['Never open a CPU.'] });
+    expect((await siyAdmin.put('/assistant/guidelines', { guidelines: { ar: ['x'] } })).body.code).toBe('english_required');
+    expect((await siyAdmin.put('/assistant/guidelines', { guidelines: { fr: ['x'] } })).body.code).toBe('bad_language');
+    const saved = (await siyAdmin.put('/assistant/guidelines', { guidelines: { en: [' Switch off the MCB. ', ''], ar: [] } })).body;
+    expect(saved).toEqual({ guidelines: { en: ['Switch off the MCB.'] } });
+    expect((await aliceSiy.get('/assistant/config')).body.guidelines).toEqual({ en: ['Switch off the MCB.'] });
+    expect((await aliceAvit.get('/assistant/config')).body.guidelines).toEqual({ en: ['Never open a CPU.'] });
+    expect((await aliceSiy.put('/assistant/guidelines', { guidelines: { en: ['x'] } })).status).toBe(404);
   });
 
   test('Tanzeem: catalogue items suggested → Request page; the chat ends', async () => {

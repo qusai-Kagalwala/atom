@@ -8,7 +8,8 @@ export default function AuthLayout({ prompt, children, below }) {
         <header className="text-center">
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Aljamea-tus-Saifiyah</p>
           <h1 className="mt-2 text-4xl">ATOM</h1>
-          <p className="mt-1 font-ui text-sm text-ink-2">AVIT Ticketing &amp; Operations Manager</p>
+          <p className="mt-1 font-ui text-sm text-ink-2">Ticketing &amp; Operations Manager</p>
+          <p className="mt-0.5 font-ui text-xs text-ink-3">AVIT · Siyanaat · Tanzeem</p>
           <div className="mt-4 flex items-center justify-center gap-3 text-gold" aria-hidden="true">
             <span className="h-px w-12 bg-gold/50" />
             <span className="text-xs">◆</span>

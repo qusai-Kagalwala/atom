@@ -15,6 +15,7 @@
 //     GET  /faqs?includeInactive=1 · GET /faqs/:id · POST /faqs · PATCH /faqs/:id
 //     POST /faqs/import   multipart: file (.json), commit?, keepAtomEdits?   → report
 //     GET  /learned?includeOff=1 · PATCH /learned/:id { isActive }   saved GPT answers
+//     GET  /guidelines · PUT /guidelines { guidelines: { en: [..], … } }   "Before you start" tips
 //   Super Admin (any company or none):
 //     GET  /settings · PATCH /settings     GPT switch, model, temperature, token limits, prices
 //     GET  /usage?days=30&company=CODE      tokens, cost, sessions, unanswered questions; per company
@@ -108,6 +109,8 @@ function createAssistantRouter() {
       res.json(await faqs.importFaqFile(req.user, req.file.buffer, { commit: yes(req.body?.commit), keepAtomEdits: req.body?.keepAtomEdits !== 'false' }));
     })
   );
+  router.get('/guidelines', admin, handle(async (req, res) => res.json(await svc.getGuidelines(req.user))));
+  router.put('/guidelines', admin, handle(async (req, res) => res.json(await svc.setGuidelines(req.user, req.body || {}))));
   router.get('/learned', admin, handle(async (req, res) => res.json({ learned: await svc.listLearned(req.user, { includeOff: yes(req.query.includeOff) }) })));
   router.patch('/learned/:id', admin, handle(async (req, res) => res.json({ learned: await svc.setLearned(req.user, req.params.id, req.body || {}) })));
 
