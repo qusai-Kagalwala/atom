@@ -46,7 +46,11 @@ export function assetEventText(e) {
     case 'assigned':
       return `Assigned to ${d.to?.name}${d.from ? ` (was ${d.from.name})` : ''}`;
     case 'returned':
-      return `Returned${d.from ? ` by ${d.from.name}` : ''}${d.to ? ` to ${d.to.name}` : ''}`;
+      return `${d.offboarding ? 'Received' : 'Returned'}${d.from ? ` from ${d.from.name}` : ''}${d.to ? ` to ${d.to.name}` : ''}${d.recovered ? ' (recovered)' : ''}`;
+    case 'to_recover':
+      return `To recover — ${d.holder?.name || 'the holder'} is no longer active`;
+    case 'recover_cleared':
+      return 'No longer to recover — the holder is active again';
     case 'status':
       return `Status: ${statusLabel(d.from)} → ${statusLabel(d.to)}`;
     default:

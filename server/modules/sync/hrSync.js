@@ -14,6 +14,7 @@
 //   - source 'manual' → untouched
 //   - source 'hr' no longer in the view (HR Active = 0) → inactive (never deleted)
 // ITS people (8-digit IDs) are left to the Idarah sync.
+const onboarding = require('../inventory/onboarding.service');
 const defaultPool = require('../../db/pool');
 const { readHrView } = require('./sqlServer');
 const { buildHrPlan } = require('./hrPlan');
@@ -166,6 +167,7 @@ async function applyStaff(client, people) {
       if (await deactivatedBySync(client, u.id)) {
         await client.query('UPDATE users SET is_active = TRUE WHERE id = $1::bigint', [u.id]);
         await logStatus(client, u.id, true, 'Back in HR employee list');
+        await onboarding.clearToRecover(client, [u.id]);
         c.reactivated += 1;
       } else {
         c.keptInactive += 1;
@@ -181,7 +183,8 @@ async function applyStaff(client, people) {
     [people.map((p) => p.employeeId)]
   );
   for (const g of gone) await logStatus(client, g.id, false, 'No longer in HR employee list');
-  // Phase 10 adds: flag their assigned assets "to recover".
+  // Phase 10: what they still hold is flagged "to recover"; each company's Admins are told.
+  await onboarding.flagToRecover(client, gone.map((g) => g.id), 'No longer in HR employee list');
 
   return { ids, ...c, deactivated: gone.length };
 }

@@ -53,3 +53,9 @@ export function importInventoryFile(file, { commit = false, overwrite = false, a
   form.append('file', file);
   return http.post(`${base}/import-file`, form, { timeout: 300000 }).then((r) => r.data);
 }
+
+// Onboarding / offboarding (Phase 10, company Admin)
+export const searchInventoryPeople = (q) => http.get(`${base}/people`, { params: { q } }).then((r) => r.data.people);
+export const personEquipment = (id) => http.get(`${base}/people/${id}`).then((r) => r.data); // { person, assets }
+export const receiveFromPerson = (id, body) => http.post(`${base}/people/${id}/receive`, body).then((r) => r.data);
+export const listToRecover = () => http.get(`${base}/to-recover`).then((r) => r.data); // { people, total }

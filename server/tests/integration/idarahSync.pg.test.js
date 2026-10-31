@@ -140,16 +140,28 @@ maybe('Idarah sync + employee import on real PostgreSQL', () => {
     await sync(BASE_ROWS);
     const id = (await user('40000002')).id;
 
+    // Phase 10: a laptop they hold is flagged "to recover" when they leave, and cleared when they return.
+    const avit = (await q(`SELECT id FROM service_units WHERE code = 'AVIT'`))[0].id;
+    await q(`INSERT INTO asset_categories (name, service_unit_id) SELECT 'Sync test laptops', $1::bigint
+              WHERE NOT EXISTS (SELECT 1 FROM asset_categories WHERE name = 'Sync test laptops' AND service_unit_id = $1::bigint)`, [avit]);
+    const cat = (await q(`SELECT id FROM asset_categories WHERE name = 'Sync test laptops' AND service_unit_id = $1`, [avit]))[0].id;
+    await q(`DELETE FROM asset_events WHERE asset_id IN (SELECT id FROM assets WHERE asset_tag = 'SYNC-1')`);
+    await q(`DELETE FROM assets WHERE asset_tag = 'SYNC-1'`);
+    const asset = (await q(`INSERT INTO assets (asset_tag, category_id, status, holder_user_id, service_unit_id) VALUES ('SYNC-1', $1, 'IN_USE', $2, $3) RETURNING id`, [cat, id, avit]))[0].id;
+
     const without = BASE_ROWS.filter((r) => r.EJamaat_No !== '40000002');
     const r1 = await sync(without);
     expect(r1.summary.users.deactivated).toBe(1);
     expect((await user('40000002')).is_active).toBe(false);
+    expect((await q('SELECT to_recover_since FROM assets WHERE id = $1', [asset]))[0].to_recover_since).not.toBeNull();
+    expect((await q('SELECT type, note FROM asset_events WHERE asset_id = $1', [asset]))).toEqual([{ type: 'to_recover', note: 'No longer in Idarah view' }]);
     expect((await q('SELECT is_active FROM user_posts WHERE user_id=$1', [id]))[0].is_active).toBe(false);
 
     const r2 = await sync(BASE_ROWS);
     expect(r2.summary.users.reactivated).toBe(1);
     const back = await user('40000002');
     expect(back).toMatchObject({ id, is_active: true });
+    expect((await q('SELECT to_recover_since FROM assets WHERE id = $1', [asset]))[0].to_recover_since).toBeNull();
     expect((await q('SELECT is_active FROM user_posts WHERE user_id=$1', [id]))[0].is_active).toBe(true);
     expect((await q('SELECT is_active, reason FROM user_status_log WHERE user_id=$1 ORDER BY id', [id])).map((l) => l.is_active))
       .toEqual([true, false, true]);

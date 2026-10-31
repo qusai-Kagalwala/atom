@@ -7,6 +7,7 @@
 //   ONE transaction: refresh mirror, departments, users, posts, deactivations → log run → unlock.
 // Never deletes. Never touches users whose source is not 'idarah' (manual, legacy) except to
 // attach their posts. Never changes roles of existing users.
+const onboarding = require('../inventory/onboarding.service');
 const defaultPool = require('../../db/pool');
 const { readIdarahView } = require('./sqlServer');
 const { buildPlan, checkGuard } = require('./idarahPlan');
@@ -177,6 +178,7 @@ async function applyPeople(client, people) {
       if (await deactivatedBySync(client, u.id)) {
         await client.query('UPDATE users SET is_active = TRUE WHERE id = $1::bigint', [u.id]);
         await logStatus(client, u.id, true, 'Back in Idarah view');
+        await onboarding.clearToRecover(client, [u.id]);
         c.reactivated += 1;
       } else {
         c.keptInactive += 1;
@@ -193,7 +195,8 @@ async function applyPeople(client, people) {
     [people.map((p) => p.its)]
   );
   for (const g of gone) await logStatus(client, g.id, false, 'No longer in Idarah view');
-  // Phase 5 (assets) adds: flag their assigned assets "to recover".
+  // Phase 10: what they still hold is flagged "to recover"; each company's Admins are told.
+  await onboarding.flagToRecover(client, gone.map((g) => g.id), 'No longer in Idarah view');
 
   return { ids, ...c, deactivated: gone.length };
 }

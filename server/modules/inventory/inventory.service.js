@@ -75,6 +75,8 @@ function toSummary(a) {
     holder: a.holder,
     holderUnknown: a.holder_unknown,
     source: a.source,
+    // Phase 10: the holder was deactivated while holding it — the Admin should get it back.
+    toRecoverSince: a.to_recover_since || null,
     updatedAt: a.updated_at,
   };
 }
@@ -359,7 +361,7 @@ async function assignAsset(user, tag, { userId, note }) {
     if (!rows[0]) throw bad('Choose an active person.', 'bad_user');
     if (String(a.holder_user_id) === String(rows[0].id)) throw bad('Already assigned to this person.', 'no_change');
     await db.query(
-      `UPDATE assets SET holder_user_id = $2::bigint, holder_unknown = FALSE, status = 'IN_USE' WHERE id = $1::bigint`,
+      `UPDATE assets SET holder_user_id = $2::bigint, holder_unknown = FALSE, status = 'IN_USE', to_recover_since = NULL WHERE id = $1::bigint`,
       [a.id, rows[0].id]
     );
     await markEdited(db, a);
@@ -382,7 +384,7 @@ async function returnAsset(user, tag, { placeId, note }) {
       if (!place) throw bad('Choose a place.', 'bad_place');
     }
     await db.query(
-      `UPDATE assets SET holder_user_id = NULL, holder_unknown = FALSE, status = 'IN_STORE',
+      `UPDATE assets SET holder_user_id = NULL, holder_unknown = FALSE, status = 'IN_STORE', to_recover_since = NULL,
               place_id = COALESCE($2::bigint, place_id) WHERE id = $1::bigint`,
       [a.id, place ? place.id : null]
     );
@@ -410,7 +412,8 @@ async function setStatus(user, tag, { status, note }) {
     await db.query(
       `UPDATE assets SET status = $2::asset_status,
               holder_user_id = CASE WHEN $3::boolean THEN NULL ELSE holder_user_id END,
-              holder_unknown = CASE WHEN $3::boolean THEN FALSE ELSE holder_unknown END
+              holder_unknown = CASE WHEN $3::boolean THEN FALSE ELSE holder_unknown END,
+              to_recover_since = CASE WHEN $3::boolean THEN NULL ELSE to_recover_since END
         WHERE id = $1::bigint`,
       [a.id, status, clearHolder]
     );
@@ -571,6 +574,7 @@ module.exports = {
   inTransaction,
   markEdited,
   addEvent,
+  toSummary,
   placeDetail,
   listAssets,
   getAsset,

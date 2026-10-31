@@ -13,6 +13,7 @@
 //   - Every change is logged (status → user_status_log, everything else → user_change_log).
 //   - Role removal, deactivation and password reset drop the user's live (Socket.IO) connections
 //     after the commit; reconnecting re-runs the full session check (Phase 13).
+const onboarding = require('../inventory/onboarding.service');
 const pool = require('../../db/pool');
 const repo = require('./users.repo');
 const passwordsRepo = require('../auth/passwords.repo');
@@ -329,7 +330,10 @@ async function setStatus(id, active, reason, actor) {
     }
     await repo.setActive(db, id, active);
     await repo.logStatus(db, id, active, why, actor.id);
-    // Phase 10 adds: on deactivation, flag the user's assets "to recover".
+    // Phase 10: deactivated → their assets are flagged "to recover" (each company's Admins told);
+    // active again → the flags are cleared.
+    if (active) await onboarding.clearToRecover(db, [id]);
+    else await onboarding.flagToRecover(db, [id], why);
     return getUserDetail(id, db);
   }).then((result) => {
     if (!active) realtime.disconnectUser(id);

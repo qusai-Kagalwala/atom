@@ -22,6 +22,11 @@
 //     GET   /imports                                                              → { imports }
 //     GET   /export?q=&status=&categoryId=&attention=&room=   → .xlsx (filtered list; edit and import back)
 //     POST  /import-file  multipart: file (.xlsx from /export), commit?, overwrite?, allowNew?, skipErrors? → report
+//     Onboarding / offboarding (Phase 10):
+//     GET   /people?q=                  → { people: [{ …, held, toRecover }] }   everyone, active or not
+//     GET   /people/:id                 → { person, assets }   this company's assets they hold
+//     POST  /people/:id/receive { tags, placeId?, note? }   → { received, person, assets }   all in one go
+//     GET   /to-recover                 → { people: [{ person, since, assets }], total }
 // Out of role = 404.
 const express = require('express');
 const multer = require('multer');
@@ -30,6 +35,7 @@ const { requireAuth, requireRole, requireCompany, requireCompanyCode, requireAdm
 const { HttpError } = require('../../utils/httpError');
 const { MAX_BYTES } = require('../../utils/csv');
 const svc = require('./inventory.service');
+const onboarding = require('./onboarding.service');
 const { runSnipeitImport } = require('./snipeitImport');
 const inventoryFile = require('./inventoryFile');
 
@@ -137,6 +143,12 @@ function createInventoryRouter() {
   router.post('/assets/:tag/assign', admin, handle(async (req, res) => res.json({ asset: await svc.assignAsset(req.user, req.params.tag, req.body || {}) })));
   router.post('/assets/:tag/return', admin, handle(async (req, res) => res.json({ asset: await svc.returnAsset(req.user, req.params.tag, req.body || {}) })));
   router.post('/assets/:tag/status', admin, handle(async (req, res) => res.json({ asset: await svc.setStatus(req.user, req.params.tag, req.body || {}) })));
+
+  // Onboarding / offboarding (Phase 10): people, their equipment here, receive many, to recover.
+  router.get('/people', admin, handle(async (req, res) => res.json({ people: await onboarding.searchPeople(req.user, req.query.q) })));
+  router.get('/people/:id', admin, handle(async (req, res) => res.json(await onboarding.personEquipment(req.user, req.params.id))));
+  router.post('/people/:id/receive', admin, handle(async (req, res) => res.json(await onboarding.receive(req.user, req.params.id, req.body || {}))));
+  router.get('/to-recover', admin, handle(async (req, res) => res.json(await onboarding.toRecover(req.user))));
 
   router.post('/categories', admin, handle(async (req, res) => res.status(201).json({ category: await svc.createCategory(req.user, req.body || {}) })));
   router.patch('/categories/:id', admin, handle(async (req, res) => res.json({ category: await svc.renameCategory(req.user, req.params.id, req.body || {}) })));
