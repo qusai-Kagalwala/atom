@@ -1,6 +1,11 @@
-// Centred card on cream used by login, forgot-password and reset-password.
+import { useQuery } from '@tanstack/react-query';
+import { openCompaniesRequest } from '../api/auth';
+
+// Centred card on cream used by login, forgot-password and reset-password. The company line shows only
+// the companies the Super Admin has open.
 export default function AuthLayout({ prompt, children, below }) {
   const year = new Date().getFullYear();
+  const open = useQuery({ queryKey: ['auth', 'open-companies'], queryFn: openCompaniesRequest, staleTime: 5 * 60_000, retry: 1 });
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-4 py-10">
@@ -9,7 +14,7 @@ export default function AuthLayout({ prompt, children, below }) {
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Aljamea-tus-Saifiyah</p>
           <h1 className="mt-2 text-4xl">ATOM</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">Ticketing &amp; Operations Manager</p>
-          <p className="mt-0.5 font-ui text-xs text-ink-3">AVIT · Siyanaat · Tanzeem</p>
+          {open.data?.length > 0 && <p className="mt-0.5 font-ui text-xs text-ink-3">{open.data.map((c) => c.name).join(' · ')}</p>}
           <div className="mt-4 flex items-center justify-center gap-3 text-gold" aria-hidden="true">
             <span className="h-px w-12 bg-gold/50" />
             <span className="text-xs">◆</span>

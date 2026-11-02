@@ -32,7 +32,7 @@ async function loadSessionUser(userId, companyId = null) {
             COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
             uc.service_unit_id AS staff_company_id, sc.code AS staff_company_code, sc.name AS staff_company_name,
             uc.occupation_id, o.name AS occupation_name,
-            (SELECT json_build_object('id', s.id::text, 'code', s.code, 'name', s.name, 'assistant', s.assistant_enabled)
+            (SELECT json_build_object('id', s.id::text, 'code', s.code, 'name', s.name, 'assistant', s.assistant_enabled, 'open', s.is_open)
                FROM service_units s WHERE s.id = $2::bigint AND s.is_active) AS company
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id
@@ -46,10 +46,13 @@ async function loadSessionUser(userId, companyId = null) {
   return rows[0] || null;
 }
 
-// Companies people can choose after login (active ones, in picker order).
-async function listCompanies() {
+// Companies people can choose after login (active ones, in picker order). Closed companies (Super
+// Admin switch) are left out unless includeClosed (the Super Admin's own picker).
+async function listCompanies({ includeClosed = false } = {}) {
   const { rows } = await pool.query(
-    `SELECT id::text AS id, code, name, tagline FROM service_units WHERE is_active ORDER BY sort_order, id`
+    `SELECT id::text AS id, code, name, tagline, is_open AS "isOpen" FROM service_units
+      WHERE is_active AND ($1::boolean OR is_open) ORDER BY sort_order, id`,
+    [includeClosed]
   );
   return rows;
 }

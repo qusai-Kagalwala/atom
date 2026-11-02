@@ -42,7 +42,13 @@ function toPublicUser(row, activeRole) {
   const nameLanguage = row.name_language === 'ar' && nameArabic ? 'ar' : 'en';
   // assistantEnabled: the company's AI assistant is switched on (Super Admin, step C).
   const company = row.company
-    ? { id: String(row.company.id), code: row.company.code, name: row.company.name, assistantEnabled: row.company.assistant !== false }
+    ? {
+        id: String(row.company.id),
+        code: row.company.code,
+        name: row.company.name,
+        assistantEnabled: row.company.assistant !== false,
+        isOpen: row.company.open !== false, // false only for the Super Admin inside a closed company
+      }
     : null;
   return {
     id: String(row.id),

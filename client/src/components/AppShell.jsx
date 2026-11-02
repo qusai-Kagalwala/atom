@@ -1,8 +1,9 @@
 import { Suspense, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Building2, ChevronDown, LoaderCircle, Menu, ShieldUser, X } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronDown, EyeOff, LoaderCircle, Menu, ShieldUser, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
+import { companiesRequest } from '../api/auth';
 import useAuth from '../hooks/useAuth';
 import useLiveUpdates from '../hooks/useLiveUpdates';
 import useUnreadCount from '../hooks/useUnreadCount';
@@ -100,6 +101,10 @@ export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const sections = navSectionsForUser(user);
   const counts = useNavCounts(user);
+  // Switching company only makes sense with more than one to go to (the Super Admin always can).
+  const isSuper = user.roles.includes('SUPER_ADMIN');
+  const companies = useQuery({ queryKey: ['auth', 'companies'], queryFn: companiesRequest, enabled: !isSuper, staleTime: 5 * 60_000 });
+  const canSwitch = isSuper || (companies.data || []).filter((c) => c.roles.length).length > 1;
   const [open, setOpen] = useState(readOpen);
   const toggle = (key) =>
     setOpen((o) => {
@@ -165,17 +170,24 @@ export default function AppShell() {
               <Menu size={20} />
             </button>
             <span className="hidden font-display text-xl font-bold leading-none sm:inline lg:hidden">ATOM</span>
-            {/* The company this session works in — tap to switch (company picker). */}
-            <Link
-              to="/choose-company"
-              className="ml-1 flex min-h-tap min-w-0 items-center gap-2 rounded-btn px-2 font-ui text-sm text-white hover:bg-primary-dark"
-              title="Switch company"
-            >
-              {user.company ? <Building2 size={18} aria-hidden="true" className="shrink-0 text-gold-light" /> : <ShieldUser size={18} aria-hidden="true" className="shrink-0 text-gold-light" />}
-              <span className="truncate font-medium">{user.company ? user.company.name : 'Super Admin console'}</span>
-              <ArrowLeftRight size={14} aria-hidden="true" className="shrink-0 text-ink-on-primary" />
-              <span className="sr-only">Switch company</span>
-            </Link>
+            {/* The company this session works in — tap to switch (company picker) when there is a choice. */}
+            {canSwitch ? (
+              <Link
+                to="/choose-company"
+                className="ml-1 flex min-h-tap min-w-0 items-center gap-2 rounded-btn px-2 font-ui text-sm text-white hover:bg-primary-dark"
+                title="Switch company"
+              >
+                {user.company ? <Building2 size={18} aria-hidden="true" className="shrink-0 text-gold-light" /> : <ShieldUser size={18} aria-hidden="true" className="shrink-0 text-gold-light" />}
+                <span className="truncate font-medium">{user.company ? user.company.name : 'Super Admin console'}</span>
+                <ArrowLeftRight size={14} aria-hidden="true" className="shrink-0 text-ink-on-primary" />
+                <span className="sr-only">Switch company</span>
+              </Link>
+            ) : (
+              <span className="ml-1 flex min-h-tap min-w-0 items-center gap-2 px-2 font-ui text-sm text-white">
+                <Building2 size={18} aria-hidden="true" className="shrink-0 text-gold-light" />
+                <span className="truncate font-medium">{user.company?.name}</span>
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-1">
               <NotificationBell />
               <UserMenu />
@@ -183,6 +195,12 @@ export default function AppShell() {
           </div>
         </header>
 
+        {user.company?.isOpen === false && (
+          <p className="flex items-center gap-2 border-b border-line bg-warning-bg px-4 py-2 font-ui text-sm text-warning sm:px-6">
+            <EyeOff size={16} className="shrink-0" aria-hidden="true" />
+            {user.company.name} is closed — only the Super Admin can see it. Open it in Settings → Companies.
+          </p>
+        )}
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <Suspense
             fallback={

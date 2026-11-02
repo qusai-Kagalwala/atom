@@ -7,7 +7,10 @@ export const loginRequest = (identifier, password) =>
 
 export const switchRoleRequest = (role) => http.post('/auth/switch-role', { role }).then((r) => r.data);
 
-// Company picker (decided 28 Oct 2026): every active company with this person's roles there.
+// Before sign-in: the companies the Super Admin has open (login page subtitle).
+export const openCompaniesRequest = () => http.get('/auth/open-companies').then((r) => r.data.companies);
+// Company picker (decided 28 Oct 2026): every open company with this person's roles there (the Super
+// Admin also gets closed ones, isOpen false).
 export const companiesRequest = () => http.get('/auth/companies').then((r) => r.data.companies);
 // companyId null = no company (Super Admin console). role optional: the highest one there by default.
 export const switchCompanyRequest = (companyId, role) =>

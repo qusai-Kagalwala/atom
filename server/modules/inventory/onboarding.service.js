@@ -157,6 +157,7 @@ async function flagToRecover(db, userIds, reason) {
     [ids]
   );
   if (!rows.length) return [];
+  rows.sort((x, y) => x.asset_tag.localeCompare(y.asset_tag, 'en', { numeric: true }));
   for (const a of rows) await addEvent(db, a.id, 'to_recover', null, { note: reason || null, data: { holder: { id: String(a.holder_user_id), name: a.holder_name } } });
 
   const groups = new Map(); // company:person → tags

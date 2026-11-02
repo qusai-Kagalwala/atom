@@ -70,7 +70,8 @@ async function login({ identifier, password, preferredRole, companyId: askedComp
   if (!user || !user.is_active) throw new AuthError(403, MSG.inactive, 'inactive');
   if (!user.roles.length) throw new AuthError(403, MSG.noRole, 'no_role');
 
-  const companies = await repo.listCompanies();
+  // Closed companies are not offered (the Super Admin still sees them).
+  const companies = await repo.listCompanies({ includeClosed: (user.roles || []).includes('SUPER_ADMIN') });
   let companyId = askedCompany && companies.some((c) => c.id === String(askedCompany)) ? String(askedCompany) : null;
   if (companyId && !rolesIn(user, companyId).length) companyId = null;
   companyId = companyId || defaultCompanyId(user, companies);

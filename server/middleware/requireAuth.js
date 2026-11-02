@@ -52,6 +52,11 @@ async function checkSession(token) {
   if (!row || !row.is_active || String(row.id) !== session.userId) return { code: 'removed' };
   if ((Number(row.session_version) || 0) !== session.version) return { code: 'password_changed' };
   if (!row.roles.includes(session.role)) return { code: 'role_changed' };
+  // A company the Super Admin has closed: everyone else is treated as being in no company, so company
+  // routes answer 409 choose_company and the app goes back to the company picker.
+  if (row.company && row.company.open === false && !row.roles.includes('SUPER_ADMIN')) {
+    return { user: toPublicUser({ ...row, company: null }, session.role), sessionVersion: session.version };
+  }
   // In a company: it must still be active and the role still allowed there (Admin / Staff: own company).
   if (session.companyId && (!row.company || !rolesIn(row, session.companyId).includes(session.role))) {
     return { code: 'company_changed' };

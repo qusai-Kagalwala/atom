@@ -87,8 +87,9 @@ function createFakeUsers() {
       };
     }
 
-    if (text.includes('FROM service_units WHERE is_active ORDER BY sort_order')) {
-      return { rows: COMPANIES.filter((c) => c.is_active).map(({ is_active, ...c }) => c) }; // eslint-disable-line no-unused-vars
+    // listCompanies (closed companies: none in these tests — all open).
+    if (text.includes('FROM service_units') && text.includes('WHERE is_active AND ($1::boolean OR is_open)')) {
+      return { rows: COMPANIES.filter((c) => c.is_active).map(({ is_active, ...c }) => ({ ...c, isOpen: true })) }; // eslint-disable-line no-unused-vars
     }
 
     if (text.startsWith('UPDATE users SET name_language')) {

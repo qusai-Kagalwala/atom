@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { LoaderCircle, Mail, Save, Timer } from 'lucide-react';
-import { getSettings, saveTimeFrames, setEmailEnabled } from '../api/settings';
+import { Building2, LoaderCircle, Mail, Save, Timer } from 'lucide-react';
+import { getSettings, listCompanySettings, saveTimeFrames, setCompanyOpen, setEmailEnabled } from '../api/settings';
 import { errorMessage } from '../api/http';
 import { Alert, TextInput } from '../components/FormControls';
 import { priorityLabel } from '../utils/requests';
@@ -125,7 +125,72 @@ function Email({ email, onChanged }) {
   );
 }
 
-// Super Admin: time frames per priority and email notifications.
+// Which companies people can open. Closed: hidden from the login page, the company picker and every
+// company list for everyone but the Super Admin (its Admins and Staff too). Nothing is deleted.
+function Companies() {
+  const queryClient = useQueryClient();
+  const q = useQuery({ queryKey: ['settings', 'companies'], queryFn: listCompanySettings });
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const openCount = (q.data || []).filter((c) => c.isOpen).length;
+
+  async function toggle(c) {
+    setBusy(c.code);
+    setError('');
+    try {
+      queryClient.setQueryData(['settings', 'companies'], await setCompanyOpen(c.code, !c.isOpen));
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+    } catch (err) {
+      setError(errorMessage(err, 'Could not change it.'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div>
+        <h2 className="flex items-center gap-2 text-xl">
+          <Building2 size={20} className="text-primary" aria-hidden="true" /> Companies
+        </h2>
+        <p className="mt-1 font-ui text-sm text-ink-2">
+          Closed companies disappear from the login page and the company picker for everyone except you — their Admins and Staff too. Nothing is deleted;
+          opening it again brings everything back. At least one stays open.
+        </p>
+      </div>
+      {error && <Alert tone="error">{error}</Alert>}
+      {q.isPending && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
+      {q.isError && <Alert tone="error">Could not load the companies.</Alert>}
+      <ul className="divide-y divide-line font-ui text-sm">
+        {(q.data || []).map((c) => (
+          <li key={c.code} className="flex flex-wrap items-center gap-3 py-3">
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium text-ink">{c.name}</span>
+              <span className="block text-xs text-ink-3">
+                {c.tagline}
+                {c.lastChange && ` · ${c.isOpen ? 'opened' : 'closed'} by ${c.lastChange.by}, ${formatDateTime(c.lastChange.at)}`}
+              </span>
+            </span>
+            <label className="flex min-h-tap items-center gap-2">
+              <input
+                type="checkbox"
+                role="switch"
+                className="h-5 w-5 accent-primary"
+                checked={c.isOpen}
+                disabled={Boolean(busy) || (c.isOpen && openCount <= 1)}
+                onChange={() => toggle(c)}
+                aria-label={`${c.name} open`}
+              />
+              <span className={c.isOpen ? 'text-success' : 'text-ink-3'}>{c.isOpen ? 'Open' : 'Closed'}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Super Admin: companies, time frames per priority and email notifications.
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const q = useQuery({ queryKey: ['settings'], queryFn: getSettings });
@@ -143,6 +208,7 @@ export default function SettingsPage() {
       {q.isError && <Alert tone="error">Could not load settings.</Alert>}
       {q.data && (
         <>
+          <Companies />
           <TimeFrames key={q.data.timeFrames.map((f) => f.updatedAt).join()} frames={q.data.timeFrames} onSaved={refresh} />
           <Email email={q.data.email} onChanged={refresh} />
         </>

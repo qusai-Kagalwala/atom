@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Building2, LoaderCircle, LogOut, MonitorSmartphone, PackageOpen, ShieldUser, Wrench } from 'lucide-react';
@@ -41,6 +41,16 @@ export default function ChooseCompanyPage() {
 
   const usable = (companies.data || []).filter((c) => c.roles.length);
 
+  // Only one company to go to (the Super Admin closed the others, or they work in one): go straight in.
+  // The Super Admin always sees the picker (closed companies, the console).
+  const auto = useRef(false);
+  const single = companies.isSuccess && !isSuper && usable.length === 1 ? usable[0] : null;
+  useEffect(() => {
+    if (!single || auto.current) return;
+    auto.current = true;
+    open(single, single.id);
+  }, [single]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="flex min-h-screen flex-col items-center bg-cream px-4 py-10">
       <header className="text-center">
@@ -72,7 +82,12 @@ export default function ChooseCompanyPage() {
           <Alert tone="warning">Your account has no access to any company yet. Please contact your Admin.</Alert>
         )}
 
-        <ul className="grid gap-4 sm:grid-cols-3">
+        {single && !error && (
+          <p className="flex items-center justify-center gap-2 font-ui text-sm text-ink-2">
+            <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Opening {single.name}…
+          </p>
+        )}
+        <ul className={`grid gap-4 ${single ? 'hidden' : usable.length >= 3 ? 'sm:grid-cols-3' : usable.length === 2 ? 'sm:grid-cols-2' : 'mx-auto max-w-sm'}`}>
           {usable.map((c) => {
             const Icon = ICONS[c.code] || Building2;
             const isLast = last ? last === c.id : false;
@@ -92,7 +107,10 @@ export default function ChooseCompanyPage() {
                     <span className="flex h-12 w-12 items-center justify-center rounded-card bg-primary-tint text-primary">
                       <Icon size={24} aria-hidden="true" />
                     </span>
-                    {isLast && <span className="badge bg-gold-muted text-gold-dark">Last used</span>}
+                    <span className="flex flex-wrap justify-end gap-1">
+                      {c.isOpen === false && <span className="status-closed">Closed</span>}
+                      {isLast && <span className="badge bg-gold-muted text-gold-dark">Last used</span>}
+                    </span>
                   </span>
                   <span className="mt-4 font-display text-2xl leading-tight text-ink">{c.name}</span>
                   {c.tagline && <span className="mt-1 flex-1 font-ui text-sm text-ink-2">{c.tagline}</span>}

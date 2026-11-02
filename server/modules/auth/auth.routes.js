@@ -1,7 +1,9 @@
 // /Atom/api/auth/*
 //   POST /login            { identifier, password, role?, companyId? } → { token, user }
 //   GET  /me                                                    → { user }
-//   GET  /companies                                             → { companies: [{ id, code, name, tagline, roles }] }
+//   GET  /open-companies   (public)                             → { companies: [{ code, name }] }   open companies only
+//   GET  /companies                                             → { companies: [{ id, code, name, tagline, isOpen, roles }] }
+//                          (closed companies only for the Super Admin)
 //   POST /switch           { companyId | null, role? }          → { token, user }   company picker
 //                          (null = no company: Super Admin console only)
 //   POST /switch-role      { role }                             → { token, user }   same company
@@ -82,11 +84,22 @@ function createAuthRouter() {
   // ---------- Session ----------
   router.get('/me', requireAuth, (req, res) => res.json({ user: req.user }));
 
-  // Company picker: every active company, with the roles this person has there.
+  // Before sign-in: the open companies' names (login page subtitle).
+  router.get('/open-companies', async (req, res, next) => {
+    try {
+      return res.json({ companies: (await listCompanies()).map(({ code, name }) => ({ code, name })) });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // Company picker: every open company (the Super Admin also sees closed ones), with the roles this
+  // person has there.
   router.get('/companies', requireAuth, async (req, res, next) => {
     try {
       const row = await loadSessionUser(req.user.id);
-      const companies = (await listCompanies()).map((c) => ({ ...c, roles: rolesIn(row, c.id) }));
+      const isSuper = row.roles.includes('SUPER_ADMIN');
+      const companies = (await listCompanies({ includeClosed: isSuper })).map((c) => ({ ...c, roles: rolesIn(row, c.id) }));
       return res.json({ companies });
     } catch (err) {
       return next(err);
@@ -105,6 +118,8 @@ function createAuthRouter() {
         const companyId = req.body.companyId ? String(req.body.companyId) : null;
         const row = await loadSessionUser(req.user.id, companyId);
         if (companyId && !row.company) return res.status(404).json({ message: 'Not found.' });
+        // Closed by the Super Admin: only the Super Admin may still enter.
+        if (companyId && row.company.open === false && !row.roles.includes('SUPER_ADMIN')) return res.status(404).json({ message: 'Not found.' });
         const allowed = rolesIn(row, companyId);
         if (!allowed.length) return res.status(403).json({ message: 'You have no access to this company.', code: 'no_company_access' });
         if (req.body.role && !allowed.includes(req.body.role)) {
