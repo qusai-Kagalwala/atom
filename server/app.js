@@ -19,6 +19,15 @@ const { createStaffRouter } = require('./modules/staff/staff.routes');
 const { createProblemsRouter } = require('./modules/problems/problems.routes');
 const { HttpError } = require('./utils/httpError');
 
+const behindIis = () => Boolean(process.env.IISNODE_VERSION);
+const IIS_OWNED = {
+  contentSecurityPolicy: false,
+  strictTransportSecurity: false,
+  xContentTypeOptions: false,
+  xFrameOptions: false,
+  referrerPolicy: false,
+};
+
 function createApp() {
   const app = express();
 
@@ -26,7 +35,9 @@ function createApp() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
-  app.use(helmet());
+  // Behind IIS (iisnode), web.config sets CSP, HSTS, nosniff, X-Frame-Options and Referrer-Policy for
+  // every response, so Express leaves those out (no header twice). Elsewhere (dev, tests) helmet sets all.
+  app.use(helmet(behindIis() ? IIS_OWNED : {}));
   app.use(express.json({ limit: '1mb' }));
 
   const api = express.Router();
