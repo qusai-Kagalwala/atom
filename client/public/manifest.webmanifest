@@ -1,0 +1,22 @@
+{
+  "id": "/Atom/",
+  "name": "ATOM — Ticketing & Operations Manager",
+  "short_name": "ATOM",
+  "description": "Raise and follow tickets and requests at Aljamea-tus-Saifiyah.",
+  "start_url": "/Atom/",
+  "scope": "/Atom/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FAF7F2",
+  "theme_color": "#0F5B5A",
+  "lang": "en",
+  "icons": [
+    { "src": "/Atom/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/Atom/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/Atom/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Raise a ticket", "url": "/Atom/tickets/new", "icons": [{ "src": "/Atom/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "My tickets & requests", "url": "/Atom/track", "icons": [{ "src": "/Atom/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

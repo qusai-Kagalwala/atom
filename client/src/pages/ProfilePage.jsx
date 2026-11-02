@@ -4,6 +4,7 @@ import { Check, KeyRound, LoaderCircle } from 'lucide-react';
 import { changePasswordRequest, updatePreferencesRequest } from '../api/auth';
 import { errorMessage } from '../api/http';
 import { Alert, Field, PasswordInput } from '../components/FormControls';
+import DeviceCard from '../components/DeviceCard';
 import UserName from '../components/UserName';
 import useAuth from '../hooks/useAuth';
 import { MIN_PASSWORD, newPasswordErrors } from '../utils/passwordRules';
@@ -212,6 +213,8 @@ export default function ProfilePage() {
       </section>
 
       {user.nameArabic && <NameLanguageCard user={user} />}
+
+      <DeviceCard />
 
       {isIts ? (
         <Alert tone="info">Your password is managed by eJamaat. Change or reset it there.</Alert>

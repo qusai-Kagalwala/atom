@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0F5B5A" />
+  <title>ATOM — offline</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #FAF7F2;
+           font-family: Inter, Helvetica, Arial, sans-serif; color: #1A1A1A; padding: 16px; box-sizing: border-box; }
+    .card { max-width: 360px; width: 100%; background: #fff; border: 1px solid #E0D6C8; border-radius: 12px; padding: 24px; text-align: center; }
+    h1 { font-family: Georgia, serif; color: #3B2A1A; margin: 12px 0 4px; font-size: 28px; }
+    p { color: #5B5B5B; font-size: 14px; line-height: 1.5; }
+    button { margin-top: 12px; min-height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #0F5B5A; color: #fff; font-size: 14px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/Atom/icons/icon-192.png" alt="" width="64" height="64" />
+    <h1>You're offline</h1>
+    <p>ATOM needs the internet to load your tickets. Check Wi-Fi or mobile data, then try again.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

@@ -67,6 +67,12 @@ const config = {
     from: env.SMTP_FROM || env.SMTP_USER || '',
   },
   passwordResetMinutes: 30,
+  // Web Push (Phase 14). Keys from `npm run vapid`; the subject is a mailto: or https: contact.
+  vapid: {
+    publicKey: env.VAPID_PUBLIC_KEY || '',
+    privateKey: env.VAPID_PRIVATE_KEY || '',
+    subject: env.VAPID_SUBJECT || '',
+  },
   // AI assistant (Phase 12). Model, temperature, on/off and token limits are Super Admin settings
   // in the database; only the key and the timeout live here.
   openai: {

@@ -1,8 +1,8 @@
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCheck, LoaderCircle } from 'lucide-react';
-import { useState } from 'react';
-import { listNotifications, markAllNotificationsRead } from '../api/notifications';
+import { useEffect, useRef, useState } from 'react';
+import { listNotifications, markAllNotificationsRead, openNotificationById } from '../api/notifications';
 import { Alert } from '../components/FormControls';
 import NotificationItem from '../components/NotificationItem';
 import { Pager, Tabs } from '../components/RequestList';
@@ -15,6 +15,50 @@ const TABS = [
   ['unread', 'Unread'],
 ];
 const PAGE_SIZE = 20;
+const BASE = import.meta.env.BASE_URL;
+
+// A push tapped on the phone opens /notifications?open=<id>. The notification may be for another
+// company or role (e.g. the Admin queue while you are in Employee): switch there first, then open it.
+function useOpenFromPush(id) {
+  const { user, switchCompany } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const done = useRef(null);
+  const [state, setState] = useState(id ? 'opening' : null);
+
+  useEffect(() => {
+    if (!id || done.current === id) return;
+    done.current = id;
+    (async () => {
+      let n;
+      try {
+        n = await openNotificationById(id);
+      } catch {
+        setState('missing');
+        navigate('/notifications', { replace: true });
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      const link = n.link || '/notifications';
+      const wrongCompany = n.company ? n.company.id !== user.companyId : n.role === 'SUPER_ADMIN' && Boolean(user.companyId);
+      const wrongRole = Boolean(n.role) && n.role !== user.activeRole;
+      if (wrongCompany || wrongRole) {
+        try {
+          await switchCompany(n.company ? { id: n.company.id } : null, `${BASE}${link.replace(/^\//, '')}`, n.role || null); // full reload
+          return;
+        } catch {
+          setState('switch-failed');
+          navigate('/notifications', { replace: true });
+          return;
+        }
+      }
+      setState(null);
+      navigate(link, { replace: true });
+    })();
+  }, [id, navigate, queryClient, switchCompany, user.activeRole, user.companyId]);
+
+  return state;
+}
 
 // Everything for the active role (plus updates on your own tickets, which show in every role).
 export default function NotificationsPage() {
@@ -26,6 +70,7 @@ export default function NotificationsPage() {
   const openNotification = useOpenNotification();
   const [marking, setMarking] = useState(false);
   const [error, setError] = useState('');
+  const pushState = useOpenFromPush(params.get('open'));
 
   const query = useQuery({
     queryKey: ['notifications', 'page', view, page],
@@ -67,6 +112,13 @@ export default function NotificationsPage() {
       </div>
 
       {error && <Alert tone="error">{error}</Alert>}
+      {pushState === 'opening' && (
+        <p className="flex items-center gap-2 font-ui text-sm text-ink-2">
+          <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Opening…
+        </p>
+      )}
+      {pushState === 'missing' && <Alert tone="info">That notification is no longer available.</Alert>}
+      {pushState === 'switch-failed' && <Alert tone="error">You no longer have access to where that notification points.</Alert>}
       <Tabs tabs={TABS} value={view} onChange={(v) => setParams(v === 'all' ? {} : { view: v })} counts={{ unread }} />
 
       {query.isPending && (

@@ -4,6 +4,8 @@
 //   GET  /unread-count                 → { unread }
 //   POST /:id/read                     → { unread }
 //   POST /read-all                     → { unread: 0 }
+//   POST /:id/open                     → { notification }   a push tapped on the phone: own row, ANY role /
+//                                         company (so the app can switch there), marked read
 const express = require('express');
 const { query, validationResult } = require('express-validator');
 const { requireAuth } = require('../../middleware/requireAuth');
@@ -40,6 +42,15 @@ function createNotificationsRouter() {
   router.get('/unread-count', handle(async (req, res) => res.json(await svc.unreadCount(req.user))));
 
   router.post('/read-all', handle(async (req, res) => res.json(await svc.markAllRead(req.user))));
+
+  router.post(
+    '/:id/open',
+    handle(async (req, res) => {
+      const notification = await svc.openOwn(req.user, req.params.id);
+      if (!notification) return res.status(404).json({ message: 'Not found.' });
+      return res.json({ notification });
+    })
+  );
 
   router.post(
     '/:id/read',

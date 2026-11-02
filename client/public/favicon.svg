@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0F5B5A"/>
+  <!-- "A" made of two strokes and a crossbar, with a gold diamond: the ATOM mark -->
+  <path d="M256 104 L384 400 H330 L256 222 L182 400 H128 Z" fill="#FAF7F2"/>
+  <rect x="196" y="300" width="120" height="40" rx="6" fill="#FAF7F2"/>
+  <path d="M256 418 L276 438 L256 458 L236 438 Z" fill="#C9A84C"/>
+</svg>

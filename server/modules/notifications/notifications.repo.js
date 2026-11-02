@@ -82,6 +82,17 @@ async function markRead(user, id, db = pool) {
   return rows.length === 1;
 }
 
+// A push tapped on the phone (Phase 14): the person's own notification, whatever role / company it
+// is for, so the app can switch there. Marked read. → row or null.
+async function openOwn(user, id, db = pool) {
+  if (!/^\d{1,18}$/.test(String(id))) return null;
+  const { rows } = await db.query(
+    `UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = $2::bigint AND user_id = $1::bigint RETURNING ${COLUMNS}`,
+    [user.id, id]
+  );
+  return rows[0] || null;
+}
+
 async function markAllRead(user, db = pool) {
   const { rowCount } = await db.query(
     `UPDATE notifications SET read_at = now() WHERE ${VISIBLE} AND read_at IS NULL`,
@@ -90,4 +101,4 @@ async function markAllRead(user, db = pool) {
   return rowCount;
 }
 
-module.exports = { insertForUser, insertForRole, list, unreadCount, markRead, markAllRead };
+module.exports = { insertForUser, insertForRole, list, unreadCount, markRead, markAllRead, openOwn };

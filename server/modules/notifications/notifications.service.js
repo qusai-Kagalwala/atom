@@ -17,6 +17,7 @@
 //                       anyone else wrote it:   the requester (+ the engineer if someone else wrote it)
 //   internal note     → the engineer, when someone else wrote it. Never the requester.
 // The person who caused the event is never notified. One row per person per event.
+const push = require('../push/push.service');
 const repo = require('./notifications.repo');
 const email = require('./email');
 const realtime = require('../../realtime');
@@ -179,6 +180,8 @@ function toPublic(row) {
 // After COMMIT: push each new row to its recipient, then tell everyone involved that the ticket
 // changed so open lists and sidebar counts refresh. Never throws (the change is already saved).
 function publish(rows, ticket, extraUserIds = []) {
+  // Phones / closed browsers too (Web Push, Phase 14) — in the background, never throws.
+  if (rows?.length) push.sendForRows(rows).catch(() => {});
   try {
     for (const row of rows) {
       const payload = toPublic(row);
@@ -213,9 +216,15 @@ async function markRead(user, id) {
   return ok ? { unread: await repo.unreadCount(user) } : null;
 }
 
+// Push tapped: the person's own notification (any role / company), marked read. → public row or null.
+async function openOwn(user, id) {
+  const row = await repo.openOwn(user, id);
+  return row ? toPublic(row) : null;
+}
+
 async function markAllRead(user) {
   await repo.markAllRead(user);
   return { unread: 0 };
 }
 
-module.exports = { planTicket, recordTicketEvent, publish, toPublic, ticketNumber, list, unreadCount, markRead, markAllRead };
+module.exports = { planTicket, recordTicketEvent, publish, toPublic, ticketNumber, list, unreadCount, markRead, markAllRead, openOwn };

@@ -6,6 +6,10 @@ import queryClient from './api/queryClient';
 import AuthProvider from './auth/AuthProvider';
 import App from './App';
 import './index.css';
+import { startPwa } from './pwa';
+
+// Installable app: service worker (built app only), install prompt, update banner.
+startPwa();
 
 // '/Atom/' → '/Atom' for React Router.
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '');

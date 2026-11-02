@@ -2,6 +2,8 @@
 //   GET   /                      → { timeFrames, email: { emailEnabled, smtpConfigured, counts, emails } }
 //   PATCH /time-frames  { targets: [{ priority, minMinutes, maxMinutes }] } → { timeFrames }
 //   PATCH /email        { enabled: boolean }                              → { email }
+//   GET   /push                          → { pushEnabled, keysConfigured, devices, people }
+//   PATCH /push        { enabled: boolean }                              → same   (Web Push, Phase 14)
 //   GET   /companies                     → { companies: [{ id, code, name, isOpen }] }
 //   PATCH /companies/:code { isOpen }    → { companies }   open / close a company (at least one stays open)
 const express = require('express');
@@ -10,6 +12,7 @@ const { HttpError } = require('../../utils/httpError');
 const timeFrames = require('../requests/timeFrames');
 const email = require('../notifications/email');
 const companies = require('./companies.service');
+const push = require('../push/push.service');
 
 const handle = (fn) => async (req, res, next) => {
   try {
@@ -34,6 +37,8 @@ function createSettingsRouter() {
       res.json({ email: await email.setEnabled(req.user, req.body.enabled) });
     })
   );
+  router.get('/push', handle(async (req, res) => res.json(await push.getSettings())));
+  router.patch('/push', handle(async (req, res) => res.json(await push.setEnabled(req.user, req.body?.enabled))));
   router.get('/companies', handle(async (req, res) => res.json({ companies: await companies.list() })));
   router.patch('/companies/:code', handle(async (req, res) => res.json({ companies: await companies.setOpen(req.user, req.params.code, req.body || {}) })));
   return router;

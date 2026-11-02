@@ -4,3 +4,5 @@ export const listNotifications = (params) => http.get('/notifications', { params
 export const unreadNotifications = () => http.get('/notifications/unread-count').then((r) => r.data.unread);
 export const markNotificationRead = (id) => http.post(`/notifications/${id}/read`).then((r) => r.data.unread);
 export const markAllNotificationsRead = () => http.post('/notifications/read-all').then((r) => r.data.unread);
+// A push tapped on the phone: your own notification (any role / company), marked read.
+export const openNotificationById = (id) => http.post(`/notifications/${id}/open`).then((r) => r.data.notification);

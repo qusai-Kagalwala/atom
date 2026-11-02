@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, LoaderCircle, Mail, Save, Timer } from 'lucide-react';
-import { getSettings, listCompanySettings, saveTimeFrames, setCompanyOpen, setEmailEnabled } from '../api/settings';
+import { BellRing, Building2, LoaderCircle, Mail, Save, Timer } from 'lucide-react';
+import { getPushSettings, getSettings, listCompanySettings, saveTimeFrames, setCompanyOpen, setEmailEnabled, setPushEnabled } from '../api/settings';
 import { errorMessage } from '../api/http';
 import { Alert, TextInput } from '../components/FormControls';
 import { priorityLabel } from '../utils/requests';
@@ -125,6 +125,56 @@ function Email({ email, onChanged }) {
   );
 }
 
+// Web Push (Phase 14): every notification also goes to the phones / browsers people switched on in
+// Profile → This device. Needs the VAPID keys in the server .env (cd server && npm run vapid).
+function Push() {
+  const queryClient = useQueryClient();
+  const q = useQuery({ queryKey: ['settings', 'push'], queryFn: getPushSettings });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function toggle(on) {
+    setBusy(true);
+    setError('');
+    try {
+      queryClient.setQueryData(['settings', 'push'], await setPushEnabled(on));
+    } catch (err) {
+      setError(errorMessage(err, 'Could not change it.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const p = q.data;
+  return (
+    <section className="card space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-xl">
+            <BellRing size={20} aria-hidden="true" /> Phone notifications
+          </h2>
+          <p className="font-ui text-sm text-ink-2">Notifications also pop up on phones and computers where people turned them on (Profile → This device).</p>
+        </div>
+        {p && (
+          <label className="flex min-h-tap items-center gap-2 font-ui text-sm font-medium">
+            <input type="checkbox" role="switch" checked={p.pushEnabled} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-primary" />
+            {p.pushEnabled ? 'Push is on' : 'Push is off'}
+          </label>
+        )}
+      </div>
+      {q.isPending && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
+      {q.isError && <Alert tone="error">Could not load push settings.</Alert>}
+      {error && <Alert tone="error">{error}</Alert>}
+      {p && !p.keysConfigured && (
+        <Alert tone="info">VAPID keys are not set in the server .env (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT). Create them with “npm run vapid” in the server folder. Nothing is sent until they are set.</Alert>
+      )}
+      {p && (
+        <p className="font-ui text-sm text-ink-2">
+          {p.devices} {p.devices === 1 ? 'device' : 'devices'} · {p.people} {p.people === 1 ? 'person' : 'people'}
+        </p>
+      )}
+    </section>
+  );
+}
+
 // Which companies people can open. Closed: hidden from the login page, the company picker and every
 // company list for everyone but the Super Admin (its Admins and Staff too). Nothing is deleted.
 function Companies() {
@@ -211,6 +261,7 @@ export default function SettingsPage() {
           <Companies />
           <TimeFrames key={q.data.timeFrames.map((f) => f.updatedAt).join()} frames={q.data.timeFrames} onSaved={refresh} />
           <Email email={q.data.email} onChanged={refresh} />
+          <Push />
         </>
       )}
     </section>

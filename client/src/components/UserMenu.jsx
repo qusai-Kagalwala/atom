@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftRight, Check, ChevronDown, LoaderCircle, LogOut, Repeat, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronDown, Download, LoaderCircle, LogOut, Repeat, UserRound } from 'lucide-react';
 import { errorMessage } from '../api/http';
 import useAuth from '../hooks/useAuth';
+import usePwa from '../hooks/usePwa';
+import { promptInstall } from '../pwa';
 import UserName from './UserName';
 import { initials, roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
 
@@ -10,6 +12,7 @@ import { initials, roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
 // company, and sign out. Staff show their occupation ("Carpenter") instead of "Staff".
 export default function UserMenu() {
   const { user, switchRole, logout } = useAuth();
+  const { canInstall } = usePwa();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(null);
   const [error, setError] = useState('');
@@ -120,6 +123,20 @@ export default function UserMenu() {
           >
             <UserRound size={18} aria-hidden="true" className="text-ink-2" /> My profile
           </Link>
+
+          {canInstall && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                promptInstall();
+              }}
+              className="flex min-h-tap w-full items-center gap-2 border-b border-line px-4 hover:bg-gold-muted"
+            >
+              <Download size={18} aria-hidden="true" className="text-ink-2" /> Install app
+            </button>
+          )}
 
           <button
             type="button"

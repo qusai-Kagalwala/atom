@@ -14,6 +14,7 @@ const { createInventoryRouter } = require('./modules/inventory/inventory.routes'
 const { createAssistantRouter } = require('./modules/assistant/assistant.routes');
 const { createSettingsRouter } = require('./modules/settings/settings.routes');
 const { createAnalyticsRouter, createReportsRouter } = require('./modules/reports/reports.routes');
+const { createPushRouter } = require('./modules/push/push.routes');
 const { createStaffRouter } = require('./modules/staff/staff.routes');
 const { createProblemsRouter } = require('./modules/problems/problems.routes');
 const { HttpError } = require('./utils/httpError');
@@ -41,6 +42,7 @@ function createApp() {
   api.use('/assistant', createAssistantRouter());
   api.use('/settings', createSettingsRouter());
   api.use('/analytics', createAnalyticsRouter());
+  api.use('/push', createPushRouter());
   api.use('/reports', createReportsRouter());
   api.use('/staff', createStaffRouter());
   api.use('/problems', createProblemsRouter());

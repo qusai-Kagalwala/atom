@@ -1,11 +1,13 @@
 import { Suspense, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Building2, ChevronDown, EyeOff, LoaderCircle, Menu, ShieldUser, X } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronDown, EyeOff, LoaderCircle, Menu, RefreshCw, ShieldUser, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
 import { companiesRequest } from '../api/auth';
 import useAuth from '../hooks/useAuth';
 import useLiveUpdates from '../hooks/useLiveUpdates';
+import usePwa from '../hooks/usePwa';
+import { applyUpdate } from '../pwa';
 import useUnreadCount from '../hooks/useUnreadCount';
 import NotificationBell from './NotificationBell';
 import Toasts from './Toasts';
@@ -99,6 +101,7 @@ function SideNav({ sections, counts, onNavigate, open, onToggle }) {
 export default function AppShell() {
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { updateReady } = usePwa();
   const sections = navSectionsForUser(user);
   const counts = useNavCounts(user);
   // Switching company only makes sense with more than one to go to (the Super Admin always can).
@@ -195,6 +198,14 @@ export default function AppShell() {
           </div>
         </header>
 
+        {updateReady && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-primary-tint px-4 py-2 font-ui text-sm text-primary sm:px-6">
+            <span>A new version of ATOM is ready.</span>
+            <button type="button" onClick={applyUpdate} className="flex min-h-tap items-center gap-1.5 font-medium hover:underline">
+              <RefreshCw size={16} aria-hidden="true" /> Reload
+            </button>
+          </p>
+        )}
         {user.company?.isOpen === false && (
           <p className="flex items-center gap-2 border-b border-line bg-warning-bg px-4 py-2 font-ui text-sm text-warning sm:px-6">
             <EyeOff size={16} className="shrink-0" aria-hidden="true" />
