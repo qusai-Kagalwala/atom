@@ -136,7 +136,7 @@ function CompanyAdmins({ company }) {
         {list.map((u) => (
           <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <span>
-              <Link to={`/users/${u.id}`} className="font-medium text-primary hover:underline">
+              <Link to={`/users/${u.id}`} className="inline-flex min-h-tap items-center font-medium text-primary hover:underline">
                 {u.name}
               </Link>
               {!u.isActive && <span className="status-closed ml-2">Inactive</span>}

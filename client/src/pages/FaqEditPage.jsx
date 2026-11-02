@@ -248,7 +248,7 @@ export default function FaqEditPage() {
   const faq = useQuery({ queryKey: ['assistant', 'faq', id], queryFn: () => getFaq(id), enabled: !isNew });
   return (
     <section className="mx-auto max-w-3xl space-y-4">
-      <Link to="/faqs" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/faqs" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> FAQs
       </Link>
       <h1 className="text-3xl">{isNew ? 'Add an FAQ' : faq.data ? `${faq.data.item} · ${faq.data.subItem}` : 'FAQ'}</h1>

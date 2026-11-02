@@ -200,7 +200,7 @@ export default function AssetPage() {
   if (query.isError) {
     return (
       <div className="space-y-4">
-        <Link to={back} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to={back} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> Inventory
         </Link>
         <Alert tone="error">{errorMessage(query.error, 'Could not load this asset.')}</Alert>
@@ -214,7 +214,7 @@ export default function AssetPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to={back} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to={back} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> Inventory
       </Link>
       {notice && <Alert tone="success">{notice}</Alert>}

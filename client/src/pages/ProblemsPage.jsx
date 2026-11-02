@@ -165,7 +165,7 @@ export default function ProblemsPage() {
               </span>
             </span>
           </label>
-          <label className="flex items-center gap-3 font-ui text-sm text-ink-2">
+          <label className="flex min-h-tap items-center gap-3 font-ui text-sm text-ink-2">
             <input type="checkbox" className="h-4 w-4 accent-primary" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />
             Show switched-off rows
           </label>

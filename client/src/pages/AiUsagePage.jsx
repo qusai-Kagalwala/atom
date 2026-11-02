@@ -152,7 +152,32 @@ function Companies({ list, days }) {
         </p>
       </div>
       {error && <Alert tone="error">{error}</Alert>}
-      <div className="overflow-x-auto">
+      {/* Phones: one card per company. */}
+      <ul className="divide-y divide-line font-ui text-sm sm:hidden">
+        {list.map((c) => (
+          <li key={c.code} className="flex items-center gap-3 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium text-ink">{c.name}</span>
+              <span className="block text-xs text-ink-3">
+                {c.sessions} chats · {c.solved} solved · {c.calls} GPT · {usd(c.costUsd)}
+              </span>
+            </span>
+            <label className="flex min-h-tap items-center gap-2">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={c.assistantEnabled}
+                disabled={busy === c.code}
+                onChange={(e) => toggle(c.code, e.target.checked)}
+                className="h-5 w-5 rounded border-line accent-primary"
+                aria-label={`${c.name} assistant (phone)`}
+              />
+              {c.assistantEnabled ? 'On' : 'Off'}
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full font-ui text-sm">
           <thead className="text-left text-xs uppercase tracking-wider text-ink-3">
             <tr>

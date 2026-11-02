@@ -161,7 +161,7 @@ export default function RaiseTicketPage() {
 
   return (
     <section className="mx-auto max-w-2xl">
-      <Link to="/track" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/track" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> My tickets &amp; requests
       </Link>
       <h1 className="mt-3 text-3xl">Raise a ticket</h1>
@@ -329,7 +329,8 @@ export default function RaiseTicketPage() {
           {photoError && <p className="mt-1 font-ui text-xs text-error">{photoError}</p>}
         </Field>
 
-        <div className="flex justify-end gap-2 border-t border-line pt-4">
+        {/* Phones: stays at the bottom of the screen while the form scrolls. */}
+        <div className="sticky bottom-0 z-10 -mx-5 flex justify-end gap-2 border-t border-line bg-white px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-4">
           <Link to="/track" className="btn-secondary">
             Cancel
           </Link>

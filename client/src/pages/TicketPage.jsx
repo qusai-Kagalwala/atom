@@ -277,7 +277,7 @@ export default function TicketPage() {
   if (ticketQuery.isError) {
     return (
       <div className="space-y-4">
-        <Link to={back.to} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> {back.label}
         </Link>
         <Alert tone="error">{errorMessage(ticketQuery.error, 'Could not load this ticket.')}</Alert>
@@ -291,8 +291,8 @@ export default function TicketPage() {
   const byEvent = t.attachments.reduce((m, a) => (a.eventId ? m.set(a.eventId, [...(m.get(a.eventId) || []), a]) : m), new Map());
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <Link to={back.to} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+    <div className={`mx-auto max-w-4xl space-y-5 ${t.permissions.actions.length ? 'pb-24 sm:pb-0' : ''}`}>
+      <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> {back.label}
       </Link>
 
@@ -381,9 +381,19 @@ export default function TicketPage() {
         )}
 
         {t.permissions.actions.length > 0 && (
-          <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
+          <div className="mt-5 hidden flex-wrap gap-2 border-t border-line pt-4 sm:flex">
             {t.permissions.actions.map((a) => (
               <button key={a} type="button" className={buttonClass[ACTION_BUTTONS[a].tone]} onClick={() => setAction(a)}>
+                {a === 'assign' && t.assignedEngineer ? 'Reassign' : ACTION_BUTTONS[a].label}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Phones: the actions stay at the bottom of the screen, always one tap away. */}
+        {t.permissions.actions.length > 0 && (
+          <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 overflow-x-auto border-t border-line bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-lg sm:hidden">
+            {t.permissions.actions.map((a) => (
+              <button key={a} type="button" className={`${buttonClass[ACTION_BUTTONS[a].tone]} flex-1 whitespace-nowrap`} onClick={() => setAction(a)}>
                 {a === 'assign' && t.assignedEngineer ? 'Reassign' : ACTION_BUTTONS[a].label}
               </button>
             ))}

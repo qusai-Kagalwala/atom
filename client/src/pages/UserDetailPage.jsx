@@ -314,7 +314,7 @@ export default function UserDetailPage() {
   if (userQuery.isError) {
     return (
       <div className="space-y-4">
-        <Link to="/users" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to="/users" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> All users
         </Link>
         <Alert tone="error">{errorMessage(userQuery.error, 'Could not load this user.')}</Alert>
@@ -342,7 +342,7 @@ export default function UserDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to="/users" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/users" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> All users
       </Link>
 

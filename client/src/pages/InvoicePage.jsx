@@ -205,7 +205,7 @@ export default function InvoicePage() {
   if (query.isError) {
     return (
       <div className="space-y-4">
-        <Link to={back.to} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> {back.label}
         </Link>
         <Alert tone="error">{errorMessage(query.error, 'Could not load this invoice.')}</Alert>
@@ -219,7 +219,7 @@ export default function InvoicePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to={back.to} className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> {back.label}
       </Link>
       {notice && <Alert tone="success">{notice}</Alert>}

@@ -45,7 +45,7 @@ export default function InventoryFilePage() {
   const blocked = p && p.errors.length > 0 && !opts.skipErrors;
   return (
     <section className="mx-auto max-w-4xl space-y-5">
-      <Link to="/inventory" className="inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/inventory" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> Inventory
       </Link>
       <div>

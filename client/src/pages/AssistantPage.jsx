@@ -447,7 +447,7 @@ export default function AssistantPage() {
             ))}
           </div>
         </div>
-        <Link to="/tickets/new" className="inline-block font-ui text-sm text-primary hover:underline">
+        <Link to="/tickets/new" className="inline-flex min-h-tap items-center font-ui text-sm text-primary hover:underline">
           Skip — raise a ticket directly
         </Link>
       </section>
