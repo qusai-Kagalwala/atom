@@ -33,6 +33,9 @@ const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const MyAssetsPage = lazy(() => import('./pages/MyAssetsPage'));
 const MyRequestsPage = lazy(() => import('./pages/MyRequestsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const OverviewPage = lazy(() => import('./pages/OverviewPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const ProblemsPage = lazy(() => import('./pages/ProblemsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -47,7 +50,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems', 'onboarding']);
+const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems', 'onboarding', 'analytics', 'reports', 'overview']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -69,6 +72,7 @@ export default function App() {
 
           {/* Super Admin console — global, works with or without a company (the API returns 404 to anyone else) */}
           <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
+            <Route path="/overview" element={<OverviewPage />} />
             <Route path="/admins" element={<AdminsPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/users/:id" element={<UserDetailPage />} />
@@ -106,6 +110,8 @@ export default function App() {
               <Route path="/catalogue" element={<CataloguePage />} />
               <Route path="/problems" element={<ProblemsPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
               <Route path="/faqs" element={<FaqsPage />} />
               <Route path="/faqs/new" element={<FaqEditPage />} />
               <Route path="/faqs/:id" element={<FaqEditPage />} />

@@ -132,6 +132,11 @@
       "path": "/reports",
       "icon": "FileDown"
     },
+    "overview": {
+      "label": "Overview",
+      "path": "/overview",
+      "icon": "LayoutDashboard"
+    },
     "admins": {
       "label": "Company admins",
       "path": "/admins",
@@ -167,6 +172,7 @@
     "notifications"
   ],
   "navConsole": [
+    "overview",
     "admins",
     "users",
     "syncStatus",
@@ -234,6 +240,7 @@
       "onboarding",
       "analytics",
       "reports",
+      "overview",
       "admins",
       "users",
       "syncStatus",

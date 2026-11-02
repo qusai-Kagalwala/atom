@@ -9,6 +9,7 @@ import {
   FileDown,
   HardHat,
   House,
+  LayoutDashboard,
   ListTree,
   Package,
   PackagePlus,
@@ -30,7 +31,7 @@ import rolesData from '@shared/roles.json';
 export const ROLES = rolesData.roles;
 
 const ICONS = {
-  BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, HardHat, House, ListTree, Package, PackagePlus,
+  BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, HardHat, House, LayoutDashboard, ListTree, Package, PackagePlus,
   Receipt, RefreshCw, Settings, ShieldCheck, ShieldUser, ShoppingCart, Sparkles, Store, Ticket, Tickets, UserCheck, Users,
 };
 

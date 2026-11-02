@@ -13,6 +13,7 @@ const { createInvoicesRouter } = require('./modules/invoices/invoices.routes');
 const { createInventoryRouter } = require('./modules/inventory/inventory.routes');
 const { createAssistantRouter } = require('./modules/assistant/assistant.routes');
 const { createSettingsRouter } = require('./modules/settings/settings.routes');
+const { createAnalyticsRouter, createReportsRouter } = require('./modules/reports/reports.routes');
 const { createStaffRouter } = require('./modules/staff/staff.routes');
 const { createProblemsRouter } = require('./modules/problems/problems.routes');
 const { HttpError } = require('./utils/httpError');
@@ -39,6 +40,8 @@ function createApp() {
   api.use('/inventory', createInventoryRouter());
   api.use('/assistant', createAssistantRouter());
   api.use('/settings', createSettingsRouter());
+  api.use('/analytics', createAnalyticsRouter());
+  api.use('/reports', createReportsRouter());
   api.use('/staff', createStaffRouter());
   api.use('/problems', createProblemsRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
