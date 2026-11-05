@@ -94,7 +94,7 @@ function Email({ email, onChanged }) {
           <p className="font-ui text-sm text-ink-2">Every in-app notification is also emailed to people who have an email address in ATOM.</p>
         </div>
         <label className="flex min-h-tap items-center gap-2 font-ui text-sm font-medium">
-          <input type="checkbox" role="switch" checked={email.emailEnabled} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-primary" />
+          <input type="checkbox" role="switch" checked={email.emailEnabled} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-brand" />
           {email.emailEnabled ? 'Email is on' : 'Email is off'}
         </label>
       </div>
@@ -155,7 +155,7 @@ function Push() {
         </div>
         {p && (
           <label className="flex min-h-tap items-center gap-2 font-ui text-sm font-medium">
-            <input type="checkbox" role="switch" checked={p.pushEnabled} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-primary" />
+            <input type="checkbox" role="switch" checked={p.pushEnabled} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-brand" />
             {p.pushEnabled ? 'Push is on' : 'Push is off'}
           </label>
         )}
@@ -201,7 +201,7 @@ function Companies() {
     <div className="card space-y-3">
       <div>
         <h2 className="flex items-center gap-2 text-xl">
-          <Building2 size={20} className="text-primary" aria-hidden="true" /> Companies
+          <Building2 size={20} className="text-brand" aria-hidden="true" /> Companies
         </h2>
         <p className="mt-1 font-ui text-sm text-ink-2">
           Closed companies disappear from the login page and the company picker for everyone except you — their Admins and Staff too. Nothing is deleted;
@@ -225,7 +225,7 @@ function Companies() {
               <input
                 type="checkbox"
                 role="switch"
-                className="h-5 w-5 accent-primary"
+                className="h-5 w-5 accent-brand"
                 checked={c.isOpen}
                 disabled={Boolean(busy) || (c.isOpen && openCount <= 1)}
                 onChange={() => toggle(c)}

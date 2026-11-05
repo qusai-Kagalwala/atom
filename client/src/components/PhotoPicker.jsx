@@ -39,7 +39,7 @@ export default function PhotoPicker({ files, onChange, max, onError, disabled })
               type="button"
               onClick={() => remove(i)}
               disabled={disabled}
-              className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-white text-ink-2 shadow hover:text-error"
+              className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface text-ink-2 shadow hover:text-error"
               aria-label={`Remove ${p.file.name}`}
             >
               <X size={14} />
@@ -51,7 +51,7 @@ export default function PhotoPicker({ files, onChange, max, onError, disabled })
             type="button"
             onClick={() => input.current?.click()}
             disabled={disabled}
-            className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-btn border border-dashed border-line-dark bg-white font-ui text-xs text-ink-2 hover:border-primary hover:text-primary disabled:opacity-60"
+            className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-btn border border-dashed border-line-dark bg-surface font-ui text-xs text-ink-2 hover:border-brand hover:text-brand disabled:opacity-60"
           >
             <Camera size={20} aria-hidden="true" />
             Add photo

@@ -25,13 +25,13 @@ export default function NotificationItem({ n, onOpen, compact = false }) {
         compact ? 'py-2.5' : 'py-3'
       } ${n.read ? '' : 'bg-cream-dark'}`}
     >
-      <Icon size={18} aria-hidden="true" className={`mt-0.5 shrink-0 ${n.read ? 'text-ink-3' : 'text-primary'}`} />
+      <Icon size={18} aria-hidden="true" className={`mt-0.5 shrink-0 ${n.read ? 'text-ink-3' : 'text-brand'}`} />
       <span className="min-w-0 flex-1">
         <span className={`block text-sm ${n.read ? 'text-ink-2' : 'font-medium text-ink'}`}>{n.title}</span>
         {n.body && <span className="mt-0.5 block truncate text-xs text-ink-2">{n.body}</span>}
         <span className="mt-0.5 block text-xs text-ink-3">
           {timeAgo(n.createdAt)}
-          {otherCompany && <span className="ml-1.5 rounded-full bg-primary-tint px-1.5 text-primary">{otherCompany}</span>}
+          {otherCompany && <span className="ml-1.5 rounded-full bg-primary-tint px-1.5 text-brand">{otherCompany}</span>}
         </span>
       </span>
       {!n.read && (

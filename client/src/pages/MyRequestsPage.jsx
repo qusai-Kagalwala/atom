@@ -60,7 +60,7 @@ export default function MyRequestsPage() {
             aria-selected={status === key}
             onClick={() => go({ status: key, page: '1' })}
             className={`min-h-tap border-b-2 px-4 font-ui text-sm ${
-              status === key ? 'border-primary font-medium text-primary' : 'border-transparent text-ink-2 hover:text-ink'
+              status === key ? 'border-brand font-medium text-brand' : 'border-transparent text-ink-2 hover:text-ink'
             }`}
           >
             {label}
@@ -80,7 +80,7 @@ export default function MyRequestsPage() {
 
       {query.isSuccess && items.length === 0 && (
         <div className="card mt-4 text-center">
-          <Ticket size={24} className="mx-auto text-primary" aria-hidden="true" />
+          <Ticket size={24} className="mx-auto text-brand" aria-hidden="true" />
           <p className="mt-2 font-ui text-sm text-ink-2">
             {status === 'open' ? 'Nothing open right now.' : 'Nothing here yet.'}
           </p>

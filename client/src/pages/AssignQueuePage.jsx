@@ -43,7 +43,7 @@ function QuickAssign({ ticket, engineers, onDone }) {
         value={engineerId}
         onChange={(e) => setEngineerId(e.target.value)}
         disabled={busy || !engineers.length}
-        className="min-h-tap w-full min-w-0 basis-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted sm:w-auto sm:flex-1 sm:basis-auto sm:max-w-xs"
+        className="min-h-tap w-full min-w-0 basis-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted sm:w-auto sm:flex-1 sm:basis-auto sm:max-w-xs"
       >
         <option value="">{engineers.length ? 'Choose who does it' : 'No staff yet (Staff & occupations)'}</option>
         <StaffOptions staff={engineers} />
@@ -51,7 +51,7 @@ function QuickAssign({ ticket, engineers, onDone }) {
       <button type="button" className="btn-primary" disabled={!engineerId || busy} onClick={assign}>
         {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />} Assign
       </button>
-      <Link to={`/tickets/${ticket.number}`} state={{ from: '/assign' }} className="inline-flex min-h-tap items-center px-2 font-ui text-sm text-primary hover:underline">
+      <Link to={`/tickets/${ticket.number}`} state={{ from: '/assign' }} className="inline-flex min-h-tap items-center px-2 font-ui text-sm text-brand hover:underline">
         Open
       </Link>
       {error && <p className="w-full font-ui text-xs text-error">{error}</p>}

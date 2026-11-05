@@ -45,7 +45,7 @@ export default function InventoryFilePage() {
   const blocked = p && p.errors.length > 0 && !opts.skipErrors;
   return (
     <section className="mx-auto max-w-4xl space-y-5">
-      <Link to="/inventory" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/inventory" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> Inventory
       </Link>
       <div>
@@ -103,15 +103,15 @@ export default function InventoryFilePage() {
         </div>
         <div className="space-y-1 font-ui text-sm">
           <label className="flex min-h-tap items-center gap-2">
-            <input type="checkbox" checked={opts.allowNew} onChange={tick('allowNew')} className="h-5 w-5 rounded border-line text-primary" />
+            <input type="checkbox" checked={opts.allowNew} onChange={tick('allowNew')} className="h-5 w-5 rounded border-line text-brand" />
             Add rows with new asset tags as new assets (in store)
           </label>
           <label className="flex min-h-tap items-center gap-2">
-            <input type="checkbox" checked={opts.overwrite} onChange={tick('overwrite')} className="h-5 w-5 rounded border-line text-primary" />
+            <input type="checkbox" checked={opts.overwrite} onChange={tick('overwrite')} className="h-5 w-5 rounded border-line text-brand" />
             Overwrite assets changed in ATOM after this file was exported
           </label>
           <label className="flex min-h-tap items-center gap-2">
-            <input type="checkbox" checked={opts.skipErrors} onChange={tick('skipErrors')} className="h-5 w-5 rounded border-line text-primary" />
+            <input type="checkbox" checked={opts.skipErrors} onChange={tick('skipErrors')} className="h-5 w-5 rounded border-line text-brand" />
             Skip rows with errors
           </label>
         </div>

@@ -41,7 +41,7 @@ function Bubble({ from, children, lang }) {
       <div
         dir={DIRS[lang] || 'ltr'}
         lang={lang}
-        className={`max-w-[85%] rounded-card px-4 py-3 ${textClass(lang)} ${mine ? 'bg-primary text-white' : 'border border-line bg-white text-ink'}`}
+        className={`max-w-[85%] rounded-card px-4 py-3 ${textClass(lang)} ${mine ? 'bg-primary text-white' : 'border border-line bg-surface text-ink'}`}
       >
         {children}
       </div>
@@ -54,9 +54,9 @@ function Bubble({ from, children, lang }) {
 function Browse({ tree, lang, t, onPick }) {
   const [cat, setCat] = useState(null);
   const [item, setItem] = useState(null);
-  const btn = 'min-h-tap rounded-btn border border-line bg-white px-3 py-2 text-start font-ui text-sm text-ink hover:border-gold hover:bg-gold-muted';
+  const btn = 'min-h-tap rounded-btn border border-line bg-surface px-3 py-2 text-start font-ui text-sm text-ink hover:border-gold hover:bg-gold-muted';
   const back = (fn) => (
-    <button type="button" onClick={fn} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+    <button type="button" onClick={fn} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
       <ChevronLeft size={16} aria-hidden="true" className="rtl:rotate-180" /> {t('back')}
     </button>
   );
@@ -117,7 +117,7 @@ function FaqAnswer({ faq, t }) {
       )}
       {faq.details.length > 0 && (
         <div>
-          <button type="button" onClick={() => setMore((v) => !v)} className="font-ui text-sm text-primary hover:underline" aria-expanded={more}>
+          <button type="button" onClick={() => setMore((v) => !v)} className="font-ui text-sm text-brand hover:underline" aria-expanded={more}>
             {t('more_steps')}
           </button>
           {more && (
@@ -324,7 +324,7 @@ export default function AssistantPage() {
             <p>{t('catalogue_found')}</p>
             <ul className="grid gap-2">
               {m.items.map((x) => (
-                <li key={x.id} className="flex items-center justify-between gap-2 rounded-btn border border-line bg-white px-3 py-2">
+                <li key={x.id} className="flex items-center justify-between gap-2 rounded-btn border border-line bg-surface px-3 py-2">
                   <span className="min-w-0 font-ui text-sm" dir="ltr">
                     <span className="block text-ink">{x.name}</span>
                     <span className="block text-xs text-ink-3">
@@ -345,7 +345,7 @@ export default function AssistantPage() {
                 resolveLast();
                 push({ from: 'bot', kind: 'none', lang });
               }}
-              className="min-h-tap rounded-btn px-3 text-start font-ui text-sm text-primary hover:underline disabled:opacity-60"
+              className="min-h-tap rounded-btn px-3 text-start font-ui text-sm text-brand hover:underline disabled:opacity-60"
             >
               {t('none_of_these')}
             </button>
@@ -362,7 +362,7 @@ export default function AssistantPage() {
                   type="button"
                   disabled={!live}
                   onClick={() => pick(f, 'choice')}
-                  className="min-h-tap rounded-btn border border-line bg-white px-3 py-2 text-start hover:border-gold hover:bg-gold-muted disabled:opacity-60"
+                  className="min-h-tap rounded-btn border border-line bg-surface px-3 py-2 text-start hover:border-gold hover:bg-gold-muted disabled:opacity-60"
                 >
                   <span className="block">{f.question}</span>
                   <span className="block font-ui text-xs text-ink-3" dir="ltr">
@@ -377,7 +377,7 @@ export default function AssistantPage() {
                   resolveLast();
                   push({ from: 'bot', kind: 'none', lang });
                 }}
-                className="min-h-tap rounded-btn px-3 text-start font-ui text-sm text-primary hover:underline disabled:opacity-60"
+                className="min-h-tap rounded-btn px-3 text-start font-ui text-sm text-brand hover:underline disabled:opacity-60"
               >
                 {t('none_of_these')}
               </button>
@@ -447,7 +447,7 @@ export default function AssistantPage() {
             ))}
           </div>
         </div>
-        <Link to="/tickets/new" className="inline-flex min-h-tap items-center font-ui text-sm text-primary hover:underline">
+        <Link to="/tickets/new" className="inline-flex min-h-tap items-center font-ui text-sm text-brand hover:underline">
           Skip — raise a ticket directly
         </Link>
       </section>
@@ -473,7 +473,7 @@ export default function AssistantPage() {
           <select
             value={lang}
             onChange={(e) => pickLanguage(e.target.value)}
-            className="min-h-tap rounded-btn border border-line bg-white px-2 font-ui text-sm text-ink"
+            className="min-h-tap rounded-btn border border-line bg-surface px-2 font-ui text-sm text-ink"
           >
             {languages.map((l) => (
               <option key={l.code} value={l.code}>
@@ -546,7 +546,7 @@ export default function AssistantPage() {
               autoComplete="off"
               placeholder={t('placeholder')}
               lang={lang}
-              className={`block min-h-tap w-full rounded-btn border border-line bg-white px-3 text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted ${textClass(lang)}`}
+              className={`block min-h-tap w-full rounded-btn border border-line bg-surface px-3 text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted ${textClass(lang)}`}
             />
             <button type="submit" className="btn-primary shrink-0" disabled={busy || !text.trim()} aria-label={t('send')}>
               <Send size={18} aria-hidden="true" className="rtl:-scale-x-100" />
@@ -554,11 +554,11 @@ export default function AssistantPage() {
           </form>
           <div className="flex flex-wrap items-center justify-between gap-2 font-ui text-sm">
             {config.data.tree.length > 0 ? (
-              <button type="button" className="min-h-tap text-primary hover:underline" onClick={() => setBrowsing((v) => !v)} disabled={busy} aria-expanded={browsing}>
+              <button type="button" className="min-h-tap text-brand hover:underline" onClick={() => setBrowsing((v) => !v)} disabled={busy} aria-expanded={browsing}>
                 {t('browse')}
               </button>
             ) : requestMode ? (
-              <button type="button" className="min-h-tap text-primary hover:underline" onClick={() => requestItems([])} disabled={busy}>
+              <button type="button" className="min-h-tap text-brand hover:underline" onClick={() => requestItems([])} disabled={busy}>
                 {t('request_something')}
               </button>
             ) : (

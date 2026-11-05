@@ -55,7 +55,7 @@ export default function SetPasswordPage() {
     <AuthLayout
       prompt="Welcome! You signed in with a temporary password. Choose your own to continue."
       below={
-        <button type="button" onClick={logout} className="inline-flex items-center gap-1 text-primary hover:underline">
+        <button type="button" onClick={logout} className="inline-flex items-center gap-1 text-brand hover:underline">
           <LogOut size={14} aria-hidden="true" /> Sign out
         </button>
       }

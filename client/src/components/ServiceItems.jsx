@@ -11,7 +11,7 @@ import { assetTitle } from '../utils/assets';
 import { formatDateTime } from '../utils/format';
 
 const areaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 // Engineer / Super Admin: deliver one approved item. Physical items: pick in-store assets
 // (they are assigned to the requester), or explain in the note.
@@ -86,11 +86,11 @@ function DeliverModal({ ticket, item, onClose, onDone }) {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search in-store assets: tag, model, serial"
-                className="block min-h-tap w-full rounded-btn border border-line bg-white pl-9 pr-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-9 pr-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
               />
             </label>
-            {picked.length > 0 && <p className="font-ui text-xs text-primary">Picked: {picked.join(', ')}</p>}
-            <ul className="max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-white font-ui text-sm">
+            {picked.length > 0 && <p className="font-ui text-xs text-brand">Picked: {picked.join(', ')}</p>}
+            <ul className="max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-surface font-ui text-sm">
               {assets.isFetching && !assets.data && <li className="px-3 py-2 text-ink-3">Loading…</li>}
               {assets.data?.assets.length === 0 && <li className="px-3 py-2 text-ink-3">No matching asset in store.</li>}
               {assets.data?.assets.map((a) => {
@@ -103,7 +103,7 @@ function DeliverModal({ ticket, item, onClose, onDone }) {
                       aria-pressed={on}
                       className={`flex min-h-tap w-full items-center gap-2 px-3 text-left ${on ? 'bg-primary-tint' : 'hover:bg-gold-muted'}`}
                     >
-                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${on ? 'border-primary bg-primary text-white' : 'border-line'}`}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${on ? 'border-brand bg-primary text-white' : 'border-line'}`}>
                         {on && <Check size={14} aria-hidden="true" />}
                       </span>
                       <span className="min-w-0 truncate">
@@ -219,7 +219,7 @@ export default function ServiceItems({ ticket, onDone }) {
                     type="button"
                     aria-pressed={c.decision === 'approve'}
                     onClick={() => set(i.id, { decision: c.decision === 'approve' ? null : 'approve' })}
-                    className={`inline-flex min-h-tap items-center gap-1 rounded-btn border px-3 ${c.decision === 'approve' ? 'border-primary bg-primary-tint text-primary' : 'border-line text-ink hover:border-gold'}`}
+                    className={`inline-flex min-h-tap items-center gap-1 rounded-btn border px-3 ${c.decision === 'approve' ? 'border-brand bg-primary-tint text-brand' : 'border-line text-ink hover:border-gold'}`}
                   >
                     <Check size={16} aria-hidden="true" /> Approve
                   </button>
@@ -238,7 +238,7 @@ export default function ServiceItems({ ticket, onDone }) {
                       maxLength={1000}
                       aria-label={`Note for ${i.name}`}
                       placeholder={c.decision === 'reject' ? 'Why not? (required)' : 'Note (optional)'}
-                      className="min-h-tap min-w-0 flex-1 rounded-btn border border-line bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                      className="min-h-tap min-w-0 flex-1 rounded-btn border border-line bg-surface px-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
                     />
                   )}
                 </div>

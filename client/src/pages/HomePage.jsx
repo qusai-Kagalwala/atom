@@ -55,18 +55,18 @@ export default function HomePage() {
       </div>
 
       <ul className="mt-6 grid gap-4 md:grid-cols-3">
-        {cards.map(({ to, Icon, title, text }) => (
-          <li key={to}>
+        {cards.map(({ to, Icon, title, text }, i) => (
+          <li key={to} className="anim-rise" style={{ '--i': i + 1 }}>
             <Link
               to={to}
-              className="card group flex h-full flex-col transition-shadow hover:border-gold hover:shadow-glow-gold focus-visible:shadow-glow-gold"
+              className="card group flex h-full flex-col transition-[box-shadow,transform,border-color] hover:-translate-y-0.5 hover:border-gold hover:shadow-glow-gold focus-visible:shadow-glow-gold"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-card bg-primary-tint text-primary">
+              <span className="flex h-12 w-12 items-center justify-center rounded-card bg-primary-tint text-brand">
                 <Icon size={24} aria-hidden="true" />
               </span>
               <h2 className="mt-4 text-xl">{title}</h2>
               <p className="mt-1 flex-1 font-ui text-sm text-ink-2">{text}</p>
-              <span className="mt-4 inline-flex items-center gap-1 font-ui text-sm font-medium text-primary">
+              <span className="mt-4 inline-flex items-center gap-1 font-ui text-sm font-medium text-brand">
                 Open <ArrowRight size={16} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>

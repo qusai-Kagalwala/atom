@@ -52,7 +52,7 @@ export default function ChooseCompanyPage() {
   }, [single]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-cream px-4 py-10">
+    <div className="flex min-h-screen flex-col items-center px-4 py-10">
       <header className="text-center">
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Aljamea-tus-Saifiyah</p>
         <h1 className="mt-2 text-4xl">ATOM</h1>
@@ -88,23 +88,23 @@ export default function ChooseCompanyPage() {
           </p>
         )}
         <ul className={`grid gap-4 ${single ? 'hidden' : usable.length >= 3 ? 'sm:grid-cols-3' : usable.length === 2 ? 'sm:grid-cols-2' : 'mx-auto max-w-sm'}`}>
-          {usable.map((c) => {
+          {usable.map((c, i) => {
             const Icon = ICONS[c.code] || Building2;
             const isLast = last ? last === c.id : false;
             const top = sortRoles(c.roles)[0];
             return (
-              <li key={c.id}>
+              <li key={c.id} className="anim-rise" style={{ '--i': i }}>
                 <button
                   type="button"
                   onClick={() => open(c, c.id)}
                   disabled={Boolean(busy)}
                   className={[
-                    'card group flex h-full w-full flex-col text-left transition-shadow hover:border-gold hover:shadow-glow-gold focus-visible:shadow-glow-gold disabled:opacity-70',
+                    'card group flex h-full w-full flex-col text-left transition-[box-shadow,transform,border-color] hover:-translate-y-0.5 hover:border-gold hover:shadow-glow-gold focus-visible:shadow-glow-gold disabled:opacity-70',
                     isLast ? 'border-gold ring-2 ring-gold/40' : '',
                   ].join(' ')}
                 >
                   <span className="flex items-start justify-between gap-2">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-card bg-primary-tint text-primary">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-card bg-primary-tint text-brand">
                       <Icon size={24} aria-hidden="true" />
                     </span>
                     <span className="flex flex-wrap justify-end gap-1">
@@ -119,9 +119,9 @@ export default function ChooseCompanyPage() {
                       As <span className="font-medium text-ink">{roleLabel(top, top === 'ENGINEER' ? user : null)}</span>
                     </span>
                     {busy === c.id ? (
-                      <LoaderCircle size={18} className="animate-spin text-primary" aria-label="Opening" />
+                      <LoaderCircle size={18} className="animate-spin text-brand" aria-label="Opening" />
                     ) : (
-                      <ArrowRight size={18} aria-hidden="true" className="text-primary transition-transform group-hover:translate-x-0.5" />
+                      <ArrowRight size={18} aria-hidden="true" className="text-brand transition-transform group-hover:translate-x-0.5" />
                     )}
                   </span>
                 </button>
@@ -145,15 +145,15 @@ export default function ChooseCompanyPage() {
               <span className="block font-ui text-sm text-ink-2">Company admins, users, sync, AI and settings for all companies.</span>
             </span>
             {busy === 'console' ? (
-              <LoaderCircle size={18} className="animate-spin text-primary" aria-label="Opening" />
+              <LoaderCircle size={18} className="animate-spin text-brand" aria-label="Opening" />
             ) : (
-              <ArrowRight size={18} aria-hidden="true" className="text-primary" />
+              <ArrowRight size={18} aria-hidden="true" className="text-brand" />
             )}
           </button>
         )}
 
         <div className="mt-6 text-center">
-          <button type="button" onClick={logout} className="inline-flex min-h-tap items-center gap-2 font-ui text-sm text-ink-2 hover:text-primary">
+          <button type="button" onClick={logout} className="inline-flex min-h-tap items-center gap-2 font-ui text-sm text-ink-2 hover:text-brand">
             <LogOut size={16} aria-hidden="true" /> Sign out
           </button>
         </div>

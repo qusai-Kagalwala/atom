@@ -7,6 +7,8 @@ function createFakeUsers() {
   const roles = new Map(); // userId -> Set(role)
   const tokens = [];
   const txLog = [];
+  const themes = new Map(); // userId -> { theme, mode }   (table user_theme)
+  let themeTableExists = true; // false = migration 025 not applied yet
   let nextId = 1;
   let nextTokenId = 1;
 
@@ -141,6 +143,22 @@ function createFakeUsers() {
       return { rows: [{ id: t.id, user_id: t.user_id, legacy_password: u.legacy_password, employee_id: u.employee_id, is_active: u.is_active }] };
     }
 
+    if (text.includes('user_theme')) {
+      if (!themeTableExists) {
+        const err = new Error('relation "user_theme" does not exist');
+        err.code = '42P01'; // undefined_table
+        throw err;
+      }
+      if (text.startsWith('SELECT theme, mode FROM user_theme')) {
+        const t = themes.get(String(params[0]));
+        return { rows: t ? [{ ...t }] : [] };
+      }
+      if (text.startsWith('INSERT INTO user_theme')) {
+        themes.set(String(params[0]), { theme: params[1], mode: params[2] });
+        return { rows: [{ theme: params[1], mode: params[2] }] };
+      }
+    }
+
     throw new Error(`fakeUsers: unhandled query: ${text.slice(0, 80)}`);
   }
 
@@ -155,11 +173,14 @@ function createFakeUsers() {
     users,
     tokens,
     txLog,
+    themes,
+    setThemeTable: (exists) => { themeTableExists = exists; },
     setActive: (id, value) => { users.get(id).is_active = value; },
     removeRole: (id, role) => roles.get(id).delete(role),
     companies: COMPANIES,
     reset: () => {
       users.clear(); roles.clear(); staff.clear(); tokens.length = 0; txLog.length = 0;
+      themes.clear(); themeTableExists = true;
       nextId = 1; nextTokenId = 1;
     },
   };

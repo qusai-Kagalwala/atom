@@ -10,7 +10,7 @@ import { Tabs } from '../components/RequestList';
 import { formatDateTime } from '../utils/format';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 // ---------- FAQs ----------
 function FaqList() {
@@ -37,7 +37,7 @@ function FaqList() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Item, problem, question or ID"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         <select aria-label="Category" className={selectClass} value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -55,7 +55,7 @@ function FaqList() {
       <div className="flex flex-wrap items-center justify-between gap-2 font-ui text-sm text-ink-2">
         <span>{faqs.isSuccess && `${items.length} FAQ${items.length === 1 ? '' : 's'}`}</span>
         <label className="flex min-h-tap items-center gap-2">
-          <input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5 rounded border-line text-primary" />
+          <input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5 rounded border-line text-brand" />
           Show switched-off FAQs
         </label>
       </div>
@@ -65,7 +65,7 @@ function FaqList() {
         <div className="card text-center font-ui text-sm text-ink-2">No FAQs yet. Import the FAQ JSON file from the Import tab.</div>
       )}
       {items.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {items.map((f) => (
             <li key={f.id}>
               <Link to={`/faqs/${f.id}`} className="flex items-start gap-3 px-4 py-3 font-ui hover:bg-gold-muted focus-visible:bg-gold-muted">
@@ -82,7 +82,7 @@ function FaqList() {
                 <span className="flex shrink-0 flex-col items-end gap-1">
                   {!f.isActive && <span className="badge bg-cream-dark text-ink-3">Off</span>}
                   {f.directTicket && <span className="badge bg-gold-muted text-gold-dark">Direct ticket</span>}
-                  {f.editedInAtom && <span className="badge bg-primary-tint text-primary">Edited</span>}
+                  {f.editedInAtom && <span className="badge bg-primary-tint text-brand">Edited</span>}
                 </span>
               </Link>
             </li>
@@ -134,7 +134,7 @@ function ImportTab() {
         className="block w-full font-ui text-sm"
       />
       <label className="flex min-h-tap items-center gap-2 font-ui text-sm">
-        <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} className="h-5 w-5 rounded border-line text-primary" />
+        <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} className="h-5 w-5 rounded border-line text-brand" />
         Keep changes made in ATOM (FAQs edited or switched off here are not overwritten)
       </label>
       <div className="flex flex-wrap gap-2">
@@ -199,7 +199,7 @@ function SavedAnswers() {
         tokens. Switch one off if it points to the wrong FAQ; GPT is asked again the next time.
       </p>
       <label className="flex min-h-tap items-center gap-2 font-ui text-sm text-ink-2">
-        <input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5 rounded border-line text-primary" />
+        <input type="checkbox" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} className="h-5 w-5 rounded border-line text-brand" />
         Show switched-off answers
       </label>
       {error && <Alert tone="error">{error}</Alert>}
@@ -207,7 +207,7 @@ function SavedAnswers() {
       {learned.isError && <Alert tone="error">Could not load saved answers.</Alert>}
       {learned.isSuccess && !learned.data.length && <div className="card text-center font-ui text-sm text-ink-2">No saved answers yet. They appear after GPT is used.</div>}
       {learned.data?.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white font-ui text-sm">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface font-ui text-sm">
           {learned.data.map((l) => (
             <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
               <span className="min-w-0 flex-1">
@@ -284,7 +284,7 @@ function GuidelinesForm({ initial, onSaved }) {
               lang={l}
               value={text[l]}
               onChange={(e) => setText((t) => ({ ...t, [l]: e.target.value }))}
-              className={`mt-1 block w-full rounded-btn border border-line bg-white px-3 py-2 font-normal text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted ${l === 'ar' ? 'arabic text-base' : 'font-ui text-sm'}`}
+              className={`mt-1 block w-full rounded-btn border border-line bg-surface px-3 py-2 font-normal text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted ${l === 'ar' ? 'arabic text-base' : 'font-ui text-sm'}`}
             />
           </label>
         ))}

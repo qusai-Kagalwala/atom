@@ -2,7 +2,7 @@ import { AlarmClock, CircleCheck, Timer } from 'lucide-react';
 import { clockText, durationText, timeState, useNow } from '../utils/timeFrame';
 
 const TONE = {
-  on_time: 'bg-primary-tint text-primary',
+  on_time: 'bg-primary-tint text-brand',
   due_soon: 'bg-warning-bg text-warning',
   overdue: 'bg-error-bg text-error',
   done: 'bg-success-bg text-success',

@@ -39,57 +39,111 @@
     U+2C60-2C7F, U+A720-A7FF;
 }
 
-/* ATOM design tokens as CSS variables — same values as tailwind.config.js.
-   Read these from non-Tailwind code (Recharts colours, inline dynamic styles). */
+/* ATOM design tokens. The --c-* variables are space-separated RGB triplets and are the single source of
+   truth: tailwind.config.js reads them as `rgb(var(--c-x) / <alpha-value>)`, and a [data-theme] block
+   only has to redefine them to re-colour the app. The --color-* names below resolve from them; read those
+   from non-Tailwind code (Recharts colours, inline dynamic styles). This block is the default theme
+   (teal, light) — keep its values identical to the live look. */
 :root {
-  --color-primary: #0F5B5A;
-  --color-primary-dark: #083F3E;
-  --color-primary-light: #17706E;
-  --color-primary-muted: rgba(15, 91, 90, 0.08);
-  --color-primary-tint: #E2F0EC;
-  --color-primary-border: rgba(201, 168, 76, 0.2);
+  --c-primary: 15 91 90;
+  --c-primary-dark: 8 63 62;
+  --c-primary-light: 23 112 110;
+  --c-primary-tint: 226 240 236;
+  --c-primary-border: 201 168 76;
+  /* Same colours as primary, but for text/borders/rings on page and card backgrounds (lighter in dark). */
+  --c-brand: 15 91 90;
+  --c-brand-dark: 8 63 62;
+
+  --c-gold: 201 168 76;
+  --c-gold-light: 228 201 126;
+  --c-gold-dark: 160 120 48;
+  --c-gold-muted: 245 237 216;
+  --c-gold-on: 61 43 31;
+
+  --c-brown: 61 43 31;
+  --c-charcoal: 28 28 28;
+  --c-cream: 250 247 242;
+  --c-cream-dark: 240 235 224;
+  --c-surface: 255 255 255;
+  --c-line: 224 214 200;
+  --c-line-dark: 200 184 154;
+
+  --c-ink: 26 26 26;
+  --c-ink-2: 75 85 99;
+  --c-ink-3: 140 123 107;
+
+  --c-success: 58 107 74;
+  --c-success-bg: 235 244 238;
+  --c-warning: 139 94 26;
+  --c-warning-bg: 253 243 224;
+  --c-error: 139 42 42;
+  --c-error-bg: 251 237 237;
+  --c-error-solid: 139 42 42; /* filled danger button, carries white text */
+  --c-info: 26 74 107;
+  --c-info-bg: 232 242 251;
+  --c-rust: 181 86 31;
+  --c-rust-bg: 251 234 224;
+  --c-disposed: 46 46 46;
+
+  --c-role-super: 90 26 139;
+  --c-role-super-bg: 243 235 251;
+  --c-role-engineer: 31 111 178;
+  --c-role-engineer-bg: 227 240 249;
+  --c-role-employee: 107 58 26;
+  --c-role-employee-bg: 251 240 232;
+
+  --color-primary: rgb(var(--c-primary));
+  --color-primary-dark: rgb(var(--c-primary-dark));
+  --color-primary-light: rgb(var(--c-primary-light));
+  --color-primary-muted: rgb(var(--c-primary) / 0.08);
+  --color-primary-tint: rgb(var(--c-primary-tint));
+  --color-primary-border: rgb(var(--c-primary-border) / 0.2);
+  --color-brand: rgb(var(--c-brand));
+  --color-brand-dark: rgb(var(--c-brand-dark));
   --color-on-primary: #FFFFFF;
 
-  --color-gold: #C9A84C;
-  --color-gold-light: #E4C97E;
-  --color-gold-dark: #A07830;
-  --color-gold-muted: #F5EDD8;
-  --color-on-gold: #3D2B1F;
+  --color-gold: rgb(var(--c-gold));
+  --color-gold-light: rgb(var(--c-gold-light));
+  --color-gold-dark: rgb(var(--c-gold-dark));
+  --color-gold-muted: rgb(var(--c-gold-muted));
+  --color-on-gold: rgb(var(--c-gold-on));
 
-  --color-dark-brown: #3D2B1F;
-  --color-charcoal: #1C1C1C;
-  --color-cream: #FAF7F2;
-  --color-cream-dark: #F0EBE0;
+  --color-dark-brown: rgb(var(--c-brown));
+  --color-charcoal: rgb(var(--c-charcoal));
+  --color-cream: rgb(var(--c-cream));
+  --color-cream-dark: rgb(var(--c-cream-dark));
   --color-white: #FFFFFF;
-  --color-border: #E0D6C8;
-  --color-border-dark: #C8B89A;
+  --color-surface: rgb(var(--c-surface));
+  --color-border: rgb(var(--c-line));
+  --color-border-dark: rgb(var(--c-line-dark));
 
-  --color-text-primary: #1A1A1A;
-  --color-text-secondary: #4B5563;
-  --color-text-tertiary: #8C7B6B;
+  --color-text-primary: rgb(var(--c-ink));
+  --color-text-secondary: rgb(var(--c-ink-2));
+  --color-text-tertiary: rgb(var(--c-ink-3));
   --color-text-on-primary: rgba(255, 255, 255, 0.85);
 
-  --color-success: #3A6B4A;
-  --color-success-bg: #EBF4EE;
-  --color-warning: #8B5E1A;
-  --color-warning-bg: #FDF3E0;
-  --color-error: #8B2A2A;
-  --color-error-bg: #FBEDED;
-  --color-info: #1A4A6B;
-  --color-info-bg: #E8F2FB;
-  --color-rust: #B5561F;
-  --color-rust-bg: #FBEAE0;
-  --color-disposed: #2E2E2E;
+  --color-success: rgb(var(--c-success));
+  --color-success-bg: rgb(var(--c-success-bg));
+  --color-warning: rgb(var(--c-warning));
+  --color-warning-bg: rgb(var(--c-warning-bg));
+  --color-error: rgb(var(--c-error));
+  --color-error-bg: rgb(var(--c-error-bg));
+  --color-error-solid: rgb(var(--c-error-solid));
+  --color-info: rgb(var(--c-info));
+  --color-info-bg: rgb(var(--c-info-bg));
+  --color-rust: rgb(var(--c-rust));
+  --color-rust-bg: rgb(var(--c-rust-bg));
+  --color-disposed: rgb(var(--c-disposed));
 
-  --color-role-super: #5A1A8B;
-  --color-role-super-bg: #F3EBFB;
-  --color-role-engineer: #1F6FB2;
-  --color-role-engineer-bg: #E3F0F9;
-  --color-role-employee: #6B3A1A;
-  --color-role-employee-bg: #FBF0E8;
+  --color-role-super: rgb(var(--c-role-super));
+  --color-role-super-bg: rgb(var(--c-role-super-bg));
+  --color-role-engineer: rgb(var(--c-role-engineer));
+  --color-role-engineer-bg: rgb(var(--c-role-engineer-bg));
+  --color-role-employee: rgb(var(--c-role-employee));
+  --color-role-employee-bg: rgb(var(--c-role-employee-bg));
 
   /* Recharts palette order: primary → gold → info → success → rust → role-super */
-  --chart-1: var(--color-primary);
+  --chart-1: var(--color-brand);
   --chart-2: var(--color-gold);
   --chart-3: var(--color-info);
   --chart-4: var(--color-success);
@@ -100,6 +154,133 @@
   --font-body: 'Amiri', 'Inter', 'Lato', Helvetica, Arial, sans-serif;
   --font-arabic: 'Amiri', 'Kanz-al-Marjaan', 'Arial Unicode MS', serif;
   --font-ui: 'Inter', 'Amiri', 'Lato', Helvetica, Arial, sans-serif;
+
+  /* The site background picture (components/SiteBackground.jsx): how strong it is, and whether it is
+     inverted. Light themes show it tinted; dark ones invert it and hold it further back. */
+  --bg-image-opacity: 0.3;
+  --bg-image-filter: none;
+}
+
+/* ── Themes ───────────────────────────────────────────────────────────────────────────────────────
+   Set on <html> by theme-init (before first paint) and ThemeProvider: data-theme = teal | navy |
+   maroon, data-mode = light | dark (already resolved from "system"). :root above is teal + light, so
+   a missing attribute is exactly today's look. Brand gold stays the accent in every theme.
+   Order matters: light themes, then the dark base (teal), then dark + navy / dark + maroon.
+   Contrast was checked per pair; keep the white-text rule: `primary*` must carry white text. */
+[data-theme='navy'] {
+  --c-primary: 30 58 110;
+  --c-primary-dark: 19 40 82;
+  --c-primary-light: 46 82 146;
+  --c-primary-tint: 228 235 247;
+  --c-brand: 30 58 110;
+  --c-brand-dark: 19 40 82;
+  --c-brown: 24 38 70;
+  --c-cream: 246 248 252;
+  --c-cream-dark: 235 240 248;
+  --c-line: 216 224 237;
+  --c-line-dark: 189 201 222;
+  --c-ink: 20 26 40;
+  --c-ink-2: 70 80 100;
+  --c-ink-3: 112 124 148;
+}
+
+[data-theme='maroon'] {
+  --c-primary: 114 22 52;
+  --c-primary-dark: 82 14 38;
+  --c-primary-light: 142 38 74;
+  --c-primary-tint: 248 230 237;
+  --c-brand: 114 22 52;
+  --c-brand-dark: 82 14 38;
+  --c-brown: 70 16 40;
+  --c-cream: 252 247 248;
+  --c-cream-dark: 246 235 238;
+  --c-line: 234 214 220;
+  --c-line-dark: 214 186 196;
+  --c-ink: 30 21 25;
+  --c-ink-2: 85 69 76;
+  --c-ink-3: 140 114 124;
+}
+
+/* Dark base = teal dark. Everything shared by the three dark themes lives here. */
+[data-mode='dark'] {
+  color-scheme: dark;
+  --bg-image-opacity: 0.3;
+  --bg-image-filter: invert(1);
+
+  --c-primary: 14 78 77;
+  --c-primary-dark: 8 52 51;
+  --c-primary-light: 23 112 110;
+  --c-primary-tint: 22 50 50;
+  --c-brand: 100 204 194;
+  --c-brand-dark: 150 228 218;
+
+  --c-gold-dark: 226 190 100; /* used as text on the dark gold tint */
+  --c-gold-muted: 56 46 22;
+
+  --c-brown: 244 236 220; /* headings */
+  --c-cream: 14 22 22;
+  --c-cream-dark: 24 35 35;
+  --c-surface: 21 31 31;
+  --c-line: 43 59 58;
+  --c-line-dark: 64 84 82;
+
+  --c-ink: 235 240 238;
+  --c-ink-2: 181 194 191;
+  --c-ink-3: 140 156 152;
+
+  --c-success: 118 204 148;
+  --c-success-bg: 22 46 32;
+  --c-warning: 236 180 90;
+  --c-warning-bg: 56 42 16;
+  --c-error: 244 138 138;
+  --c-error-bg: 60 26 26;
+  --c-error-solid: 176 52 52;
+  --c-info: 128 186 236;
+  --c-info-bg: 22 40 58;
+  --c-rust: 236 146 96;
+  --c-rust-bg: 58 34 22;
+  --c-disposed: 190 190 190;
+
+  --c-role-super: 196 150 244;
+  --c-role-super-bg: 42 28 60;
+  --c-role-engineer: 126 184 240;
+  --c-role-engineer-bg: 22 40 60;
+  --c-role-employee: 224 164 114;
+  --c-role-employee-bg: 54 38 26;
+}
+
+[data-mode='dark'][data-theme='navy'] {
+  --c-primary: 34 66 124;
+  --c-primary-dark: 22 44 90;
+  --c-primary-light: 54 92 164;
+  --c-primary-tint: 26 40 72;
+  --c-brand: 146 182 244;
+  --c-brand-dark: 190 210 250;
+  --c-cream: 12 17 29;
+  --c-cream-dark: 20 27 43;
+  --c-surface: 18 25 40;
+  --c-line: 40 51 74;
+  --c-line-dark: 60 74 102;
+  --c-ink: 232 237 246;
+  --c-ink-2: 176 187 208;
+  --c-ink-3: 134 147 172;
+}
+
+[data-mode='dark'][data-theme='maroon'] {
+  --c-primary: 126 28 62;
+  --c-primary-dark: 92 18 44;
+  --c-primary-light: 156 44 82;
+  --c-primary-tint: 54 24 36;
+  --c-brand: 242 150 176;
+  --c-brand-dark: 250 190 208;
+  --c-cream: 24 13 17;
+  --c-cream-dark: 37 21 27;
+  --c-surface: 33 19 24;
+  --c-line: 64 40 48;
+  --c-line-dark: 90 60 70;
+  --c-ink: 243 235 238;
+  --c-ink-2: 196 178 186;
+  --c-ink-3: 156 134 144;
 }
 
 @layer base {
@@ -124,17 +305,17 @@
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-cream;
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-cream;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-card border border-line bg-white p-5 shadow-sm;
+    @apply rounded-card border border-line bg-surface p-5 shadow-sm;
   }
 
   .btn {
-    @apply inline-flex min-h-tap items-center justify-center gap-2 rounded-btn px-4 font-ui text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-tap items-center justify-center gap-2 rounded-btn px-4 font-ui text-sm font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,box-shadow,transform,opacity] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
   }
 
   .btn-primary {
@@ -142,11 +323,11 @@
   }
 
   .btn-secondary {
-    @apply btn border border-line bg-white text-ink hover:bg-cream-dark;
+    @apply btn border border-line bg-surface text-ink hover:bg-cream-dark;
   }
 
   .btn-danger {
-    @apply btn bg-error text-white hover:bg-error/90;
+    @apply btn bg-error-solid text-white hover:bg-error-solid/90;
   }
 
   .btn-gold {
@@ -157,9 +338,39 @@
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 font-ui text-xs font-medium;
   }
 
+  /* Site background (components/SiteBackground.jsx): the picture with the theme's colour blended over it
+     ("color" blend: the picture's light and dark, the theme's hue), the pair softened as one layer.
+     Below everything; the isolation keeps the blend inside this layer only. */
+  .site-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -20;
+    pointer-events: none;
+    isolation: isolate;
+    opacity: var(--bg-image-opacity);
+  }
+  .site-bg-art {
+    position: absolute;
+    inset: 0;
+    /* A JPEG on purpose: the site's web.config maps only a few extra file types, and IIS will not serve one it does not know (.webp). */
+    background: url('./assets/bg/tech-bg.jpg') center / cover no-repeat;
+    filter: var(--bg-image-filter, none);
+  }
+  .site-bg-tint {
+    position: absolute;
+    inset: 0;
+    background: rgb(var(--c-brand));
+    mix-blend-mode: color;
+  }
+  @media (forced-colors: active) {
+    .site-bg {
+      display: none;
+    }
+  }
+
   /* Request / ticket status badges */
   .status-open { @apply badge bg-info-bg text-info; }
-  .status-assigned { @apply badge bg-primary-tint text-primary; }
+  .status-assigned { @apply badge bg-primary-tint text-brand; }
   .status-in-progress { @apply badge bg-gold-muted text-gold-dark; }
   .status-waiting { @apply badge bg-warning-bg text-warning; }
   .status-resolved { @apply badge bg-success-bg text-success; }
@@ -168,7 +379,7 @@
 
   /* Asset status badges */
   .asset-available { @apply badge bg-success-bg text-success; }
-  .asset-assigned { @apply badge bg-primary-tint text-primary; }
+  .asset-assigned { @apply badge bg-primary-tint text-brand; }
   .asset-repair { @apply badge bg-warning-bg text-warning; }
   .asset-damaged { @apply badge bg-rust-bg text-rust; }
   .asset-lost { @apply badge bg-error-bg text-error; }
@@ -178,7 +389,7 @@
   /* Role badges */
   .role-super { @apply badge bg-role-super-bg text-role-super; }
   .role-engineer { @apply badge bg-role-engineer-bg text-role-engineer; }
-  .role-admin { @apply badge bg-primary-tint text-primary; }
+  .role-admin { @apply badge bg-primary-tint text-brand; }
   .role-employee { @apply badge bg-role-employee-bg text-role-employee; }
 }
 
@@ -201,4 +412,118 @@
   .scrollbar-nav::-webkit-scrollbar-thumb:hover {
     background-color: rgba(255, 255, 255, 0.4);
   }
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────────────────────────────────
+   Transform and opacity only (smooth on low-end phones). Entrances use `both` fill so a delayed item
+   waits invisible, then settles. Stagger a list with style={{ '--i': index }}.
+   Reduced motion: the person's Appearance choice ([data-motion] on <html>) or, on Auto, the device's
+   setting. Reduced = everything lands instantly; loading spinners keep turning. */
+:root {
+  --ease-out: cubic-bezier(0.22, 0.8, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes atom-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes atom-drop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes atom-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes atom-slide-in {
+  from { opacity: 0; transform: translateX(32px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes atom-slide-left {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes atom-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes atom-sheet {
+  from { opacity: 0; transform: translateY(28px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes atom-flash {
+  0% { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+@keyframes atom-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes atom-ring {
+  0% { box-shadow: 0 0 0 0 rgb(var(--c-gold) / 0.55); }
+  100% { box-shadow: 0 0 0 12px rgb(var(--c-gold) / 0); }
+}
+@keyframes atom-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@layer utilities {
+  .anim-rise { animation: atom-rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 55ms); }
+  .anim-drop { animation: atom-drop 0.22s var(--ease-out) both; transform-origin: top right; }
+  .anim-pop { animation: atom-pop 0.45s var(--ease-spring) both; }
+  .anim-slide-in { animation: atom-slide-in 0.4s var(--ease-out) both; }
+  .anim-slide-left { animation: atom-slide-left 0.3s var(--ease-out) both; }
+  .anim-fade { animation: atom-fade 0.25s ease-out both; }
+  .anim-sheet { animation: atom-sheet 0.32s var(--ease-out) both; }
+  .anim-flash { animation: atom-flash 1.8s ease-out both; }
+  .anim-grow { transform-origin: left center; animation: atom-grow 0.7s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 160ms); }
+  .anim-ring { animation: atom-ring 1.8s ease-out infinite; }
+  /* Pops in, then keeps pulsing. (One `animation` per element, so the two are combined here.) */
+  .anim-pop-ring { animation: atom-pop 0.45s var(--ease-spring) both, atom-ring 1.8s ease-out 0.6s infinite; }
+  .anim-draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: atom-draw 0.55s 0.15s ease-out forwards; }
+}
+
+/* Theme switch: the new look grows from the control that was tapped (see theme/ThemeProvider.jsx). */
+@keyframes atom-reveal {
+  from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 50%)); }
+  to { clip-path: circle(150vmax at var(--vt-x, 50%) var(--vt-y, 50%)); }
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: atom-reveal 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) *,
+  html:not([data-motion='full']) *::before,
+  html:not([data-motion='full']) *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  html:not([data-motion='full']) .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+html[data-motion='reduced'] *,
+html[data-motion='reduced'] *::before,
+html[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-motion='reduced'] .animate-spin {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
 }

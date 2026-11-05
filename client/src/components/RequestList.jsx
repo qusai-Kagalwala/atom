@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, LoaderCircle, MapPin, Ticket } from 'lucide-react';
 import { errorMessage } from '../api/http';
@@ -7,10 +8,30 @@ import { FINAL_STATUSES, priorityBadge, priorityLabel, staffLabel, statusBadge, 
 import PriorityChange from './PriorityChange';
 import { TimeBadge } from './TimeFrame';
 
+// Which rows just changed because of a live update? → { [ticketId]: version }. The version goes up each time
+// that ticket's status, assignee or priority changes, so the row can flash. Never on first load, and never
+// for tickets that were not in the previous list (another page or tab).
+function useRowFlash(items) {
+  const [seen, setSeen] = useState(null);
+  const [versions, setVersions] = useState({});
+  if (items && seen?.items !== items) {
+    const map = {};
+    const bumped = {};
+    for (const t of items) {
+      map[t.id] = `${t.status}|${t.assignedEngineer?.id ?? ''}|${t.priority}`;
+      if (seen && seen.map[t.id] !== undefined && seen.map[t.id] !== map[t.id]) bumped[t.id] = (versions[t.id] || 0) + 1;
+    }
+    setSeen({ items, map });
+    if (Object.keys(bumped).length) setVersions({ ...versions, ...bumped });
+  }
+  return versions;
+}
+
 // Card list of tickets used by the work queue, assign queue and All tickets.
 // `renderActions(ticket)` adds per-row buttons (quick assign / close) under the card.
 // onPriorityChanged: Super Admin lists — a "Priority" control on each open row.
 export default function RequestList({ query, emptyText = 'Nothing here.', renderActions, showEngineer = true, from, onPriorityChanged }) {
+  const flash = useRowFlash(query.data?.requests);
   if (query.isError) return <Alert tone="error">{errorMessage(query.error, 'Could not load the list.')}</Alert>;
   if (query.isPending) {
     return (
@@ -23,7 +44,7 @@ export default function RequestList({ query, emptyText = 'Nothing here.', render
   if (!items.length) {
     return (
       <div className="card text-center">
-        <Ticket size={24} className="mx-auto text-primary" aria-hidden="true" />
+        <Ticket size={24} className="mx-auto text-brand" aria-hidden="true" />
         <p className="mt-2 font-ui text-sm text-ink-2">{emptyText}</p>
       </div>
     );
@@ -31,8 +52,11 @@ export default function RequestList({ query, emptyText = 'Nothing here.', render
 
   return (
     <ul className="space-y-2">
-      {items.map((t) => (
-        <li key={t.id} className="card p-0">
+      {items.map((t, i) => (
+        <li key={t.id} className="anim-rise card relative p-0" style={{ '--i': Math.min(i, 10) }}>
+          {flash[t.id] && (
+            <span key={flash[t.id]} aria-hidden="true" className="anim-flash pointer-events-none absolute inset-0 rounded-card bg-gold/40" />
+          )}
           <Link to={`/tickets/${t.number}`} state={{ from }} className="block rounded-card p-4 transition-colors hover:bg-gold-muted/40">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
@@ -107,7 +131,7 @@ export function Tabs({ tabs, value, onChange, counts = {} }) {
           aria-selected={value === key}
           onClick={() => onChange(key)}
           className={`min-h-tap shrink-0 border-b-2 px-4 font-ui text-sm ${
-            value === key ? 'border-primary font-medium text-primary' : 'border-transparent text-ink-2 hover:text-ink'
+            value === key ? 'border-brand font-medium text-brand' : 'border-transparent text-ink-2 hover:text-ink'
           }`}
         >
           {label}

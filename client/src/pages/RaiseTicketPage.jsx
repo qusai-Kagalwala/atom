@@ -15,7 +15,7 @@ import { loginIdLabel } from '../utils/format';
 
 const MAX_PHOTOS = 5;
 const selectClass =
-  'block min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 // Super Admin only: pick the person the ticket is for.
 function PersonPicker({ value, onChange }) {
@@ -34,7 +34,7 @@ function PersonPicker({ value, onChange }) {
 
   if (value) {
     return (
-      <div className="flex min-h-tap items-center justify-between gap-2 rounded-btn border border-primary bg-primary-tint px-3">
+      <div className="flex min-h-tap items-center justify-between gap-2 rounded-btn border border-brand bg-primary-tint px-3">
         <span className="min-w-0 font-ui text-sm">
           <span className="font-medium text-ink">{value.name}</span>{' '}
           <span className="tabular-nums text-ink-2">· {loginIdLabel(value)}</span>
@@ -50,7 +50,7 @@ function PersonPicker({ value, onChange }) {
     <div>
       <TextInput id="for-person" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, ITS number or employee ID" autoComplete="off" />
       {debounced.length >= 2 && (
-        <ul className="mt-1 max-h-60 overflow-y-auto rounded-btn border border-line bg-white font-ui text-sm" role="listbox">
+        <ul className="mt-1 max-h-60 overflow-y-auto rounded-btn border border-line bg-surface font-ui text-sm" role="listbox">
           {results.isFetching && <li className="px-3 py-2 text-ink-3">Searching…</li>}
           {results.data?.users.length === 0 && <li className="px-3 py-2 text-ink-3">No active user found.</li>}
           {results.data?.users.map((u) => (
@@ -161,7 +161,7 @@ export default function RaiseTicketPage() {
 
   return (
     <section className="mx-auto max-w-2xl">
-      <Link to="/track" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/track" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> My tickets &amp; requests
       </Link>
       <h1 className="mt-3 text-3xl">Raise a ticket</h1>
@@ -174,7 +174,7 @@ export default function RaiseTicketPage() {
           </Alert>
         </div>
       ) : (
-        user.company?.assistantEnabled !== false && <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-primary hover:underline">
+        user.company?.assistantEnabled !== false && <Link to="/assistant" className="mt-2 inline-flex items-center gap-1 font-ui text-sm text-brand hover:underline">
           <Bot size={16} aria-hidden="true" /> Try the AI assistant first — many problems are fixed in a minute
         </Link>
       )}
@@ -196,7 +196,7 @@ export default function RaiseTicketPage() {
                   setForSomeoneElse(e.target.checked);
                   if (!e.target.checked) setPerson(null);
                 }}
-                className="h-5 w-5 rounded border-line text-primary focus:ring-primary"
+                className="h-5 w-5 rounded border-line text-brand focus:ring-brand"
               />
               Raise this for someone else
             </label>
@@ -289,7 +289,7 @@ export default function RaiseTicketPage() {
             onChange={set('description')}
             maxLength={5000}
             rows={5}
-            className="block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </Field>
 
@@ -330,7 +330,7 @@ export default function RaiseTicketPage() {
         </Field>
 
         {/* Phones: stays at the bottom of the screen while the form scrolls. */}
-        <div className="sticky bottom-0 z-10 -mx-5 flex justify-end gap-2 border-t border-line bg-white px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-4">
+        <div className="sticky bottom-0 z-10 -mx-5 flex justify-end gap-2 border-t border-line bg-surface px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-4">
           <Link to="/track" className="btn-secondary">
             Cancel
           </Link>

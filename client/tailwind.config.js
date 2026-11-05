@@ -1,34 +1,45 @@
 /** @type {import('tailwindcss').Config} */
-// ATOM design tokens (Awraaq theme). Same values are exposed as CSS variables in src/index.css.
+// ATOM design tokens. Every colour is a space-separated RGB triplet in a CSS variable (--c-*) defined
+// in src/index.css, so a [data-theme] block can swap the whole palette and `bg-primary/40` still works.
+const c = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}', '../shared/**/*.json'],
   theme: {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#0F5B5A',
-          dark: '#083F3E',
-          light: '#17706E',
-          muted: 'rgba(15,91,90,0.08)',
-          tint: '#E2F0EC',
-          border: 'rgba(201,168,76,0.2)',
+          DEFAULT: c('primary'),
+          dark: c('primary-dark'),
+          light: c('primary-light'),
+          muted: 'rgb(var(--c-primary) / 0.08)',
+          tint: c('primary-tint'),
+          border: 'rgb(var(--c-primary-border) / 0.2)',
         },
-        gold: { DEFAULT: '#C9A84C', light: '#E4C97E', dark: '#A07830', muted: '#F5EDD8', on: '#3D2B1F' },
-        cream: { DEFAULT: '#FAF7F2', dark: '#F0EBE0' },
-        brown: '#3D2B1F',
-        charcoal: '#1C1C1C',
-        line: { DEFAULT: '#E0D6C8', dark: '#C8B89A' },
-        ink: { DEFAULT: '#1A1A1A', 2: '#4B5563', 3: '#8C7B6B', 'on-primary': 'rgba(255,255,255,0.85)' },
-        success: { DEFAULT: '#3A6B4A', bg: '#EBF4EE' },
-        warning: { DEFAULT: '#8B5E1A', bg: '#FDF3E0' },
-        error: { DEFAULT: '#8B2A2A', bg: '#FBEDED' },
-        info: { DEFAULT: '#1A4A6B', bg: '#E8F2FB' },
-        rust: { DEFAULT: '#B5561F', bg: '#FBEAE0' },
-        disposed: '#2E2E2E',
+        gold: { DEFAULT: c('gold'), light: c('gold-light'), dark: c('gold-dark'), muted: c('gold-muted'), on: c('gold-on') },
+        cream: { DEFAULT: c('cream'), dark: c('cream-dark') },
+        // `primary` is for backgrounds that carry white text (header, sidebar, buttons). `brand` is the same
+        // colour for text, borders, rings and accents on page/card backgrounds: identical in the light themes,
+        // lighter in the dark ones so it stays readable.
+        brand: { DEFAULT: c('brand'), dark: c('brand-dark') },
+        // Cards, inputs, menus: white in the light themes, a raised dark panel in the dark ones.
+        // (`white` itself stays pure white for text/overlays on the coloured sidebar and header.)
+        surface: c('surface'),
+        brown: c('brown'),
+        charcoal: c('charcoal'),
+        line: { DEFAULT: c('line'), dark: c('line-dark') },
+        ink: { DEFAULT: c('ink'), 2: c('ink-2'), 3: c('ink-3'), 'on-primary': 'rgba(255,255,255,0.85)' },
+        success: { DEFAULT: c('success'), bg: c('success-bg') },
+        warning: { DEFAULT: c('warning'), bg: c('warning-bg') },
+        // `solid` is the filled-button red that carries white text; `DEFAULT` is the text red.
+        error: { DEFAULT: c('error'), bg: c('error-bg'), solid: c('error-solid') },
+        info: { DEFAULT: c('info'), bg: c('info-bg') },
+        rust: { DEFAULT: c('rust'), bg: c('rust-bg') },
+        disposed: c('disposed'),
         role: {
-          super: { DEFAULT: '#5A1A8B', bg: '#F3EBFB' },
-          engineer: { DEFAULT: '#1F6FB2', bg: '#E3F0F9' },
-          employee: { DEFAULT: '#6B3A1A', bg: '#FBF0E8' },
+          super: { DEFAULT: c('role-super'), bg: c('role-super-bg') },
+          engineer: { DEFAULT: c('role-engineer'), bg: c('role-engineer-bg') },
+          employee: { DEFAULT: c('role-employee'), bg: c('role-employee-bg') },
         },
       },
       fontFamily: {
@@ -40,8 +51,8 @@ export default {
       borderRadius: { card: '12px', btn: '8px' },
       boxShadow: {
         // [PROPOSED] replace with exact values from Awraaq theme.css
-        'glow-gold': '0 4px 14px rgba(201,168,76,0.35)',
-        'glow-teal': '0 4px 14px rgba(15,91,90,0.30)',
+        'glow-gold': '0 4px 14px rgb(var(--c-gold) / 0.35)',
+        'glow-teal': '0 4px 14px rgb(var(--c-primary) / 0.30)',
       },
       minHeight: { tap: '44px' },
       minWidth: { tap: '44px' },

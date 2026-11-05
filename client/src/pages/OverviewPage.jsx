@@ -36,7 +36,7 @@ export default function OverviewPage() {
         <div>
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
           <h1 className="mt-1 flex items-center gap-2 text-3xl">
-            <LayoutDashboard size={26} className="text-primary" aria-hidden="true" /> Overview
+            <LayoutDashboard size={26} className="text-brand" aria-hidden="true" /> Overview
           </h1>
           {q.data && (
             <p className="mt-1 font-ui text-sm text-ink-2">

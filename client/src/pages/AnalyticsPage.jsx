@@ -101,7 +101,7 @@ export default function AnalyticsPage() {
         <div>
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · Admin</p>
           <h1 className="mt-1 flex items-center gap-2 text-3xl">
-            <BarChart3 size={26} className="text-primary" aria-hidden="true" /> Analytics
+            <BarChart3 size={26} className="text-brand" aria-hidden="true" /> Analytics
           </h1>
           {a && (
             <p className="mt-1 font-ui text-sm text-ink-2">
@@ -174,7 +174,7 @@ export default function AnalyticsPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="card space-y-1 font-ui text-sm">
               <h2 className="flex items-center gap-2 text-xl">
-                <ShoppingCart size={18} className="text-primary" aria-hidden="true" /> Requests
+                <ShoppingCart size={18} className="text-brand" aria-hidden="true" /> Requests
               </h2>
               <p className="text-ink-2">
                 {a.serviceRequests.requests} requests · {a.serviceRequests.approved} items approved · {a.serviceRequests.rejected} not approved ·{' '}
@@ -184,7 +184,7 @@ export default function AnalyticsPage() {
             </div>
             <div className="card space-y-1 font-ui text-sm">
               <h2 className="flex items-center gap-2 text-xl">
-                <Boxes size={18} className="text-primary" aria-hidden="true" /> Assets
+                <Boxes size={18} className="text-brand" aria-hidden="true" /> Assets
               </h2>
               {a.assets.total + a.assets.retired === 0 ? (
                 <p className="text-ink-3">No inventory in this company.</p>
@@ -204,7 +204,7 @@ export default function AnalyticsPage() {
             </div>
             <div className="card space-y-1 font-ui text-sm">
               <h2 className="flex items-center gap-2 text-xl">
-                <Bot size={18} className="text-primary" aria-hidden="true" /> AI assistant
+                <Bot size={18} className="text-brand" aria-hidden="true" /> AI assistant
               </h2>
               <p className="text-ink-2">
                 {a.assistant.chats} chats · {a.assistant.solved} solved · {a.assistant.tickets} became tickets

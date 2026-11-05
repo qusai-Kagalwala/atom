@@ -24,7 +24,7 @@ const REPORTS = [
 ];
 const PERIOD_REPORTS = new Set(['tickets', 'performance', 'workload', 'invoices']);
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
@@ -43,7 +43,7 @@ function PersonPick({ value, onChange }) {
     return (
       <p className="flex flex-wrap items-center gap-2 font-ui text-sm">
         <span className="font-medium text-ink">{value.name}</span>
-        <button type="button" className="min-h-tap text-primary hover:underline" onClick={() => onChange(null)}>
+        <button type="button" className="min-h-tap text-brand hover:underline" onClick={() => onChange(null)}>
           Change
         </button>
       </p>
@@ -57,7 +57,7 @@ function PersonPick({ value, onChange }) {
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, ITS number or Employee ID" className={`${selectClass} pl-9`} />
       </label>
       {people.data?.length > 0 && (
-        <ul className="max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-white font-ui text-sm">
+        <ul className="max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-surface font-ui text-sm">
           {people.data.map((p) => (
             <li key={p.id}>
               <button type="button" onClick={() => onChange(p)} className="flex min-h-tap w-full items-center justify-between gap-2 px-3 text-left hover:bg-gold-muted">
@@ -139,7 +139,7 @@ export default function ReportsPage() {
       <div>
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · Admin</p>
         <h1 className="mt-1 flex items-center gap-2 text-3xl">
-          <FileDown size={26} className="text-primary" aria-hidden="true" /> Reports (PDF)
+          <FileDown size={26} className="text-brand" aria-hidden="true" /> Reports (PDF)
         </h1>
         <p className="mt-1 font-ui text-sm text-ink-2">Choose a report, see it here first, then download it.</p>
       </div>
@@ -157,10 +157,10 @@ export default function ReportsPage() {
                   setError('');
                 }}
                 className={`w-full rounded-card border px-4 py-3 text-left font-ui transition-colors ${
-                  type === k ? 'border-primary bg-primary-tint' : 'border-line bg-white hover:border-gold'
+                  type === k ? 'border-brand bg-primary-tint' : 'border-line bg-surface hover:border-gold'
                 }`}
               >
-                <span className={`block text-sm font-medium ${type === k ? 'text-primary' : 'text-ink'}`}>{name}</span>
+                <span className={`block text-sm font-medium ${type === k ? 'text-brand' : 'text-ink'}`}>{name}</span>
                 <span className="mt-0.5 block text-xs text-ink-2">{text}</span>
               </button>
             </li>

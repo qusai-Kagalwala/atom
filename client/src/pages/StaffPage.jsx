@@ -11,7 +11,7 @@ import useAuth from '../hooks/useAuth';
 import { loginIdLabel } from '../utils/format';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
 
 function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
@@ -85,7 +85,7 @@ function AddStaffModal({ occupations, onClose, onAdded }) {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Name, ITS number or employee ID"
-                className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
               />
             </label>
             {people.isFetching && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Searching" />}
@@ -120,7 +120,7 @@ function AddStaffModal({ occupations, onClose, onAdded }) {
                 <span className="block font-medium text-ink">{chosen.name}</span>
                 <span className="block text-xs tabular-nums text-ink-3">{loginIdLabel({ loginType: chosen.itsNumber ? 'ITS' : 'EMPLOYEE_ID', ...chosen })}</span>
               </span>
-              <button type="button" className="text-primary hover:underline" onClick={() => setChosen(null)} disabled={busy}>
+              <button type="button" className="text-brand hover:underline" onClick={() => setChosen(null)} disabled={busy}>
                 Change
               </button>
             </div>

@@ -8,8 +8,8 @@ export default function AuthLayout({ prompt, children, below }) {
   const open = useQuery({ queryKey: ['auth', 'open-companies'], queryFn: openCompaniesRequest, staleTime: 5 * 60_000, retry: 1 });
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-cream px-4 py-10">
-      <div className="card w-full max-w-sm p-6 sm:p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+      <div className="anim-rise card w-full max-w-sm p-6 sm:p-8">
         <header className="text-center">
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Aljamea-tus-Saifiyah</p>
           <h1 className="mt-2 text-4xl">ATOM</h1>

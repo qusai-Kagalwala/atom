@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { PRESETS, presetRange } from '../utils/period';
 
 const inputClass =
-  'min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 // Period for analytics and reports: presets, or two dates. value = { preset, from, to } (initialPeriod).
 

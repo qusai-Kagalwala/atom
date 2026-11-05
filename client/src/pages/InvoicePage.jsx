@@ -12,7 +12,7 @@ import { formatBytes, formatInvoiceDate, splitTicketNumbers } from '../utils/inv
 import { statusBadge, statusLabel } from '../utils/requests';
 
 const textareaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 function EditModal({ invoice, onClose, onDone }) {
   const [f, setF] = useState({
@@ -205,7 +205,7 @@ export default function InvoicePage() {
   if (query.isError) {
     return (
       <div className="space-y-4">
-        <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> {back.label}
         </Link>
         <Alert tone="error">{errorMessage(query.error, 'Could not load this invoice.')}</Alert>
@@ -219,7 +219,7 @@ export default function InvoicePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> {back.label}
       </Link>
       {notice && <Alert tone="success">{notice}</Alert>}
@@ -263,7 +263,7 @@ export default function InvoicePage() {
           <ul className="mt-3 divide-y divide-line">
             {active.map((l) => (
               <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 font-ui text-sm">
-                <Link to={`/tickets/${l.request.number}`} state={{ from: `/invoices/${inv.number}` }} className="font-medium tabular-nums text-primary hover:underline">
+                <Link to={`/tickets/${l.request.number}`} state={{ from: `/invoices/${inv.number}` }} className="font-medium tabular-nums text-brand hover:underline">
                   {l.request.number}
                 </Link>
                 <span className="min-w-0 flex-1 truncate text-ink">{l.request.title}</span>

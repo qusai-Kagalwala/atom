@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
       prompt="Enter your Employee ID. If an email is on file, we'll send you a reset link."
       below={
         <>
-          <Link to="/login" className="font-medium text-primary hover:text-primary-dark hover:underline">
+          <Link to="/login" className="font-medium text-brand hover:text-brand-dark hover:underline">
             Back to sign in
           </Link>
           <p className="mt-1 text-xs text-ink-3">Using your ITS number? Reset your password on eJamaat.</p>

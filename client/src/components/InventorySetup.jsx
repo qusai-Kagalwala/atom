@@ -17,7 +17,7 @@ import Modal from './Modal';
 import { Pager } from './RequestList';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
@@ -39,7 +39,7 @@ export function PlacePicker({ value, onChange, label = 'Place' }) {
       <div>
         <p className="mb-1.5 font-ui text-sm font-medium text-ink">{label}</p>
         <div className="flex items-center gap-2 rounded-btn border border-line bg-cream-dark px-3 py-2 font-ui text-sm">
-          <MapPin size={16} className="shrink-0 text-primary" aria-hidden="true" />
+          <MapPin size={16} className="shrink-0 text-brand" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-ink">{value.name}</span>
             {value.detail && <span className="block truncate text-xs text-ink-3">{value.detail}</span>}
@@ -64,10 +64,10 @@ export function PlacePicker({ value, onChange, label = 'Place' }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Room number or place name"
-          className="block min-h-tap w-full rounded-btn border border-line bg-white pl-9 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+          className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-9 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
         />
       </div>
-      <ul className="mt-1 max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-white">
+      <ul className="mt-1 max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-surface">
         {query.isPending && <li className="px-3 py-2 font-ui text-sm text-ink-3">Loading…</li>}
         {query.isSuccess && !query.data.places.length && <li className="px-3 py-2 font-ui text-sm text-ink-3">No place found.</li>}
         {(query.data?.places || []).map((p) => (
@@ -144,7 +144,7 @@ function PlaceModal({ place, onClose, onDone }) {
         </Field>
         {place && (
           <label className="flex min-h-tap items-center gap-3 font-ui text-sm text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-primary" checked={active} onChange={(e) => setActive(e.target.checked)} />
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={active} onChange={(e) => setActive(e.target.checked)} />
             In use (untick to hide a place that no longer exists — it must be empty)
           </label>
         )}
@@ -181,7 +181,7 @@ export function PlacesTab({ isAdmin }) {
               setPage(1);
             }}
             placeholder="Room number, name or building"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         {isAdmin && (
@@ -193,7 +193,7 @@ export function PlacesTab({ isAdmin }) {
       {query.isError && <Alert tone="error">Could not load places.</Alert>}
       {query.isSuccess && !query.data.places.length && <p className="font-ui text-sm text-ink-3">No places found.</p>}
       {query.data?.places.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {query.data.places.map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 font-ui text-sm">
               <MapPin size={16} className="shrink-0 text-ink-3" aria-hidden="true" />
@@ -201,11 +201,11 @@ export function PlacesTab({ isAdmin }) {
                 <span className="block truncate text-ink">{p.name}</span>
                 {p.detail && <span className="block truncate text-xs text-ink-3">{p.detail}</span>}
               </span>
-              <Link to={`/inventory?q=${encodeURIComponent(p.name)}`} className="shrink-0 text-xs text-primary hover:underline">
+              <Link to={`/inventory?q=${encodeURIComponent(p.name)}`} className="shrink-0 text-xs text-brand hover:underline">
                 {p.assets} {p.assets === 1 ? 'asset' : 'assets'}
               </Link>
               {p.roomNo && (
-                <Link to={`/inventory?room=${encodeURIComponent(p.roomNo)}`} className="hidden shrink-0 text-xs text-primary hover:underline sm:inline">
+                <Link to={`/inventory?room=${encodeURIComponent(p.roomNo)}`} className="hidden shrink-0 text-xs text-brand hover:underline sm:inline">
                   Whole room
                 </Link>
               )}
@@ -323,11 +323,11 @@ export function CategoriesTab({ isAdmin }) {
       )}
       {query.isError && <Alert tone="error">Could not load categories.</Alert>}
       {query.data?.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {query.data.map((c) => (
             <li key={c.id} className="flex items-center gap-3 px-4 py-2 font-ui text-sm">
               <span className="min-w-0 flex-1 truncate text-ink">{c.name}</span>
-              <Link to={`/inventory?categoryId=${c.id}`} className="shrink-0 text-xs text-primary hover:underline">
+              <Link to={`/inventory?categoryId=${c.id}`} className="shrink-0 text-xs text-brand hover:underline">
                 {c.assets} {c.assets === 1 ? 'asset' : 'assets'}
               </Link>
               {isAdmin && (

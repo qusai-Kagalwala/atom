@@ -10,7 +10,7 @@ import { PRIORITIES } from '../utils/requests';
 import useAuth from '../hooks/useAuth';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 const STATUS_OPTIONS = [
   ['open', 'Open (not closed)'],
@@ -102,7 +102,7 @@ export default function AllRequestsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Ticket number, title, person, ITS / employee ID or location"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         <select aria-label="Status" className={selectClass} value={f.status} onChange={(e) => set({ status: e.target.value === 'open' ? '' : e.target.value })}>

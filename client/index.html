@@ -14,6 +14,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ATOM" />
+    <!-- Sets the saved theme on <html> before first paint (no flash) and replaces the teal browser-bar colour
+         above with the theme's. External file: CSP is script-src 'self'. Renamed (v1 -> v2) because the service
+         worker caches /assets/ files permanently. -->
+    <script src="%BASE_URL%assets/theme-init-v2.js"></script>
   </head>
   <body>
     <div id="root"></div>

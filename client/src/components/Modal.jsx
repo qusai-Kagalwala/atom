@@ -34,7 +34,7 @@ export default function Modal({ title, onClose, busy = false, children, footer }
         type="button"
         aria-label="Close"
         tabIndex={-1}
-        className="absolute inset-0 bg-charcoal/40"
+        className="anim-fade absolute inset-0 bg-charcoal/40"
         onClick={() => !busy && onClose()}
       />
       <div
@@ -43,7 +43,7 @@ export default function Modal({ title, onClose, busy = false, children, footer }
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-card bg-white shadow-xl sm:max-w-md sm:rounded-card"
+        className="anim-sheet relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-card bg-surface shadow-xl sm:max-w-md sm:rounded-card"
       >
         <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
           <h2 className="text-xl">{title}</h2>

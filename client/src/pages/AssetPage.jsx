@@ -12,9 +12,9 @@ import { formatDateTime, loginIdLabel } from '../utils/format';
 import { ASSET_STATUS, assetEventText, assetTitle, statusClass, statusLabel } from '../utils/assets';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const textareaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 function ActionModal({ title, onClose, busy, onSave, saveLabel, danger, children, error }) {
   return (
@@ -70,11 +70,11 @@ function PersonPicker({ value, onChange }) {
   if (value) {
     return (
       <div className="flex items-center gap-2 rounded-btn border border-line bg-cream-dark px-3 py-2 font-ui text-sm">
-        <UserRound size={16} className="text-primary" aria-hidden="true" />
+        <UserRound size={16} className="text-brand" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">
           {value.name} <span className="text-ink-3">· {loginIdLabel(value)}</span>
         </span>
-        <button type="button" onClick={() => onChange(null)} className="text-xs text-primary hover:underline">
+        <button type="button" onClick={() => onChange(null)} className="text-xs text-brand hover:underline">
           Change
         </button>
       </div>
@@ -87,7 +87,7 @@ function PersonPicker({ value, onChange }) {
       </label>
       <TextInput id="person" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, ITS number or Employee ID" />
       {q.length >= 2 && (
-        <ul className="mt-1 max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-white">
+        <ul className="mt-1 max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-surface">
           {people.isPending && <li className="px-3 py-2 font-ui text-sm text-ink-3">Searching…</li>}
           {people.isSuccess && !people.data.users.length && <li className="px-3 py-2 font-ui text-sm text-ink-3">Nobody found.</li>}
           {(people.data?.users || []).map((u) => (
@@ -200,7 +200,7 @@ export default function AssetPage() {
   if (query.isError) {
     return (
       <div className="space-y-4">
-        <Link to={back} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to={back} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> Inventory
         </Link>
         <Alert tone="error">{errorMessage(query.error, 'Could not load this asset.')}</Alert>
@@ -214,7 +214,7 @@ export default function AssetPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to={back} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to={back} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> Inventory
       </Link>
       {notice && <Alert tone="success">{notice}</Alert>}

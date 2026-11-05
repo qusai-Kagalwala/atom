@@ -5,6 +5,7 @@ import { errorMessage } from '../api/http';
 import useAuth from '../hooks/useAuth';
 import usePwa from '../hooks/usePwa';
 import { promptInstall } from '../pwa';
+import ThemeQuick from './ThemeQuick';
 import UserName from './UserName';
 import { initials, roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
 
@@ -71,7 +72,7 @@ export default function UserMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-40 mt-2 w-72 overflow-hidden rounded-card border border-line bg-white font-ui text-sm text-ink shadow-lg"
+          className="anim-drop absolute right-0 z-40 mt-2 w-72 overflow-hidden rounded-card border border-line bg-surface font-ui text-sm text-ink shadow-lg"
         >
           <div className="border-b border-line bg-cream-dark px-4 py-3">
             <p className="truncate font-medium">
@@ -99,12 +100,14 @@ export default function UserMenu() {
                 >
                   <span className={roleBadgeClass(role)}>{roleLabel(role, user)}</span>
                   {switching === role && <LoaderCircle size={16} className="animate-spin text-ink-3" aria-hidden="true" />}
-                  {!switching && role === user.activeRole && <Check size={16} className="text-primary" aria-hidden="true" />}
+                  {!switching && role === user.activeRole && <Check size={16} className="text-brand" aria-hidden="true" />}
                 </button>
               ))}
               {error && <p className="px-4 pb-2 text-xs text-error">{error}</p>}
             </div>
           )}
+
+          <ThemeQuick />
 
           <Link
             to="/choose-company"

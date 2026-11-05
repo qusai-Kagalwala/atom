@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { CircleAlert, CircleCheck, Eye, EyeOff, Info } from 'lucide-react';
 
 const inputClass =
-  'block min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-ink placeholder:text-ink-3 ' +
-  'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted aria-[invalid=true]:border-error';
+  'block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-ink placeholder:text-ink-3 ' +
+  'focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted aria-[invalid=true]:border-error';
 
 export function Field({ id, label, hint, error, children }) {
   return (

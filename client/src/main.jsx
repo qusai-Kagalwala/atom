@@ -7,6 +7,8 @@ import AuthProvider from './auth/AuthProvider';
 import App from './App';
 import './index.css';
 import { startPwa } from './pwa';
+import SiteBackground from './components/SiteBackground';
+import ThemeProvider from './theme/ThemeProvider';
 
 // Installable app: service worker (built app only), install prompt, update banner.
 startPwa();
@@ -19,7 +21,10 @@ createRoot(document.getElementById('root')).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={basename}>
         <AuthProvider>
-          <App />
+          <ThemeProvider>
+            <SiteBackground />
+            <App />
+          </ThemeProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

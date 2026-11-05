@@ -12,9 +12,9 @@ import useAuth from '../hooks/useAuth';
 // Rows from the Support Log sync can be renamed or switched off here; ATOM edits are kept on re-sync
 // unless the Super Admin syncs with "keep ATOM edits" unticked. Nothing is ever deleted.
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
 
-const ghost = 'inline-flex min-h-tap items-center gap-1 rounded-btn px-2 font-ui text-primary hover:bg-primary-tint disabled:opacity-60';
+const ghost = 'inline-flex min-h-tap items-center gap-1 rounded-btn px-2 font-ui text-brand hover:bg-primary-tint disabled:opacity-60';
 
 const LEVEL = {
   categories: { one: 'category', max: 60 },
@@ -135,7 +135,7 @@ export default function ProblemsPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl sm:text-3xl">
-            <ListTree size={26} className="text-primary" aria-hidden="true" /> Problem list
+            <ListTree size={26} className="text-brand" aria-hidden="true" /> Problem list
           </h1>
           <p className="mt-1 font-ui text-sm text-ink-2">What people choose from when they raise a ticket in {companyName}: category, item, problem.</p>
         </div>
@@ -152,7 +152,7 @@ export default function ProblemsPage() {
           <label className="flex items-start gap-3 font-ui text-sm text-ink">
             <input
               type="checkbox"
-              className="mt-1 h-4 w-4 accent-primary"
+              className="mt-1 h-4 w-4 accent-brand"
               checked={tree.data.autoAssign}
               disabled={busy}
               onChange={(e) => act(() => setAutoAssign(e.target.checked))}
@@ -166,7 +166,7 @@ export default function ProblemsPage() {
             </span>
           </label>
           <label className="flex min-h-tap items-center gap-3 font-ui text-sm text-ink-2">
-            <input type="checkbox" className="h-4 w-4 accent-primary" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />
             Show switched-off rows
           </label>
         </section>

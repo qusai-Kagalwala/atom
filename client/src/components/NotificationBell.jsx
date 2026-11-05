@@ -5,7 +5,18 @@ import { Bell, CheckCheck, LoaderCircle } from 'lucide-react';
 import { listNotifications, markAllNotificationsRead } from '../api/notifications';
 import useOpenNotification from '../hooks/useOpenNotification';
 import useUnreadCount from '../hooks/useUnreadCount';
+import { motionAllowed } from '../theme/motion';
 import NotificationItem from './NotificationItem';
+
+// A short ring, swinging from the top of the bell.
+const RING = [
+  { transform: 'rotate(0deg)' },
+  { transform: 'rotate(16deg)' },
+  { transform: 'rotate(-13deg)' },
+  { transform: 'rotate(9deg)' },
+  { transform: 'rotate(-6deg)' },
+  { transform: 'rotate(0deg)' },
+];
 
 // Header bell: unread badge + the 8 newest notifications.
 export default function NotificationBell() {
@@ -15,6 +26,16 @@ export default function NotificationBell() {
   const queryClient = useQueryClient();
   const openNotification = useOpenNotification();
   const unread = useUnreadCount();
+
+  // The bell rings when a new notification arrives (the count goes up), never on first load.
+  const bellRef = useRef(null);
+  const lastUnread = useRef(unread);
+  useEffect(() => {
+    if (unread > lastUnread.current && motionAllowed()) {
+      bellRef.current?.animate(RING, { duration: 900, easing: 'ease-in-out' });
+    }
+    lastUnread.current = unread;
+  }, [unread]);
 
   const recent = useQuery({
     queryKey: ['notifications', 'recent'],
@@ -60,11 +81,14 @@ export default function NotificationBell() {
         aria-label={label}
         className="relative flex min-h-tap min-w-tap items-center justify-center rounded-btn text-white hover:bg-primary-dark"
       >
-        <Bell size={20} aria-hidden="true" />
+        <span ref={bellRef} className="inline-flex origin-top">
+          <Bell size={20} aria-hidden="true" />
+        </span>
         {unread > 0 && (
           <span
+            key={unread}
             aria-hidden="true"
-            className="absolute right-1 top-1 min-w-[1.25rem] rounded-full bg-gold px-1 text-center font-ui text-[11px] font-bold leading-5 text-gold-on"
+            className="anim-pop absolute right-1 top-1 min-w-[1.25rem] rounded-full bg-gold px-1 text-center font-ui text-[11px] font-bold leading-5 text-gold-on"
           >
             {unread > 99 ? '99+' : unread}
           </span>
@@ -76,7 +100,7 @@ export default function NotificationBell() {
         // bell, lined up with its right edge.
         <div
           data-panel="notifications"
-          className="fixed inset-x-2 top-[4.25rem] z-40 overflow-hidden rounded-card border border-line bg-white font-ui text-ink shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96"
+          className="anim-drop fixed inset-x-2 top-[4.25rem] z-40 overflow-hidden rounded-card border border-line bg-surface font-ui text-ink shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96"
         >
           <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
             <p className="text-sm font-medium">Notifications</p>
@@ -85,7 +109,7 @@ export default function NotificationBell() {
                 type="button"
                 onClick={markAll}
                 disabled={marking}
-                className="flex min-h-tap items-center gap-1 text-xs text-primary hover:underline disabled:opacity-60"
+                className="flex min-h-tap items-center gap-1 text-xs text-brand hover:underline disabled:opacity-60"
               >
                 {marking ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <CheckCheck size={14} aria-hidden="true" />}
                 Mark all read
@@ -128,7 +152,7 @@ export default function NotificationBell() {
           <Link
             to="/notifications"
             onClick={() => setOpen(false)}
-            className="flex min-h-tap items-center justify-center border-t border-line text-sm text-primary hover:bg-gold-muted"
+            className="flex min-h-tap items-center justify-center border-t border-line text-sm text-brand hover:bg-gold-muted"
           >
             See all notifications
           </Link>

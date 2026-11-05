@@ -40,11 +40,11 @@ export default function ResetPasswordPage() {
 
   const backLinks = (
     <>
-      <Link to="/forgot-password" className="font-medium text-primary hover:text-primary-dark hover:underline">
+      <Link to="/forgot-password" className="font-medium text-brand hover:text-brand-dark hover:underline">
         Request a new link
       </Link>
       <span className="mx-2 text-ink-3">·</span>
-      <Link to="/login" className="font-medium text-primary hover:text-primary-dark hover:underline">
+      <Link to="/login" className="font-medium text-brand hover:text-brand-dark hover:underline">
         Sign in
       </Link>
     </>

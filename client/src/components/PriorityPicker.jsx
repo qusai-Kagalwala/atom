@@ -17,7 +17,7 @@ export default function PriorityPicker({ value, onChange, name = 'priority', not
           <label
             key={p}
             className={`flex min-h-tap cursor-pointer flex-col items-center justify-center rounded-btn border px-3 py-1 text-center font-ui text-sm ${
-              value === p ? 'border-primary bg-primary-tint text-primary' : 'border-line text-ink hover:border-gold'
+              value === p ? 'border-brand bg-primary-tint text-brand' : 'border-line text-ink hover:border-gold'
             }`}
           >
             <input type="radio" name={name} value={p} checked={value === p} onChange={() => onChange(p)} className="sr-only" />

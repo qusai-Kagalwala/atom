@@ -21,7 +21,7 @@ const ROLE_HELP = {
   SUPER_ADMIN: 'All companies: appoints Admins, users, sync, AI and settings.',
 };
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted disabled:opacity-60';
 const listCompanies = () => http.get('/users/companies').then((r) => r.data.companies);
 
 function Section({ title, children, action }) {
@@ -46,7 +46,7 @@ function Toggle({ on, label, help, disabled, busy, onClick, badgeClass }) {
       disabled={disabled}
       onClick={onClick}
       className={`flex min-h-tap w-full items-center justify-between gap-3 rounded-btn border px-4 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-        on ? 'border-primary bg-primary-tint' : 'border-line bg-white hover:border-gold'
+        on ? 'border-brand bg-primary-tint' : 'border-line bg-surface hover:border-gold'
       }`}
     >
       <span className="min-w-0">
@@ -55,7 +55,7 @@ function Toggle({ on, label, help, disabled, busy, onClick, badgeClass }) {
       </span>
       <span
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-          on ? 'border-primary bg-primary text-white' : 'border-line-dark bg-white'
+          on ? 'border-brand bg-primary text-white' : 'border-line-dark bg-surface'
         }`}
         aria-hidden="true"
       >
@@ -249,7 +249,7 @@ function PasswordModal({ user, onClose }) {
           <label className="flex min-h-tap items-start gap-3 font-ui text-sm text-ink">
             <input
               type="checkbox"
-              className="mt-1 h-4 w-4 accent-primary"
+              className="mt-1 h-4 w-4 accent-brand"
               checked={requireChange}
               onChange={(e) => setRequireChange(e.target.checked)}
             />
@@ -261,7 +261,7 @@ function PasswordModal({ user, onClose }) {
           {requireChange && (
             <button
               type="button"
-              className="font-ui text-sm text-primary hover:underline"
+              className="font-ui text-sm text-brand hover:underline"
               onClick={() => {
                 setNext(user.employeeId);
                 setConfirm(user.employeeId);
@@ -314,7 +314,7 @@ export default function UserDetailPage() {
   if (userQuery.isError) {
     return (
       <div className="space-y-4">
-        <Link to="/users" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to="/users" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> All users
         </Link>
         <Alert tone="error">{errorMessage(userQuery.error, 'Could not load this user.')}</Alert>
@@ -342,7 +342,7 @@ export default function UserDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to="/users" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/users" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> All users
       </Link>
 

@@ -10,6 +10,7 @@ import { Alert, Field } from '../components/FormControls';
 import Modal from '../components/Modal';
 import PhotoPicker from '../components/PhotoPicker';
 import TicketInvoices from '../components/TicketInvoices';
+import TicketTrack from '../components/TicketTrack';
 import ServiceItems from '../components/ServiceItems';
 import PriorityChange from '../components/PriorityChange';
 import TimeFrame from '../components/TimeFrame';
@@ -27,9 +28,9 @@ import {
 const ASSISTANT_LANG = { en: 'English', ar: 'Arabic', hi: 'Hindi', gu: 'Gujarati' };
 
 const selectClass =
-  'block min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const textareaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const buttonClass = { primary: 'btn-primary', secondary: 'btn-secondary', danger: 'btn-danger' };
 
 // One modal for every action that needs a note or an engineer.
@@ -159,7 +160,7 @@ function CommentBox({ ticket, onDone }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         {p.canAddInternalNote ? (
           <label className="flex min-h-tap items-center gap-2 font-ui text-sm text-ink-2">
-            <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} className="h-5 w-5 rounded border-line text-primary focus:ring-primary" />
+            <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} className="h-5 w-5 rounded border-line text-brand focus:ring-brand" />
             <Lock size={14} aria-hidden="true" /> Internal note
           </label>
         ) : (
@@ -277,7 +278,7 @@ export default function TicketPage() {
   if (ticketQuery.isError) {
     return (
       <div className="space-y-4">
-        <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+        <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> {back.label}
         </Link>
         <Alert tone="error">{errorMessage(ticketQuery.error, 'Could not load this ticket.')}</Alert>
@@ -292,11 +293,15 @@ export default function TicketPage() {
 
   return (
     <div className={`mx-auto max-w-4xl space-y-5 ${t.permissions.actions.length ? 'pb-24 sm:pb-0' : ''}`}>
-      <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to={back.to} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> {back.label}
       </Link>
 
-      {notice && <Alert tone="success">{notice}</Alert>}
+      {notice && (
+        <div className="anim-rise">
+          <Alert tone="success">{notice}</Alert>
+        </div>
+      )}
 
       <header className="card">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -308,10 +313,15 @@ export default function TicketPage() {
             <h1 className="mt-1 text-2xl sm:text-3xl">{t.title}</h1>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <span className={statusBadge(t.status)}>{statusLabel(t.status, { viewerIsRequester, type: t.type })}</span>
+            {/* key = the status, so the badge pops whenever it changes (also after a live update) */}
+            <span key={t.status} className={`${statusBadge(t.status)} anim-pop`}>
+              {statusLabel(t.status, { viewerIsRequester, type: t.type })}
+            </span>
             <span className={priorityBadge(t.priority)}>{priorityLabel(t.priority)}</span>
           </div>
         </div>
+
+        <TicketTrack status={t.status} type={t.type} />
 
         <dl className="mt-4 grid gap-x-6 gap-y-2 font-ui text-sm sm:grid-cols-2">
           <div>
@@ -347,7 +357,7 @@ export default function TicketPage() {
         <p className="mt-4 whitespace-pre-wrap font-ui text-sm text-ink">{t.description}</p>
 
         {t.assistant && (
-          <p className="mt-3 flex items-start gap-2 rounded-btn bg-primary-tint px-3 py-2 font-ui text-xs text-primary">
+          <p className="mt-3 flex items-start gap-2 rounded-btn bg-primary-tint px-3 py-2 font-ui text-xs text-brand">
             <Bot size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>
               Raised from the AI assistant ({ASSISTANT_LANG[t.assistant.language] || t.assistant.language})
@@ -391,7 +401,7 @@ export default function TicketPage() {
         )}
         {/* Phones: the actions stay at the bottom of the screen, always one tap away. */}
         {t.permissions.actions.length > 0 && (
-          <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 overflow-x-auto border-t border-line bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-lg sm:hidden">
+          <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 overflow-x-auto border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-lg sm:hidden">
             {t.permissions.actions.map((a) => (
               <button key={a} type="button" className={`${buttonClass[ACTION_BUTTONS[a].tone]} flex-1 whitespace-nowrap`} onClick={() => setAction(a)}>
                 {a === 'assign' && t.assignedEngineer ? 'Reassign' : ACTION_BUTTONS[a].label}

@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Build output, including the folders a release creates beside it (dist-new while staging, dist.bak-<date> after the swap).
+  globalIgnores(['dist', 'dist-new', 'dist.bak-*']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

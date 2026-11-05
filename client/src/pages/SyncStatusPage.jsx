@@ -135,14 +135,14 @@ function ItemsSyncPanel({ onDone }) {
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
           {COMPANIES.map(([code, name, what]) => (
             <label key={code} className="flex min-h-tap items-center gap-2 font-ui text-sm text-ink">
-              <input type="checkbox" className="h-4 w-4 accent-primary" checked={chosen.has(code)} onChange={() => toggle(code)} disabled={Boolean(busy)} />
+              <input type="checkbox" className="h-4 w-4 accent-brand" checked={chosen.has(code)} onChange={() => toggle(code)} disabled={Boolean(busy)} />
               {name} <span className="text-ink-3">({what})</span>
             </label>
           ))}
         </div>
       </fieldset>
       <label className="flex items-start gap-2 font-ui text-sm text-ink">
-        <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={keep} onChange={(e) => setKeep(e.target.checked)} disabled={Boolean(busy)} />
+        <input type="checkbox" className="mt-1 h-4 w-4 accent-brand" checked={keep} onChange={(e) => setKeep(e.target.checked)} disabled={Boolean(busy)} />
         <span>
           Keep changes made in ATOM
           <span className="block text-ink-2">Names, switched-off rows, prices and stock that Admins changed in ATOM stay. Untick to overwrite them with the Support Log.</span>

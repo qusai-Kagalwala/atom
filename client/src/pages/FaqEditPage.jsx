@@ -15,9 +15,9 @@ const LANGS = [
   ['gu', 'ગુજરાતી'],
 ];
 const areaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const lines = (v) => String(v || '').split('\n').map((s) => s.trim()).filter(Boolean);
 
 // from: a "Question with no FAQ" (Add as FAQ) — its text becomes the question (in the language it
@@ -179,12 +179,12 @@ function Editor({ faq, from }) {
           </Field>
         </div>
         <label className="flex min-h-tap items-center gap-2 font-ui text-sm">
-          <input type="checkbox" checked={f.directTicket} onChange={set('directTicket')} className="h-5 w-5 rounded border-line text-primary" />
+          <input type="checkbox" checked={f.directTicket} onChange={set('directTicket')} className="h-5 w-5 rounded border-line text-brand" />
           Straight to a ticket (no self-help steps)
         </label>
         {faq && (
           <label className="flex min-h-tap items-center gap-2 font-ui text-sm">
-            <input type="checkbox" checked={f.isActive} onChange={set('isActive')} className="h-5 w-5 rounded border-line text-primary" />
+            <input type="checkbox" checked={f.isActive} onChange={set('isActive')} className="h-5 w-5 rounded border-line text-brand" />
             Switched on (shown in the assistant)
           </label>
         )}
@@ -199,7 +199,7 @@ function Editor({ faq, from }) {
               role="tab"
               aria-selected={lang === code}
               onClick={() => setLang(code)}
-              className={`min-h-tap rounded-btn px-3 font-ui text-sm ${lang === code ? 'bg-primary text-white' : 'border border-line bg-white text-ink'}`}
+              className={`min-h-tap rounded-btn px-3 font-ui text-sm ${lang === code ? 'bg-primary text-white' : 'border border-line bg-surface text-ink'}`}
             >
               {label}
               {f.answers[code].question.trim() ? '' : ' (empty)'}
@@ -248,7 +248,7 @@ export default function FaqEditPage() {
   const faq = useQuery({ queryKey: ['assistant', 'faq', id], queryFn: () => getFaq(id), enabled: !isNew });
   return (
     <section className="mx-auto max-w-3xl space-y-4">
-      <Link to="/faqs" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/faqs" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> FAQs
       </Link>
       <h1 className="text-3xl">{isNew ? 'Add an FAQ' : faq.data ? `${faq.data.item} · ${faq.data.subItem}` : 'FAQ'}</h1>

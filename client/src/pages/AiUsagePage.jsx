@@ -76,7 +76,7 @@ function SettingsForm({ settings }) {
             checked={f.gptEnabled}
             disabled={busy}
             onChange={(e) => save({ gptEnabled: e.target.checked })}
-            className="h-6 w-6 rounded border-line text-primary"
+            className="h-6 w-6 rounded border-line text-brand"
           />
           {f.gptEnabled ? 'GPT is on' : 'GPT is off'}
         </label>
@@ -169,7 +169,7 @@ function Companies({ list, days }) {
                 checked={c.assistantEnabled}
                 disabled={busy === c.code}
                 onChange={(e) => toggle(c.code, e.target.checked)}
-                className="h-5 w-5 rounded border-line accent-primary"
+                className="h-5 w-5 rounded border-line accent-brand"
                 aria-label={`${c.name} assistant (phone)`}
               />
               {c.assistantEnabled ? 'On' : 'Off'}
@@ -201,7 +201,7 @@ function Companies({ list, days }) {
                       checked={c.assistantEnabled}
                       disabled={busy === c.code}
                       onChange={(e) => toggle(c.code, e.target.checked)}
-                      className="h-5 w-5 rounded border-line accent-primary"
+                      className="h-5 w-5 rounded border-line accent-brand"
                       aria-label={`${c.name} assistant`}
                     />
                     {c.assistantEnabled ? 'On' : 'Off'}
@@ -308,7 +308,7 @@ function AiUsage() {
         <select
           value={company}
           onChange={(e) => setCompany(e.target.value)}
-          className="min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+          className="min-h-tap rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
         >
           <option value="">All companies</option>
           {u.companies.map((c) => (

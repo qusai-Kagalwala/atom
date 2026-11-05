@@ -11,7 +11,7 @@ export default function StatusRow({ icon: RowIcon, label, state, detail }) {
 
   return (
     <li className="flex min-h-tap items-center gap-3 border-b border-line py-3 last:border-b-0">
-      <RowIcon size={20} className="shrink-0 text-primary" aria-hidden="true" />
+      <RowIcon size={20} className="shrink-0 text-brand" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="font-ui text-sm font-medium text-ink">{label}</p>
         {detail && <p className="truncate font-ui text-xs text-ink-2">{detail}</p>}

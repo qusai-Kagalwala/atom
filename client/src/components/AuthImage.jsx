@@ -38,7 +38,7 @@ export default function AuthImage({ url, alt, className = '', onClick }) {
   }
   const img = <img src={state.src} alt={alt} className={`object-cover ${className}`} />;
   return onClick ? (
-    <button type="button" onClick={() => onClick(state.src)} className="block overflow-hidden rounded-btn focus-visible:ring-2 focus-visible:ring-primary">
+    <button type="button" onClick={() => onClick(state.src)} className="block overflow-hidden rounded-btn focus-visible:ring-2 focus-visible:ring-brand">
       {img}
     </button>
   ) : (

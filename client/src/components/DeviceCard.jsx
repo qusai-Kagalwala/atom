@@ -72,10 +72,10 @@ export default function DeviceCard() {
   else
     push = (
       <label className="flex min-h-tap items-center gap-3 font-ui text-sm font-medium">
-        <input type="checkbox" role="switch" checked={state === 'on'} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-primary" />
+        <input type="checkbox" role="switch" checked={state === 'on'} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="h-6 w-6 rounded border-line text-brand" />
         {state === 'on' ? (
           <>
-            <BellRing size={18} className="text-primary" aria-hidden="true" /> Notifications on for this device
+            <BellRing size={18} className="text-brand" aria-hidden="true" /> Notifications on for this device
           </>
         ) : (
           <>

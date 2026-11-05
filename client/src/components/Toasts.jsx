@@ -18,9 +18,9 @@ export default function Toasts() {
         <div
           key={t.id}
           role="status"
-          className="pointer-events-auto flex items-start gap-3 rounded-card border border-line bg-white p-3 font-ui shadow-lg"
+          className="anim-slide-in pointer-events-auto flex items-start gap-3 rounded-card border border-line bg-surface p-3 font-ui shadow-lg"
         >
-          <Bell size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+          <Bell size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-ink">{t.title}</p>
             {t.body && <p className="mt-0.5 truncate text-xs text-ink-2">{t.body}</p>}
@@ -31,7 +31,7 @@ export default function Toasts() {
                   dismissToast(t.id);
                   openNotification({ id: t.notificationId, link: t.link, read: false });
                 }}
-                className="mt-1 text-xs font-medium text-primary hover:underline"
+                className="mt-1 text-xs font-medium text-brand hover:underline"
               >
                 Open
               </button>

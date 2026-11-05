@@ -54,7 +54,7 @@ function AppointModal({ company, onClose, onDone }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Name, ITS number or employee ID"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         {people.isFetching && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Searching" />}
@@ -136,7 +136,7 @@ function CompanyAdmins({ company }) {
         {list.map((u) => (
           <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <span>
-              <Link to={`/users/${u.id}`} className="inline-flex min-h-tap items-center font-medium text-primary hover:underline">
+              <Link to={`/users/${u.id}`} className="inline-flex min-h-tap items-center font-medium text-brand hover:underline">
                 {u.name}
               </Link>
               {!u.isActive && <span className="status-closed ml-2">Inactive</span>}

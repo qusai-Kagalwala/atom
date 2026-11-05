@@ -52,7 +52,7 @@ export default function LoginPage() {
       prompt="Sign in with your ITS number or Employee ID."
       below={
         <>
-          <Link to="/forgot-password" className="font-medium text-primary hover:text-primary-dark hover:underline">
+          <Link to="/forgot-password" className="font-medium text-brand hover:text-brand-dark hover:underline">
             Forgot password?
           </Link>
           <p className="mt-1 text-xs text-ink-3">Using your ITS number? Reset your password on eJamaat.</p>

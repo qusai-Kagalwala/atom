@@ -10,7 +10,7 @@ import { formatDateTime } from '../utils/format';
 import { ITEM_KINDS } from '../utils/requests';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const KIND_HINT = {
   physical: 'Delivered by handing over an asset from Inventory.',
   software: 'Delivered with a note (e.g. licence sent by email).',
@@ -69,7 +69,7 @@ function StockModal({ item, onClose, onSaved }) {
         <div className="flex flex-wrap gap-x-5 gap-y-2 font-ui text-sm">
           {(tracked ? [['add', 'Add'], ['remove', 'Remove'], ['set', 'Set the count']] : [['set', 'Set the count']]).map(([k, label]) => (
             <label key={k} className="flex min-h-tap items-center gap-2">
-              <input type="radio" name="stock-mode" className="h-4 w-4 accent-primary" checked={mode === k} onChange={() => setMode(k)} />
+              <input type="radio" name="stock-mode" className="h-4 w-4 accent-brand" checked={mode === k} onChange={() => setMode(k)} />
               {label}
             </label>
           ))}
@@ -208,7 +208,7 @@ function ItemModal({ item, onClose, onSaved }) {
         </Field>
         {item && (
           <label className="flex min-h-tap items-center gap-2 font-ui text-sm">
-            <input type="checkbox" checked={f.isActive} onChange={set('isActive')} className="h-5 w-5 rounded border-line text-primary" />
+            <input type="checkbox" checked={f.isActive} onChange={set('isActive')} className="h-5 w-5 rounded border-line text-brand" />
             Offered (shown on the Request page)
           </label>
         )}
@@ -254,7 +254,7 @@ export default function CataloguePage() {
             <span className="sr-only">Search the catalogue</span>
             <input
               type="search"
-              className="min-h-tap w-full rounded-btn border border-line bg-white pl-9 pr-3 font-ui text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+              className="min-h-tap w-full rounded-btn border border-line bg-surface pl-9 pr-3 font-ui text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
               placeholder="Search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -274,7 +274,7 @@ export default function CataloguePage() {
       )}
       {items.data?.length > 0 && shown.length === 0 && <p className="font-ui text-sm text-ink-3">Nothing matches.</p>}
       {shown.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white font-ui text-sm">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface font-ui text-sm">
           {shown.map((c) => (
             <li key={c.id} className={`flex items-center gap-3 px-4 py-3 ${c.isActive ? '' : 'opacity-60'}`}>
               <span className="min-w-0 flex-1">

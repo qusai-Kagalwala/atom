@@ -9,7 +9,7 @@ import { PRIORITIES, priorityBadge, priorityLabel } from '../utils/requests';
 import { windowText } from '../utils/timeFrame';
 
 const areaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 // Super Admin: change a ticket's / request's priority, with an optional message. The requester and
 // the engineer are told (in-app + email); the time frame is recalculated from when it was raised.
@@ -46,7 +46,7 @@ export default function PriorityChange({ ticket, onDone, compact = false }) {
           setError('');
           setOpen(true);
         }}
-        className={compact ? 'inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline' : 'btn-secondary'}
+        className={compact ? 'inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline' : 'btn-secondary'}
       >
         <ArrowUpDown size={16} aria-hidden="true" /> {compact ? 'Priority' : 'Change priority'}
       </button>
@@ -78,7 +78,7 @@ export default function PriorityChange({ ticket, onDone, compact = false }) {
                   <label
                     key={p}
                     className={`flex min-h-tap cursor-pointer flex-col items-center justify-center rounded-btn border px-3 py-1 text-center font-ui text-sm ${
-                      priority === p ? 'border-primary bg-primary-tint text-primary' : 'border-line text-ink hover:border-gold'
+                      priority === p ? 'border-brand bg-primary-tint text-brand' : 'border-line text-ink hover:border-gold'
                     }`}
                   >
                     <input type="radio" name="new-priority" value={p} checked={priority === p} onChange={() => setPriority(p)} className="sr-only" />

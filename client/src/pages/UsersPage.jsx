@@ -11,7 +11,7 @@ import { roleBadgeClass, roleLabel, sortRoles } from '../utils/roles';
 
 const PAGE_SIZE = 25;
 const selectClass =
-  'min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 function StatusBadge({ active }) {
   return <span className={active ? 'status-resolved' : 'status-closed'}>{active ? 'Active' : 'Inactive'}</span>;
@@ -102,7 +102,7 @@ function AddUserModal({ onClose }) {
               <label
                 key={value}
                 className={`flex min-h-tap cursor-pointer items-center justify-center rounded-btn border px-3 font-ui text-sm ${
-                  form.loginType === value ? 'border-primary bg-primary-tint text-primary' : 'border-line text-ink'
+                  form.loginType === value ? 'border-brand bg-primary-tint text-brand' : 'border-line text-ink'
                 }`}
               >
                 <input type="radio" name="loginType" value={value} checked={form.loginType === value} onChange={set('loginType')} className="sr-only" />
@@ -224,7 +224,7 @@ export default function UsersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Name, ITS number, employee ID or department"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         <select aria-label="Role" className={selectClass} value={filters.role} onChange={setFilter('role')}>
@@ -276,7 +276,7 @@ export default function UsersPage() {
                 {users.map((u) => (
                   <tr key={u.id} className="hover:bg-gold-muted/40">
                     <td className="px-4 py-3">
-                      <Link to={`/users/${u.id}`} className="font-medium text-primary hover:underline">
+                      <Link to={`/users/${u.id}`} className="font-medium text-brand hover:underline">
                         {u.name}
                       </Link>
                       <div className="text-xs text-ink-3">{SOURCE_LABELS[u.source]}</div>
@@ -303,7 +303,7 @@ export default function UsersPage() {
               <li key={u.id}>
                 <Link to={`/users/${u.id}`} className="card block p-4 hover:border-gold">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-ui font-medium text-primary">{u.name}</span>
+                    <span className="font-ui font-medium text-brand">{u.name}</span>
                     <StatusBadge active={u.isActive} />
                   </div>
                   <p className="mt-0.5 font-ui text-xs tabular-nums text-ink-3">

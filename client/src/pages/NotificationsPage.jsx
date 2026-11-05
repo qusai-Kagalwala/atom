@@ -135,7 +135,7 @@ export default function NotificationsPage() {
         </div>
       )}
       {items.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {items.map((n) => (
             <li key={n.id}>
               <NotificationItem n={n} onOpen={(x) => openNotification(x, { from })} />

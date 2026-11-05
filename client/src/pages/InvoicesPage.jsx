@@ -13,7 +13,7 @@ import { timeAgo } from '../utils/format';
 import { invoiceLabel } from '../utils/invoices';
 
 const selectClass =
-  'min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const PAGE_SIZE = 20;
 
 // Engineers: invoices they uploaded + invoices on their assigned work. Super Admin: every invoice.
@@ -85,7 +85,7 @@ export default function InvoicesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="INV number, ticket number, supplier or invoice number"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         <select aria-label="Linked" className={selectClass} value={linked} onChange={(e) => set({ linked: e.target.value })}>
@@ -110,7 +110,7 @@ export default function InvoicesPage() {
       )}
 
       {items.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {items.map((inv) => {
             const Icon = inv.fileType === 'pdf' ? FileText : ImageIcon;
             return (
@@ -120,7 +120,7 @@ export default function InvoicesPage() {
                   state={{ from }}
                   className="flex items-start gap-3 px-4 py-3 font-ui hover:bg-gold-muted focus-visible:bg-gold-muted"
                 >
-                  <Icon size={20} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" />
+                  <Icon size={20} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-baseline gap-x-2">
                       <span className="text-sm font-medium tabular-nums text-ink">{inv.number}</span>
@@ -129,7 +129,7 @@ export default function InvoicesPage() {
                     <span className="mt-1 flex flex-wrap gap-1">
                       {inv.linked.length ? (
                         inv.linked.map((n) => (
-                          <span key={n} className="badge bg-primary-muted text-primary">
+                          <span key={n} className="badge bg-primary-muted text-brand">
                             {n}
                           </span>
                         ))

@@ -11,6 +11,9 @@
 //   POST /forgot-password  { employeeId }                       → { sent, message }
 //   POST /reset-password   { token, newPassword }               → { message }
 //   PATCH /preferences     { nameLanguage: 'en' | 'ar' }        → { user }
+//   GET   /theme                                                → { theme: { theme, mode } | null }   Appearance
+//   PUT   /theme           { theme, mode }                      → { theme: { theme, mode } }
+//                          (503 theme_unavailable until migration 025 is applied; allowed values: shared/themes.json)
 // SECURITY: never log req.body here.
 const express = require('express');
 const { body, validationResult } = require('express-validator');
@@ -21,6 +24,8 @@ const { requireAuth } = require('../../middleware/requireAuth');
 const { ROLE_KEYS, pickActiveRole, rolesIn, toPublicUser } = require('./session');
 const { loadSessionUser, listCompanies, setNameLanguage } = require('./users.repo');
 const { signSession } = require('./tokens');
+const { getTheme, setTheme } = require('./theme.repo');
+const themes = require('../../../shared/themes.json');
 
 const WINDOW_MS = 15 * 60 * 1000;
 
@@ -159,6 +164,43 @@ function createAuthRouter() {
       return next(err);
     }
   });
+
+  // ---------- Appearance ----------
+  // Colour theme + light/dark, saved per person so it follows them to other devices. Kept apart from the
+  // session user on purpose (see theme.repo.js): nothing here runs on ordinary requests.
+  const themeLimit = limiter({
+    limit: 120,
+    key: (req) => `theme:${req.user.id}`,
+    message: 'Too many changes. Please try again later.',
+  });
+
+  router.get('/theme', requireAuth, async (req, res, next) => {
+    try {
+      return res.json({ theme: await getTheme(req.user.id) });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  router.put(
+    '/theme',
+    requireAuth,
+    themeLimit,
+    body('theme').isIn(themes.themes),
+    body('mode').isIn(themes.modes),
+    async (req, res, next) => {
+      if (invalid(req)) return res.status(400).json({ message: 'Choose a colour and light or dark.' });
+      try {
+        const saved = await setTheme(req.user.id, { theme: req.body.theme, mode: req.body.mode });
+        if (!saved) {
+          return res.status(503).json({ message: 'Saving your theme is not available yet.', code: 'theme_unavailable' });
+        }
+        return res.json({ theme: saved });
+      } catch (err) {
+        return next(err);
+      }
+    }
+  );
 
   // ---------- Change password (logged in) ----------
   // 10 wrong "current password" tries / 15 min per user, so a stolen session can't brute-force it.

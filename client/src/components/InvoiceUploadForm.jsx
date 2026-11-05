@@ -6,7 +6,7 @@ import { Alert, Field, TextInput } from './FormControls';
 import { ACCEPT, ACCEPTED_TYPES, MAX_BYTES, formatBytes, splitTicketNumbers } from '../utils/invoices';
 
 const textareaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 // Upload one invoice. `tickets` = fixed ticket numbers (from a ticket page) — the ticket field is hidden.
 // A duplicate file offers "link the existing one instead" (same file, linkExisting=true).
@@ -94,7 +94,7 @@ export default function InvoiceUploadForm({ tickets: fixedTickets, onDone, onBus
         <p className="mb-1.5 font-ui text-sm font-medium text-ink">Invoice file</p>
         {file ? (
           <div className="flex items-center gap-3 rounded-btn border border-line bg-cream-dark px-3 py-2 font-ui text-sm">
-            <FileUp size={18} className="shrink-0 text-primary" aria-hidden="true" />
+            <FileUp size={18} className="shrink-0 text-brand" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{file.name}</span>
             <span className="shrink-0 text-xs text-ink-3">{formatBytes(file.size)}</span>
             <button

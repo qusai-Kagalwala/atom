@@ -5,6 +5,7 @@ import { changePasswordRequest, updatePreferencesRequest } from '../api/auth';
 import { errorMessage } from '../api/http';
 import { Alert, Field, PasswordInput } from '../components/FormControls';
 import DeviceCard from '../components/DeviceCard';
+import ThemePicker from '../components/ThemePicker';
 import UserName from '../components/UserName';
 import useAuth from '../hooks/useAuth';
 import { MIN_PASSWORD, newPasswordErrors } from '../utils/passwordRules';
@@ -146,7 +147,7 @@ function NameLanguageCard({ user }) {
               disabled={Boolean(saving)}
               onClick={() => choose(o.value)}
               className={`flex min-h-tap items-center justify-between gap-3 rounded-btn border px-4 py-3 text-left transition-colors ${
-                selected ? 'border-primary bg-primary-tint' : 'border-line bg-white hover:border-gold'
+                selected ? 'border-brand bg-primary-tint' : 'border-line bg-surface hover:border-gold'
               }`}
             >
               <span className="min-w-0">
@@ -160,7 +161,7 @@ function NameLanguageCard({ user }) {
               {saving === o.value ? (
                 <LoaderCircle size={18} className="shrink-0 animate-spin text-ink-3" aria-hidden="true" />
               ) : (
-                selected && <Check size={18} className="shrink-0 text-primary" aria-hidden="true" />
+                selected && <Check size={18} className="shrink-0 text-brand" aria-hidden="true" />
               )}
             </button>
           );
@@ -193,7 +194,7 @@ export default function ProfilePage() {
           <Detail label={isIts ? 'ITS number' : 'Employee ID'}>
             <span className="tabular-nums">{isIts ? user.itsNumber : user.employeeId}</span>
             <span
-              className={`badge ml-2 border bg-white ${isIts ? 'border-primary text-primary' : 'border-gold-dark text-gold-dark'}`}
+              className={`badge ml-2 border bg-surface ${isIts ? 'border-brand text-brand' : 'border-gold-dark text-gold-dark'}`}
             >
               {isIts ? 'ITS' : 'Employee ID'}
             </span>
@@ -213,6 +214,14 @@ export default function ProfilePage() {
       </section>
 
       {user.nameArabic && <NameLanguageCard user={user} />}
+
+      <section className="card" id="appearance">
+        <h2 className="text-xl">Appearance</h2>
+        <p className="mt-1 font-ui text-sm text-ink-2">Pick a colour and light or dark. Your choice is saved to your account, so it follows you to other devices.</p>
+        <div className="mt-4">
+          <ThemePicker />
+        </div>
+      </section>
 
       <DeviceCard />
 

@@ -50,7 +50,7 @@ function LinkExistingModal({ ticket, onClose, onDone }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="INV number, ticket, supplier…"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         {query.isPending && (
@@ -126,7 +126,7 @@ export default function TicketInvoices({ ticket, onChanged }) {
                   state={{ from }}
                   className="flex items-center gap-3 py-2.5 font-ui text-sm hover:bg-gold-muted focus-visible:bg-gold-muted"
                 >
-                  <Icon size={18} className="shrink-0 text-primary" aria-hidden="true" />
+                  <Icon size={18} className="shrink-0 text-brand" aria-hidden="true" />
                   <span className="font-medium tabular-nums text-ink">{inv.number}</span>
                   <span className="min-w-0 flex-1 truncate text-ink-2">{invoiceLabel(inv)}</span>
                 </Link>

@@ -14,7 +14,7 @@ import { formatDateTime } from '../utils/format';
 // receive everything at once) and the "to recover" list — people deactivated while holding assets.
 // Only this company's assets; people are shared.
 const inputClass =
-  'block min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 function useDebounced(value, ms = 300) {
   const [v, setV] = useState(value);
@@ -99,7 +99,7 @@ function GiveEquipment({ person, onGiven }) {
   return (
     <div className="card space-y-3">
       <h2 className="flex items-center gap-2 text-xl">
-        <PackagePlus size={20} className="text-primary" aria-hidden="true" /> Give equipment
+        <PackagePlus size={20} className="text-brand" aria-hidden="true" /> Give equipment
       </h2>
       {!person.isActive ? (
         <p className="font-ui text-sm text-ink-3">{person.name} is inactive — equipment can only be given to active people.</p>
@@ -175,12 +175,12 @@ function Person({ id, onBack }) {
 
   return (
     <div className="space-y-4">
-      <button type="button" onClick={onBack} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <button type="button" onClick={onBack} className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> Find another person
       </button>
 
       <div className="card flex flex-wrap items-center gap-3">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-tint text-primary" aria-hidden="true">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-tint text-brand" aria-hidden="true">
           <UserRound size={22} />
         </span>
         <div className="min-w-0 flex-1">
@@ -200,13 +200,13 @@ function Person({ id, onBack }) {
       <div className="card space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-xl">
-            <PackageCheck size={20} className="text-primary" aria-hidden="true" /> Equipment held ({assets.length})
+            <PackageCheck size={20} className="text-brand" aria-hidden="true" /> Equipment held ({assets.length})
           </h2>
           {assets.length > 0 && (
             <label className="flex min-h-tap items-center gap-2 font-ui text-sm">
               <input
                 type="checkbox"
-                className="h-4 w-4 accent-primary"
+                className="h-4 w-4 accent-brand"
                 checked={all}
                 onChange={() => setPicked(all ? new Set() : new Set(assets.map((a) => a.tag)))}
               />
@@ -221,10 +221,10 @@ function Person({ id, onBack }) {
             {assets.map((a) => (
               <li key={a.id}>
                 <label className="flex min-h-tap cursor-pointer items-center gap-3 py-2">
-                  <input type="checkbox" className="h-4 w-4 shrink-0 accent-primary" checked={picked.has(a.tag)} onChange={() => toggle(a.tag)} />
+                  <input type="checkbox" className="h-4 w-4 shrink-0 accent-brand" checked={picked.has(a.tag)} onChange={() => toggle(a.tag)} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-ink">
-                      <Link to={`/inventory/assets/${encodeURIComponent(a.tag)}`} className="tabular-nums text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                      <Link to={`/inventory/assets/${encodeURIComponent(a.tag)}`} className="tabular-nums text-brand hover:underline" onClick={(e) => e.stopPropagation()}>
                         {a.tag}
                       </Link>{' '}
                       · {assetTitle(a)}

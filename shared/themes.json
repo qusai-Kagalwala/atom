@@ -1,0 +1,6 @@
+{
+  "_comment": "Colour themes and light/dark modes people can choose (Appearance). Used by the server to validate what it saves and by the client for the allowed values. The colours themselves are in client/src/index.css; the names and previews are in client/src/theme/themes.js; client/public/assets/theme-init-v2.js repeats the ids (it cannot import).",
+  "themes": ["teal", "navy", "maroon"],
+  "modes": ["light", "dark", "system"],
+  "default": { "theme": "teal", "mode": "light" }
+}

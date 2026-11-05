@@ -112,14 +112,14 @@ export default function InventoryImportPage() {
   const options = (
     <div className="space-y-2 font-ui text-sm">
       <label className="flex min-h-tap items-start gap-3">
-        <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={keepAtomEdits} onChange={(e) => { setKeepAtomEdits(e.target.checked); reset(); }} />
+        <input type="checkbox" className="mt-1 h-4 w-4 accent-brand" checked={keepAtomEdits} onChange={(e) => { setKeepAtomEdits(e.target.checked); reset(); }} />
         <span>
           Keep changes made in ATOM
           <span className="block text-xs text-ink-3">Assets assigned, moved or edited in ATOM since the last import are not overwritten by Snipe-IT.</span>
         </span>
       </label>
       <label className="flex min-h-tap items-start gap-3">
-        <input type="checkbox" className="mt-1 h-4 w-4 accent-primary" checked={skipErrors} onChange={(e) => { setSkipErrors(e.target.checked); reset(); }} />
+        <input type="checkbox" className="mt-1 h-4 w-4 accent-brand" checked={skipErrors} onChange={(e) => { setSkipErrors(e.target.checked); reset(); }} />
         <span>
           Skip rows with errors
           <span className="block text-xs text-ink-3">Import everything else; the rows listed under Errors are left out.</span>
@@ -130,7 +130,7 @@ export default function InventoryImportPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Link to="/inventory" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/inventory" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> Inventory
       </Link>
       <div>
@@ -157,7 +157,7 @@ export default function InventoryImportPage() {
       <section className="card space-y-4">
         {file ? (
           <div className="flex items-center gap-3 rounded-btn border border-line bg-cream-dark px-3 py-2 font-ui text-sm">
-            <FileUp size={18} className="shrink-0 text-primary" aria-hidden="true" />
+            <FileUp size={18} className="shrink-0 text-brand" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{file.name}</span>
             <span className="shrink-0 text-xs text-ink-3">{formatBytes(file.size)}</span>
             <button type="button" onClick={() => { setFile(null); reset(); }} className="flex min-h-tap min-w-tap items-center justify-center text-ink-3 hover:text-ink" aria-label="Remove file" disabled={Boolean(busy)}>

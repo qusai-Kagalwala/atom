@@ -11,7 +11,7 @@ import useAuth from '../hooks/useAuth';
 
 const MAX_ITEMS = 10;
 const areaClass =
-  'block w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 
 const SHOW_MAX = 30; // long catalogues (e.g. Tanzeem stationery): search or pick a group
 const rupees = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -87,7 +87,7 @@ export default function RequestPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-5">
-      <Link to="/track" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
+      <Link to="/track" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-brand hover:underline">
         <ArrowLeft size={16} aria-hidden="true" /> My tickets &amp; requests
       </Link>
       <div>
@@ -111,7 +111,7 @@ export default function RequestPage() {
               <span className="sr-only">Search</span>
               <input
                 type="search"
-                className="min-h-tap w-full rounded-btn border border-line bg-white pl-9 pr-3 font-ui text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                className="min-h-tap w-full rounded-btn border border-line bg-surface pl-9 pr-3 font-ui text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
                 placeholder="Search, e.g. pen, file, envelope"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -120,7 +120,7 @@ export default function RequestPage() {
             {groups.length > 1 && (
               <select
                 aria-label="Group"
-                className="min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+                className="min-h-tap rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
                 value={group}
                 onChange={(e) => setGroup(e.target.value)}
               >
@@ -142,11 +142,11 @@ export default function RequestPage() {
               type="button"
               onClick={() => add(c)}
               disabled={lines.length >= MAX_ITEMS}
-              className="flex min-h-tap flex-col items-start rounded-btn border border-line bg-white px-3 py-2 text-left font-ui hover:border-gold hover:bg-gold-muted disabled:opacity-60"
+              className="flex min-h-tap flex-col items-start rounded-btn border border-line bg-surface px-3 py-2 text-left font-ui hover:border-gold hover:bg-gold-muted disabled:opacity-60"
             >
               <span className="flex w-full items-center justify-between gap-2">
                 <span className="text-sm font-medium text-ink">{c.name}</span>
-                <Plus size={16} className="shrink-0 text-primary" aria-hidden="true" />
+                <Plus size={16} className="shrink-0 text-brand" aria-hidden="true" />
               </span>
               <span className="text-xs text-ink-3">
                 {c.group || ITEM_KINDS[c.kind]}
@@ -160,11 +160,11 @@ export default function RequestPage() {
             type="button"
             onClick={() => add(null)}
             disabled={lines.length >= MAX_ITEMS}
-            className="flex min-h-tap flex-col items-start rounded-btn border border-dashed border-primary bg-white px-3 py-2 text-left font-ui hover:bg-primary-tint disabled:opacity-60"
+            className="flex min-h-tap flex-col items-start rounded-btn border border-dashed border-brand bg-surface px-3 py-2 text-left font-ui hover:bg-primary-tint disabled:opacity-60"
           >
             <span className="flex w-full items-center justify-between gap-2">
-              <span className="text-sm font-medium text-primary">Something else</span>
-              <PenLine size={16} className="shrink-0 text-primary" aria-hidden="true" />
+              <span className="text-sm font-medium text-brand">Something else</span>
+              <PenLine size={16} className="shrink-0 text-brand" aria-hidden="true" />
             </span>
             <span className="text-xs text-ink-2">Not in the list? Type what you need.</span>
           </button>
@@ -230,7 +230,7 @@ export default function RequestPage() {
           </Field>
         )}
         {/* Phones: stays at the bottom of the screen while the form scrolls. */}
-        <div className="sticky bottom-0 z-10 -mx-5 flex justify-end gap-2 border-t border-line bg-white px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-4">
+        <div className="sticky bottom-0 z-10 -mx-5 flex justify-end gap-2 border-t border-line bg-surface px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-4">
           <Link to="/track" className="btn-secondary">
             Cancel
           </Link>

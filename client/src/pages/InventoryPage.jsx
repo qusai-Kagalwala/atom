@@ -13,7 +13,7 @@ import { isAdminRole, roleLabel } from '../utils/roles';
 import { ASSET_STATUS, assetTitle, assetWhere, statusClass, statusLabel } from '../utils/assets';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const PAGE_SIZE = 50;
 
 function AddAssetModal({ categories, onClose, onDone }) {
@@ -152,7 +152,7 @@ function AssetsTab({ isAdmin }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tag, serial, model, place, room or person"
-            className="block min-h-tap w-full rounded-btn border border-line bg-white pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface pl-10 pr-3 font-ui text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
           />
         </label>
         <select aria-label="Status" className={selectClass} value={f.status} onChange={(e) => set({ status: e.target.value })}>
@@ -232,7 +232,7 @@ function AssetsTab({ isAdmin }) {
         </div>
       )}
       {items.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           {items.map((a) => (
             <li key={a.id}>
               <Link to={`/inventory/assets/${encodeURIComponent(a.tag)}`} state={{ from }} className="flex items-start gap-3 px-4 py-3 font-ui hover:bg-gold-muted focus-visible:bg-gold-muted">

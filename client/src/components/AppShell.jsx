@@ -1,5 +1,5 @@
-import { Suspense, useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeftRight, Building2, ChevronDown, EyeOff, LoaderCircle, Menu, RefreshCw, ShieldUser, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
@@ -11,6 +11,7 @@ import { applyUpdate } from '../pwa';
 import useUnreadCount from '../hooks/useUnreadCount';
 import NotificationBell from './NotificationBell';
 import Toasts from './Toasts';
+import { motionAllowed } from '../theme/motion';
 import { navSectionsForUser } from '../utils/roles';
 import UserMenu from './UserMenu';
 
@@ -50,7 +51,8 @@ function NavItems({ items, counts, onNavigate }) {
       <Icon size={20} aria-hidden="true" className="shrink-0" />
       <span className="truncate">{label}</span>
       {counts[key] > 0 && (
-        <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} ${key === 'notifications' ? 'unread' : 'waiting'}`}>
+        // key = the number, so the badge pops each time the count changes
+        <span key={counts[key]} className="anim-pop ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${counts[key]} ${key === 'notifications' ? 'unread' : 'waiting'}`}>
           {counts[key] > 99 ? '99+' : counts[key]}
         </span>
       )}
@@ -86,7 +88,7 @@ function SideNav({ sections, counts, onNavigate, open, onToggle }) {
               <ChevronDown size={16} aria-hidden="true" className={`ml-auto transition-transform ${isOpen ? '' : '-rotate-90'}`} />
             </button>
             {isOpen && (
-              <div id={id} className="flex flex-col gap-1">
+              <div id={id} className="anim-drop flex flex-col gap-1">
                 <NavItems items={sec.items} counts={counts} onNavigate={onNavigate} />
               </div>
             )}
@@ -122,6 +124,18 @@ export default function AppShell() {
   useLiveUpdates();
   const year = new Date().getFullYear();
 
+  // Each page eases in when you go to it (not when only the filters or query string change).
+  const { pathname } = useLocation();
+  const pageRef = useRef(null);
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el || typeof el.animate !== 'function' || !motionAllowed()) return;
+    el.animate(
+      [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 280, easing: 'cubic-bezier(0.22, 0.8, 0.3, 1)' }
+    );
+  }, [pathname]);
+
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
@@ -140,11 +154,11 @@ export default function AppShell() {
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <button
             type="button"
-            className="absolute inset-0 bg-charcoal/40"
+            className="anim-fade absolute inset-0 bg-charcoal/40"
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
           />
-          <aside className="scrollbar-nav absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-primary shadow-xl">
+          <aside className="anim-slide-left scrollbar-nav absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-primary shadow-xl">
             <div className="flex h-16 items-center justify-between border-b border-primary-border px-4">
               <span className="font-display text-2xl font-bold leading-none text-white">ATOM</span>
               <button
@@ -199,7 +213,7 @@ export default function AppShell() {
         </header>
 
         {updateReady && (
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-primary-tint px-4 py-2 font-ui text-sm text-primary sm:px-6">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-primary-tint px-4 py-2 font-ui text-sm text-brand sm:px-6">
             <span>A new version of ATOM is ready.</span>
             <button type="button" onClick={applyUpdate} className="flex min-h-tap items-center gap-1.5 font-medium hover:underline">
               <RefreshCw size={16} aria-hidden="true" /> Reload
@@ -212,7 +226,7 @@ export default function AppShell() {
             {user.company.name} is closed — only the Super Admin can see it. Open it in Settings → Companies.
           </p>
         )}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <main ref={pageRef} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <Suspense
             fallback={
               <p className="flex items-center gap-2 font-ui text-sm text-ink-2">
