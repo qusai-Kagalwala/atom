@@ -13,7 +13,7 @@ const SAMPLES = ['ticket', 'request', 'wifi', 'reset'];
 const SUBJECTS = {
   ticket: 'ATOM: T-1001 resolved, ready to close',
   request: 'ATOM: R-204 approved',
-  wifi: 'Your guest Wi-Fi pass — Aljamea-tus-Saifiyah',
+  wifi: 'Your Jamea Internet Access — Aljamea-tus-Saifiyah',
   reset: 'Reset your ATOM password',
 };
 
@@ -30,7 +30,7 @@ function sample(kind, company, d) {
       );
     case 'wifi':
       return passEmail(
-        { recipient_name: 'Sample Guest', ssid: 'Guest-WiFi', username: 'guest-0001', password: 'Sample#123', expires_at: new Date(Date.now() + 2 * 86400 * 1000) },
+        { recipient_name: 'Sample Name', ssid: 'Jamea-Net', username: 'user-0001', password: 'Sample#123', assigned_at: new Date(), expires_at: new Date(Date.now() + 60 * 86400 * 1000) },
         company,
         d
       );

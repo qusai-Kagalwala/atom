@@ -31,7 +31,7 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
     try {
       const r = await lookupIts(p.its.trim());
       setP((x) => ({ ...x, name: r.name || x.name, mobile: r.mobile || x.mobile, email: r.email || x.email }));
-      setFound(r.source ? (r.source === 'atom' ? 'Filled in from ATOM.' : 'Filled in from eJamaat.') : 'Not found — type the details.');
+      setFound(r.source ? (r.source === 'atom' ? 'Filled in from ATOM.' : 'Filled in from ITS.') : 'Not found — type the details.');
     } catch (err) {
       setError(errorMessage(err, 'Could not look up this ITS number.'));
     } finally {
@@ -140,7 +140,7 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
             </Field>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            <Field id="give-count" label="How many passes" hint="More than one for a group (e.g. a guest's family).">
+            <Field id="give-count" label="How many passes" hint="More than one for a group (e.g. a family).">
               <TextInput id="give-count" type="number" min="1" max="500" className="w-28" value={p.count} onChange={set('count')} />
             </Field>
             <button type="submit" className="btn-primary mb-6" disabled={busy || p.name.trim().length < 2}>
@@ -164,7 +164,7 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
                 setList(null);
               }}
               className="w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
-              placeholder={'30301234\nAli Asgar, 9820012345, ali@example.com\nGuest group, 9819012345, , 4'}
+              placeholder={'30301234\nAli Asgar, 9820012345, ali@example.com\nFamily group, 9819012345, , 4'}
             />
           </Field>
           {!list ? (

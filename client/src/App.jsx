@@ -90,7 +90,7 @@ export default function App() {
             <Route index element={<HomePage />} />
             <Route path="/track" element={<MyRequestsPage />} />
             <Route path="/my-assets" element={<MyAssetsPage />} />
-            {/* Guest Wi-Fi: AVIT Admins and department HODs; the server decides who sees what. */}
+            {/* Jamea Internet Access (Wi-Fi passes): AVIT Admins and department HODs; the server decides who sees what. */}
             <Route path="/wifi" element={<WifiPage />} />
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/request" element={<RequestPage />} />

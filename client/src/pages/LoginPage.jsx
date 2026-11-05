@@ -55,7 +55,7 @@ export default function LoginPage() {
           <Link to="/forgot-password" className="font-medium text-brand hover:text-brand-dark hover:underline">
             Forgot password?
           </Link>
-          <p className="mt-1 text-xs text-ink-3">Using your ITS number? Reset your password on eJamaat.</p>
+          <p className="mt-1 text-xs text-ink-3">Using your ITS number? Reset your password through ITS.</p>
         </>
       }
     >

@@ -304,7 +304,7 @@ maybe('step B on real PostgreSQL', () => {
     const tape = items.find((x) => x.name === 'Cello Tape — 3 inch');
     const cup = items.find((x) => x.name === 'Cup Saucer — Pcs (4)');
     const req = (await aliceTan.post('/requests/service', {
-      items: [{ catalogueItemId: tape.id, quantity: 5, reason: 'Packing' }, { catalogueItemId: cup.id, quantity: 2, reason: 'Guests' }],
+      items: [{ catalogueItemId: tape.id, quantity: 5, reason: 'Packing' }, { catalogueItemId: cup.id, quantity: 2, reason: 'Visitors' }],
     })).body.request;
     expect(req.items.map((x) => [x.kind, x.unitPrice, x.stock])).toEqual([['supply', 25, 24], ['supply', 340, 0]]);
 

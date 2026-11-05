@@ -180,10 +180,10 @@ describe('POST /forgot-password', () => {
     expect(sendMail).not.toHaveBeenCalled();
   });
 
-  it('points ITS numbers to eJamaat', async () => {
+  it('points ITS numbers to ITS', async () => {
     const res = await post('/forgot-password', { employeeId: '30328701' });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe('Using your ITS number? Reset your password on eJamaat.');
+    expect(res.body.message).toBe('Using your ITS number? Reset your password through ITS.');
   });
 
   it('502 when SMTP fails, and the stored link is cancelled', async () => {

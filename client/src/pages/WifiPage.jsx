@@ -65,7 +65,7 @@ function UploadBatch({ onDone }) {
         <div>
           <h2 className="text-xl">Upload a batch</h2>
           <p className="font-ui text-sm text-ink-2">
-            The CSV from Cisco ISE with the header <code>Username,Password</code>, one guest account per row. On expiry the passes are deleted from ATOM.
+            The CSV from Cisco ISE with the header <code>Username,Password</code>, one account per row. On expiry the passes are deleted from ATOM.
           </p>
         </div>
         <button type="button" className="min-h-tap min-w-tap text-ink-3 hover:text-ink" aria-label="Close" onClick={() => setOpen(false)}>
@@ -74,7 +74,7 @@ function UploadBatch({ onDone }) {
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field id="b-name" label="Batch name">
-          <TextInput id="b-name" value={f.name} onChange={set('name')} maxLength={80} placeholder="e.g. Urs guests" />
+          <TextInput id="b-name" value={f.name} onChange={set('name')} maxLength={80} placeholder="e.g. Urs programme" />
         </Field>
         <Field id="b-ssid" label="Wi-Fi network (SSID)">
           <TextInput id="b-ssid" value={f.ssid} onChange={set('ssid')} maxLength={64} />
@@ -335,7 +335,7 @@ function Settings() {
     <div className="space-y-4">
       <section className="card space-y-3">
         <h2 className="text-xl">Who is a department’s HOD</h2>
-        <p className="font-ui text-sm text-ink-2">Idarah posts (or post categories) that make someone the HOD, comma separated. Only HODs get the Guest Wi-Fi page.</p>
+        <p className="font-ui text-sm text-ink-2">Idarah posts (or post categories) that make someone the HOD, comma separated. Only HODs get the Jamea Internet Access page.</p>
         {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         <div className="flex flex-wrap gap-2">
           <TextInput id="hod-posts" value={value} onChange={(e) => setText(e.target.value)} className="max-w-md" aria-label="HOD posts" />
@@ -380,16 +380,16 @@ export default function WifiPage() {
   const department = hods.find((d) => d.id === dep) || hods[0];
 
   if (me.isPending) return <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />;
-  if (me.isError || !tabs.length) return <Alert tone="info">Guest Wi-Fi passes are for AVIT Admins and department HODs.</Alert>;
+  if (me.isError || !tabs.length) return <Alert tone="info">Jamea Internet Access is for AVIT Admins and department HODs.</Alert>;
   return (
     <section className="space-y-5">
       <div>
         <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{isAdmin ? 'AVIT · Admin' : department?.name}</p>
         <h1 className="mt-1 flex items-center gap-2 text-3xl">
-          <Wifi size={26} className="text-primary" aria-hidden="true" /> Guest Wi-Fi passes
+          <Wifi size={26} className="text-primary" aria-hidden="true" /> Jamea Internet Access
         </h1>
         <p className="mt-1 font-ui text-sm text-ink-2">
-          {isAdmin ? 'Upload passes from Cisco ISE, share them out to departments, or give them to guests directly.' : 'Give guest Wi-Fi passes to your visitors and share them by WhatsApp or email.'}
+          {isAdmin ? 'Upload passes from Cisco ISE, share them out to departments, or give them to people directly.' : 'Give Jamea Internet Access to people and share it by WhatsApp or email. They are told it is valid for 10 days.'}
         </p>
       </div>
       {tabs.length > 1 && (

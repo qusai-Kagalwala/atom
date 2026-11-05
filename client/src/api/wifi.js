@@ -1,6 +1,6 @@
 import http from './http';
 
-// Guest Wi-Fi passes (AVIT). Answers contain passwords — the server sends them with no-store.
+// Jamea Internet Access — Wi-Fi passes (AVIT). Answers contain passwords — the server sends them with no-store.
 const base = '/wifi';
 export const getWifiMe = () => http.get(`${base}/me`).then((r) => r.data); // { isAdmin, hodDepartments }
 export const lookupIts = (its) => http.get(`${base}/lookup`, { params: { its } }).then((r) => r.data);

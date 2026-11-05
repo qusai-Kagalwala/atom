@@ -89,7 +89,7 @@ export default function HodView({ department }) {
             <TextInput id="req-count" type="number" min="1" value={req.count} onChange={(e) => setReq((r) => ({ ...r, count: e.target.value }))} />
           </Field>
           <Field id="req-reason" label="What for">
-            <TextInput id="req-reason" maxLength={500} value={req.reason} onChange={(e) => setReq((r) => ({ ...r, reason: e.target.value }))} placeholder="e.g. Guests for the Urs programme on Friday" />
+            <TextInput id="req-reason" maxLength={500} value={req.reason} onChange={(e) => setReq((r) => ({ ...r, reason: e.target.value }))} placeholder="e.g. Visitors for the Urs programme on Friday" />
           </Field>
           <button type="submit" className="btn-primary sm:mb-6" disabled={busy || !(Number(req.count) > 0) || req.reason.trim().length < 3}>
             {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Send size={18} aria-hidden="true" />} Ask AVIT

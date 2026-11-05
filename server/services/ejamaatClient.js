@@ -3,7 +3,7 @@
 // WSDL (the ?wsdl URL returns HTTP 500). Exports and return shapes are unchanged, so
 // auth.service.js needs no change.
 // ATOM uses AuthenticateEjamaatId (login), GetMuminNewPhoto (optional photo) and Jamea_MuminDetails
-// (only to fill a guest's details for a Wi-Fi pass).
+// (only to fill a person's details for Jamea Internet Access).
 // No profile lookup at login: names and emails come from the Idarah sync (ATOM_Decisions.md §4).
 // SECURITY: never log the password, the app key or an eJamaat answer.
 const { config } = require('../config/env');
@@ -41,7 +41,7 @@ async function getPhoto(itsNumber) {
   }
 }
 
-// A person's name, mobile and email from Jamea_MuminDetails (Guest Wi-Fi passes, 5 Nov 2026), or null.
+// A person's name, mobile and email from Jamea_MuminDetails (Jamea Internet Access, 5 Nov 2026), or null.
 // The answer's field names are matched loosely (they are not documented here). Best-effort: any failure
 // returns null and the caller lets the person type the details. Values are never logged.
 const FIELD = {

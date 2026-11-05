@@ -43,7 +43,7 @@ export default function WifiBatchPage() {
     return (
       <section className="space-y-3">
         <Link to="/wifi" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
-          <ArrowLeft size={16} aria-hidden="true" /> Guest Wi-Fi
+          <ArrowLeft size={16} aria-hidden="true" /> Jamea Internet Access
         </Link>
         <Alert tone="error">{errorMessage(q.error, 'This batch is not available.')}</Alert>
       </section>
@@ -72,7 +72,7 @@ export default function WifiBatchPage() {
   return (
     <section className="space-y-5">
       <Link to="/wifi" className="inline-flex min-h-tap items-center gap-1 font-ui text-sm text-primary hover:underline">
-        <ArrowLeft size={16} aria-hidden="true" /> Guest Wi-Fi
+        <ArrowLeft size={16} aria-hidden="true" /> Jamea Internet Access
       </Link>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

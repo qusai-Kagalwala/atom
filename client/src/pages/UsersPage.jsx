@@ -96,7 +96,7 @@ function AddUserModal({ onClose }) {
           <legend className="mb-1.5 font-ui text-sm font-medium text-ink">Signs in with</legend>
           <div className="grid grid-cols-2 gap-2">
             {[
-              ['ITS', 'ITS (eJamaat)'],
+              ['ITS', 'ITS'],
               ['EMPLOYEE_ID', 'Employee ID'],
             ].map(([value, label]) => (
               <label
@@ -113,7 +113,7 @@ function AddUserModal({ onClose }) {
         </fieldset>
 
         {isIts ? (
-          <Field id="its" label="ITS number" hint="8 digits. Their password is checked by eJamaat.">
+          <Field id="its" label="ITS number" hint="8 digits. Their password is checked by ITS.">
             <TextInput id="its" inputMode="numeric" maxLength={8} value={form.itsNumber} onChange={digits('itsNumber')} className="tabular-nums" />
           </Field>
         ) : (

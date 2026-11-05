@@ -1,4 +1,4 @@
-// Guest Wi-Fi helpers (shared by the Admin and HOD pages).
+// Jamea Internet Access (Wi-Fi passes) helpers (shared by the Admin and HOD pages).
 const fmt = (d) =>
   new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 export const expiryText = fmt;
@@ -20,11 +20,11 @@ export function passMessage(p) {
   return [
     `Assalamu Alaikum ${p.recipient?.name || ''},`.trim(),
     '',
-    'Your guest Wi-Fi access at Aljamea-tus-Saifiyah:',
+    'Your Jamea Internet Access at Aljamea-tus-Saifiyah:',
     `Wi-Fi network (SSID): ${p.ssid}`,
     `Username: ${p.username}`,
     `Password: ${p.password}`,
-    `Valid until: ${fmt(p.expiresAt)}`,
+    `Valid until: ${fmt(p.validUntil || p.expiresAt)}`, // what the person is told: 10 days (server)
     '',
     'Connect to the network, then sign in with the username and password above.',
   ].join('\n');

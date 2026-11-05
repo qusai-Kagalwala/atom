@@ -23,7 +23,7 @@ const STYLE_INFO = {
 const SAMPLES = [
   ['ticket', 'Ticket update'],
   ['request', 'Service request'],
-  ['wifi', 'Wi-Fi pass'],
+  ['wifi', 'Jamea Internet Access'],
   ['reset', 'Password reset'],
 ];
 
@@ -345,7 +345,7 @@ export default function EmailDesignPage() {
         <h1 className="mt-1 flex items-center gap-2 text-3xl">
           <Palette size={26} className="text-brand" aria-hidden="true" /> Email design
         </h1>
-        <p className="mt-1 font-ui text-sm text-ink-2">The look of every email ATOM sends — tickets, requests, Wi-Fi passes and password resets. The company name is filled in automatically.</p>
+        <p className="mt-1 font-ui text-sm text-ink-2">The look of every email ATOM sends — tickets, requests, Jamea Internet Access and password resets. The company name is filled in automatically.</p>
       </div>
       {(q.isPending || companiesQ.isPending) && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
       {q.isError && <Alert tone="error">Could not load the email design.</Alert>}

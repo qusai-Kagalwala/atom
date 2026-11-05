@@ -226,7 +226,7 @@ export default function ProfilePage() {
       <DeviceCard />
 
       {isIts ? (
-        <Alert tone="info">Your password is managed by eJamaat. Change or reset it there.</Alert>
+        <Alert tone="info">Your password is managed by ITS. Change or reset it there.</Alert>
       ) : (
         <ChangePasswordCard />
       )}

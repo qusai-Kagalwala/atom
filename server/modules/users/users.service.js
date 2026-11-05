@@ -352,7 +352,7 @@ async function resetPassword(id, newPassword, actor, { requireChange = true } = 
   return inTransaction(async (db) => {
     const u = await mustGetUser(db, id);
     if (u.login_type !== 'EMPLOYEE_ID') {
-      throw bad('ITS users sign in through eJamaat; their password can\'t be set in ATOM.', 'its_user');
+      throw bad('ITS users sign in with their ITS password; it can\'t be set in ATOM.', 'its_user');
     }
     const isEmployeeId = newPassword === u.employee_id;
     if (isEmployeeId && !requireChange) {

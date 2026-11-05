@@ -1,7 +1,7 @@
--- 026_wifi_passes.sql — Guest Wi-Fi passes (AVIT, decided 5 Nov 2026). Idempotent.
---   The AVIT Admin uploads batches of guest accounts made in Cisco ISE (CSV: Username, Password) with an
+-- 026_wifi_passes.sql — Jamea Internet Access / Wi-Fi passes (AVIT, decided 5 Nov 2026). Idempotent.
+--   The AVIT Admin uploads batches of Wi-Fi accounts made in Cisco ISE (CSV: Username, Password) with an
 --   SSID and an expiry, allocates them to departments, and can give them out directly. A department's
---   HOD (Masool, from the Idarah view's post) gives them to guests and shares them by WhatsApp / email.
+--   HOD (Masool, from the Idarah view's post) gives them to people and shares them by WhatsApp / email.
 --   At expiry, or on Reset, the batch's usernames, passwords and recipients are DELETED (temporary
 --   credentials — the one exception to "never delete"); the batch row keeps only counts.
 --   Passwords are never written to logs, notifications or the email queue.
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS wifi_batches (
 );
 CREATE INDEX IF NOT EXISTS wifi_batches_live_idx ON wifi_batches (expires_at) WHERE ended_at IS NULL;
 
--- One row per guest account. department_id = allocated to that department; recipient_* = given to a person.
+-- One row per Wi-Fi account. department_id = allocated to that department; recipient_* = given to a person.
 CREATE TABLE IF NOT EXISTS wifi_passes (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   batch_id            bigint      NOT NULL REFERENCES wifi_batches (id),

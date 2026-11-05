@@ -1,4 +1,4 @@
-// Guest Wi-Fi passes (AVIT, decided 5 Nov 2026).
+// Jamea Internet Access (shown as such everywhere; called "Wi-Fi passes" in code) — AVIT, decided 5 Nov 2026.
 //   AVIT Admin: upload batches (Cisco ISE accounts: CSV Username, Password) with SSID + expiry, allocate
 //   them to departments in buckets, give them out directly (one or in bulk), end a batch now (Reset).
 //   HOD (Masool of a department, from the Idarah view's post): sees the department's passes, gives them
@@ -205,16 +205,18 @@ function parseCsvText(text) {
   return out.filter((r) => r.some((v) => String(v).trim() !== ''));
 }
 
-const USER_HEADERS = ['username', 'user name', 'user', 'guest username', 'login', 'user id', 'userid'];
-const PASS_HEADERS = ['password', 'pass', 'guest password', 'pwd'];
+const USER_HEADERS = ['username', 'user name', 'user', 'login', 'user id', 'userid'];
+const PASS_HEADERS = ['password', 'pass', 'pwd'];
+// Cisco ISE exports may put a word before the column name ("<type> username"): a header ending in one of the names counts.
+const headerIs = (h, names) => names.some((n) => h === n || h.endsWith(` ${n}`));
 
 function readPassesCsv(buffer) {
   const text = buffer.toString('utf8').replace(/^﻿/, '');
   const table = parseCsvText(text);
   if (!table.length) throw bad('The file is empty.', 'empty_file');
   const head = table[0].map((h) => clean(h).toLowerCase());
-  const u = head.findIndex((h) => USER_HEADERS.includes(h));
-  const p = head.findIndex((h) => PASS_HEADERS.includes(h));
+  const u = head.findIndex((h) => headerIs(h, USER_HEADERS));
+  const p = head.findIndex((h) => headerIs(h, PASS_HEADERS));
   if (u === -1 || p === -1) throw bad('The first row must be the header: Username,Password', 'bad_columns');
   const rows = [];
   const errors = [];
@@ -374,7 +376,7 @@ async function allocate(user, batchId, items = []) {
       for (const uid of hods) {
         // eslint-disable-next-line no-await-in-loop
         const r = await notifRepo.insertForUser(db, {
-          userId: uid, type: 'wifi', title: `${c.added} guest Wi-Fi passes for ${c.name}`,
+          userId: uid, type: 'wifi', title: `${c.added} Jamea Internet Access passes for ${c.name}`,
           body: `Batch "${c.batch.name}" · valid until ${fmtDate(c.batch.expires_at)}`, link: '/wifi', actorId: user.id, companyId: user.companyId,
         });
         if (r) rows.push(r);
@@ -417,6 +419,7 @@ function toPass(p) {
     sharedEmailAt: p.shared_email_at,
     ssid: p.ssid,
     expiresAt: p.expires_at,
+    validUntil: p.assigned_at ? recipientUntil(p) : null, // what the person is told (10 days)
     batchName: p.batch_name,
   };
 }
@@ -589,15 +592,25 @@ async function markWhatsapp(user, passId) {
   return { ok: true };
 }
 
+// What the person is told (decided 5 Nov 2026): valid for 10 days from the day it was given, or the batch's
+// real expiry if that is sooner. Admin and HOD pages keep showing the real expiry.
+const RECIPIENT_DAYS = 10;
+function recipientUntil(p) {
+  const from = p.assigned_at ? new Date(p.assigned_at) : new Date();
+  const shown = new Date(from.getTime() + RECIPIENT_DAYS * 86400_000);
+  const real = new Date(p.expires_at);
+  return shown < real ? shown : real;
+}
+
 function passMessage(p) {
   return [
     `Assalamu Alaikum ${p.recipient_name || ''},`.trim(),
     '',
-    'Your guest Wi-Fi access at Aljamea-tus-Saifiyah:',
+    'Your Jamea Internet Access at Aljamea-tus-Saifiyah:',
     `Wi-Fi network (SSID): ${p.ssid}`,
     `Username: ${p.username}`,
     `Password: ${p.password}`,
-    `Valid until: ${fmtDate(p.expires_at)}`,
+    `Valid until: ${fmtDate(recipientUntil(p))}`,
     '',
     'Connect to the network, then sign in with the username and password above.',
   ].join('\n');
@@ -607,19 +620,19 @@ function passMessage(p) {
 function passEmail(p, company = '', design = emailDesign.DEFAULTS) {
   return emailLayout.render({
     company,
-    tag: 'Guest Wi-Fi',
+    tag: 'Jamea Internet Access',
     tone: 'info',
-    title: 'Your guest Wi-Fi pass',
+    title: 'Your Jamea Internet Access',
     greeting: `Assalamu Alaikum${p.recipient_name ? ` ${p.recipient_name}` : ''},`,
-    paragraphs: ['Here is your guest Wi-Fi access at Aljamea-tus-Saifiyah.'],
+    paragraphs: ['Here are your Jamea Internet Access details for Aljamea-tus-Saifiyah.'],
     details: [
       ['Wi-Fi network', p.ssid, { mono: true }],
       ['Username', p.username, { mono: true }],
       ['Password', p.password, { mono: true }],
-      ['Valid until', fmtDate(p.expires_at)],
+      ['Valid until', fmtDate(recipientUntil(p))],
     ],
     note: 'Connect to the network above, then sign in with this username and password. Please do not share it.',
-    preheader: `Wi-Fi network ${p.ssid} · valid until ${fmtDate(p.expires_at)}`,
+    preheader: `Wi-Fi network ${p.ssid} · valid until ${fmtDate(recipientUntil(p))}`,
   }, design);
 }
 
@@ -645,7 +658,7 @@ async function emailPasses(user, passIds = []) {
     }
     try {
       // eslint-disable-next-line no-await-in-loop
-      await deps.mailer.sendMail({ to: p.recipient_email, subject: 'Your guest Wi-Fi pass — Aljamea-tus-Saifiyah', ...passEmail(p, user.company?.name || '', design) });
+      await deps.mailer.sendMail({ to: p.recipient_email, subject: 'Your Jamea Internet Access — Aljamea-tus-Saifiyah', ...passEmail(p, user.company?.name || '', design) });
       // eslint-disable-next-line no-await-in-loop
       await deps.pool.query('UPDATE wifi_passes SET shared_email_at = now() WHERE id = $1::bigint', [p.id]);
       results.push({ id: String(p.id), ok: true });
@@ -674,7 +687,7 @@ async function requestMore(user, departmentId, body = {}) {
     await log(db, { kind: 'request', actorId: user.id, departmentId, count, note: `request ${r[0].id}` });
     const { rows: d } = await db.query('SELECT name FROM departments WHERE id = $1::bigint', [departmentId]);
     return notifRepo.insertForRole(db, {
-      role: 'ADMIN', type: 'wifi', title: `${d[0]?.name || 'A department'} asks for ${count} guest Wi-Fi passes`,
+      role: 'ADMIN', type: 'wifi', title: `${d[0]?.name || 'A department'} asks for ${count} Jamea Internet Access passes`,
       body: reason, link: '/wifi?tab=requests', actorId: user.id, companyId: user.companyId,
     });
   });
@@ -711,7 +724,7 @@ async function decideRequest(user, id, body = {}) {
     await log(db, { kind: status === 'done' ? 'request_done' : 'request_declined', actorId: user.id, departmentId: r[0].department_id, count: r[0].count });
     const n = await notifRepo.insertForUser(db, {
       userId: r[0].requested_by, type: 'wifi',
-      title: status === 'done' ? 'Your guest Wi-Fi pass request is done' : 'Your guest Wi-Fi pass request was declined',
+      title: status === 'done' ? 'Your Jamea Internet Access request is done' : 'Your Jamea Internet Access request was declined',
       body: note, link: '/wifi', actorId: user.id, companyId: user.companyId,
     });
     return n ? [n] : [];
@@ -723,5 +736,5 @@ async function decideRequest(user, id, body = {}) {
 module.exports = {
   me, getSettings, setHodPosts, listBatches, getBatch, uploadBatch, resetBatch, expireDue, allocate, departmentList,
   listPasses, departmentView, lookupIts, assign, unassign, markWhatsapp, emailPasses, requestMore, listRequests, decideRequest,
-  readPassesCsv, parseCsvText, passMessage, passEmail, hodDepartments, setDeps,
+  readPassesCsv, parseCsvText, passMessage, passEmail, recipientUntil, RECIPIENT_DAYS, hodDepartments, setDeps,
 };

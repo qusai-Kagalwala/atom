@@ -105,7 +105,7 @@ export default function AppShell() {
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { updateReady } = usePwa();
-  // Guest Wi-Fi: department HODs (Masool) get it in their menu (AVIT only).
+  // Jamea Internet Access: department HODs (Masool) get it in their menu (AVIT only).
   const wifiMe = useQuery({ queryKey: ['wifi', 'me'], queryFn: getWifiMe, enabled: user.company?.code === 'AVIT', staleTime: 5 * 60_000 });
   const sections = navSectionsForUser(user, { wifiHod: Boolean(wifiMe.data?.hodDepartments?.length) });
   const counts = useNavCounts(user);

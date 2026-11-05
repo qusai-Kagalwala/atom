@@ -17,8 +17,8 @@ const MIN_LENGTH = 8;
 const MAX_LENGTH = 256;
 
 const MSG = {
-  itsUser: 'ITS passwords are changed on eJamaat, not in ATOM.',
-  itsNumber: 'Using your ITS number? Reset your password on eJamaat.',
+  itsUser: 'ITS passwords are changed through ITS, not in ATOM.',
+  itsNumber: 'Using your ITS number? Reset your password through ITS.',
   wrongCurrent: 'Your current password is incorrect.',
   tooShort: `Your new password must be at least ${MIN_LENGTH} characters.`,
   tooLong: `Your new password must be at most ${MAX_LENGTH} characters.`,

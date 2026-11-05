@@ -1,4 +1,4 @@
-// Guest Wi-Fi passes on real PostgreSQL (5 Nov 2026): upload (preview / save), buckets per department,
+// Jamea Internet Access (Wi-Fi passes) on real PostgreSQL (5 Nov 2026): upload (preview / save), buckets per department,
 // HOD (Masool) page and access, giving passes (HOD, Admin direct, bulk), ITS lookup (ATOM, eJamaat),
 // WhatsApp / email sharing, requests, Reset and expiry deleting the passes.
 // eJamaat and SMTP mocked. Runs ONLY when TEST_DATABASE_URL names a "*_test" database.
@@ -23,7 +23,7 @@ jest.mock('../../services/mailer', () => ({ sendMail: jest.fn() }));
 
 const maybe = enabled ? describe : describe.skip;
 
-maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
+maybe('Jamea Internet Access (Wi-Fi passes) on real PostgreSQL', () => {
   const request = require('supertest');
   const pool = require('../../db/pool');
   const { adminOf, companyId } = require('../helpers/companyPeople');
@@ -66,7 +66,7 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
       },
     };
   };
-  const csv = (n, start = 1) => ['Username,Password', ...Array.from({ length: n }, (_, i) => `guest${start + i},pw-${start + i}`)].join('\r\n');
+  const csv = (n, start = 1) => ['Username,Password', ...Array.from({ length: n }, (_, i) => `user${start + i},pw-${start + i}`)].join('\r\n');
   const inDays = (d) => new Date(Date.now() + d * 86400000).toISOString();
 
   beforeAll(async () => {
@@ -106,28 +106,28 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
     await post(ids.hod, dept.lib, 'Masool');
     ids.clerk = await addUser('40000002', 'Library Clerk', ['EMPLOYEE']);
     await post(ids.clerk, dept.lib, 'Clerk');
-    ids.guest = await addUser('40000003', 'Known Guest', ['EMPLOYEE'], { mobile: '9820012345', email: 'guest@example.edu' });
+    ids.known = await addUser('40000003', 'Known Person', ['EMPLOYEE'], { mobile: '9820012345', email: 'known@example.edu' });
     ids.accHod = await addUser('40000004', 'Accounts Head', ['EMPLOYEE']);
     await post(ids.accHod, dept.acc, 'Head', 'masool'); // matched on post category, any case
   });
 
   async function newBatch(admin, n = 20, extra = {}) {
-    const r = await admin.upload({ name: 'Urs guests', ssid: 'AJSM-Guest', expiresAt: inDays(2), commit: true, ...extra }, csv(n));
+    const r = await admin.upload({ name: 'Urs programme', ssid: 'Jamea-Net', expiresAt: inDays(2), commit: true, ...extra }, csv(n));
     expect(r.status).toBe(200);
     return r.body.batchId;
   }
 
   test('upload: preview saves nothing, errors block unless skipped, Admin only, AVIT only', async () => {
     const admin = as(await login('40000010', 'ADMIN'));
-    const bad = 'Username,Password\r\nguest1,a\r\nguest1,b\r\n,c\r\n"guest3","p,3"\r\n';
+    const bad = 'Username,Password\r\nuser1,a\r\nuser1,b\r\n,c\r\n"user3","p,3"\r\n';
     const prev = await admin.upload({ name: 'B', ssid: 'S', expiresAt: inDays(1) }, bad);
-    expect(prev.body).toMatchObject({ rows: 2, committed: false, sample: ['guest1', 'guest3'] });
+    expect(prev.body).toMatchObject({ rows: 2, committed: false, sample: ['user1', 'user3'] });
     expect(prev.body.errors.map((e) => e.row)).toEqual([3, 4]);
     expect((await pool.query('SELECT count(*)::int AS n FROM wifi_passes')).rows[0].n).toBe(0);
     expect((await admin.upload({ name: 'B', ssid: 'S', expiresAt: inDays(1), commit: true }, bad)).body.code).toBe('row_errors');
     const saved = await admin.upload({ name: 'B', ssid: 'S', expiresAt: inDays(1), commit: true, skipErrors: true }, bad);
     expect(saved.body).toMatchObject({ committed: true, rows: 2 });
-    expect((await pool.query(`SELECT password FROM wifi_passes WHERE username = 'guest3'`)).rows[0].password).toBe('p,3');
+    expect((await pool.query(`SELECT password FROM wifi_passes WHERE username = 'user3'`)).rows[0].password).toBe('p,3');
 
     expect((await admin.upload({ name: 'B', ssid: 'S', expiresAt: new Date(Date.now() - 1000).toISOString() }, csv(2))).body.code).toBe('bad_expiry');
     expect((await admin.upload({ name: 'B', ssid: 'S', expiresAt: inDays(1) }, 'Name,Code\r\na,b')).body.code).toBe('bad_columns');
@@ -155,12 +155,12 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
     expect(r.body.batch.counts).toMatchObject({ free: 7, allocated: 13 });
 
     const n = (await pool.query(`SELECT title, body FROM notifications WHERE user_id = $1`, [ids.hod])).rows;
-    expect(n[0].title).toBe('12 guest Wi-Fi passes for Wifi Library');
+    expect(n[0].title).toBe('12 Jamea Internet Access passes for Wifi Library');
     expect(JSON.stringify(n)).not.toMatch(/pw-/);
 
     // HOD gives 3, then Admin can't take the department below 3.
     const hod = as(await login('40000001', 'EMPLOYEE', co.avit));
-    await hod.post(`/batches/${batchId}/assign`, { departmentId: dept.lib, people: [{ name: 'Guest A', count: 3 }] });
+    await hod.post(`/batches/${batchId}/assign`, { departmentId: dept.lib, people: [{ name: 'Person A', count: 3 }] });
     expect((await admin.post(`/batches/${batchId}/allocate`, { items: [{ departmentId: dept.lib, count: 2 }] })).body.code).toBe('below_given');
   });
 
@@ -178,18 +178,18 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
     expect((await clerk.get('/lookup?its=40000003')).status).toBe(404);
 
     // ITS lookup: ATOM user first, then eJamaat.
-    expect((await hod.get('/lookup?its=40000003')).body).toMatchObject({ name: 'Known Guest', mobile: '9820012345', email: 'guest@example.edu', source: 'atom' });
-    ejamaat.getMuminDetails.mockResolvedValue({ name: 'Outside Guest', mobile: '+919800000000', email: 'out@example.com' });
-    expect((await hod.get('/lookup?its=50000001')).body).toMatchObject({ name: 'Outside Guest', source: 'ejamaat' });
+    expect((await hod.get('/lookup?its=40000003')).body).toMatchObject({ name: 'Known Person', mobile: '9820012345', email: 'known@example.edu', source: 'atom' });
+    ejamaat.getMuminDetails.mockResolvedValue({ name: 'Outside Person', mobile: '+919800000000', email: 'out@example.com' });
+    expect((await hod.get('/lookup?its=50000001')).body).toMatchObject({ name: 'Outside Person', source: 'ejamaat' });
 
     // Bulk: one person 2 passes + two people one each.
     let r = await hod.post(`/batches/${batchId}/assign`, {
       departmentId: dept.lib,
-      people: [{ its: '50000001', name: 'Outside Guest', mobile: '+919800000000', email: 'out@example.com', count: 2 }, { name: 'Walk-in One' }, { name: 'Walk-in Two', mobile: '9876543210' }],
+      people: [{ its: '50000001', name: 'Outside Person', mobile: '+919800000000', email: 'out@example.com', count: 2 }, { name: 'Walk-in One' }, { name: 'Walk-in Two', mobile: '9876543210' }],
     });
     expect(r.status).toBe(200);
     expect(r.body.passes).toHaveLength(4);
-    expect(r.body.passes[0]).toMatchObject({ ssid: 'AJSM-Guest', recipient: { name: 'Outside Guest' }, assignedVia: 'department' });
+    expect(r.body.passes[0]).toMatchObject({ ssid: 'Jamea-Net', recipient: { name: 'Outside Person' }, assignedVia: 'department' });
     expect(r.body.passes[0].password).toMatch(/^pw-/);
     expect((await hod.post(`/batches/${batchId}/assign`, { departmentId: dept.lib, people: [{ name: 'Too many', count: 3 }] })).body.code).toBe('not_enough');
     expect((await hod.post(`/batches/${batchId}/assign`, { departmentId: dept.lib, people: [{ name: 'Xy', mobile: 'abc' }] })).body.code).toBe('bad_mobile');
@@ -207,7 +207,14 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
     expect(mail.body.sent).toBe(1);
     expect(mail.body.results[1]).toMatchObject({ ok: false, error: 'No email address.' });
     expect(mailer.sendMail).toHaveBeenCalledTimes(1);
-    expect(mailer.sendMail.mock.calls[0][0].text).toContain(`Password: ${p.password}`);
+    const sent = mailer.sendMail.mock.calls[0][0];
+    expect(sent.text).toContain(`Password: ${p.password}`);
+    expect(sent.subject).toBe('Your Jamea Internet Access — Aljamea-tus-Saifiyah');
+    expect(`${sent.subject} ${sent.text} ${sent.html}`).not.toMatch(/gu[e]st/i);
+    // The person is told 10 days from today (the batch itself runs longer); the HOD page keeps the real expiry.
+    const days = (new Date(p.validUntil) - new Date(p.assignedAt)) / 86400000;
+    expect(Math.round(days * 1000) / 1000).toBeLessThanOrEqual(10);
+    expect(new Date(p.expiresAt) >= new Date(p.validUntil)).toBe(true);
     expect((await pool.query('SELECT count(*)::int AS n FROM email_outbox')).rows[0].n).toBe(0); // never queued
     // Another department's HOD can't touch it.
     const acc = as(await login('40000004', 'EMPLOYEE', co.avit));
@@ -217,9 +224,9 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
     expect((await hod.get(`/departments/${dept.lib}`)).body.batches[0].left).toBe(3);
 
     // Request more → Admin notified → done.
-    r = await hod.post(`/departments/${dept.lib}/requests`, { count: 50, reason: 'Urs guests on Friday' });
+    r = await hod.post(`/departments/${dept.lib}/requests`, { count: 50, reason: 'Urs visitors on Friday' });
     expect(r.status).toBe(201);
-    expect((await pool.query(`SELECT title FROM notifications WHERE user_id = $1 AND type = 'wifi'`, [ids.admin])).rows[0].title).toBe('Wifi Library asks for 50 guest Wi-Fi passes');
+    expect((await pool.query(`SELECT title FROM notifications WHERE user_id = $1 AND type = 'wifi'`, [ids.admin])).rows[0].title).toBe('Wifi Library asks for 50 Jamea Internet Access passes');
     const reqs = (await admin.get('/requests')).body.requests;
     expect(reqs[0]).toMatchObject({ count: 50, status: 'open', department: { name: 'Wifi Library' }, by: 'Library Masool' });
     expect((await admin.post(`/requests/${reqs[0].id}`, { status: 'declined' })).body.code).toBe('note_required');
@@ -247,7 +254,7 @@ maybe('Guest Wi-Fi passes on real PostgreSQL', () => {
     const admin = as(await login('40000010', 'ADMIN'));
     const a = await newBatch(admin, 4);
     const b = await newBatch(admin, 3);
-    await admin.post(`/batches/${a}/assign`, { people: [{ name: 'Guest' }] });
+    await admin.post(`/batches/${a}/assign`, { people: [{ name: 'Person' }] });
 
     const reset = await admin.post(`/batches/${a}/reset`);
     expect(reset.body.summary).toMatchObject({ total: 4, given: 1, adminGiven: 1 });

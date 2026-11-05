@@ -1,4 +1,4 @@
-// /Atom/api/wifi — Guest Wi-Fi passes (AVIT only; other companies 404). See wifi.service.js.
+// /Atom/api/wifi — Jamea Internet Access (Wi-Fi passes) (AVIT only; other companies 404). See wifi.service.js.
 //   GET    /me                                   → { isAdmin, hodDepartments }        anyone in AVIT (drives the menu)
 //   GET    /lookup?its=                          → { its, name, mobile, email, source } Admin or HOD
 //   HOD (their own department; else 404):

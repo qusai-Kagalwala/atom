@@ -56,7 +56,7 @@ export function navForRole(role, company) {
 //   Super Admin: plus "Super Admin" (admins, users, sync, AI, settings). With no company chosen, only that.
 const PERSONAL = new Set(rolesData.navPersonal);
 const CONSOLE = new Set(rolesData.navConsole);
-// extras.wifiHod: this person is a department HOD (Masool) — Guest Wi-Fi joins their own menu.
+// extras.wifiHod: this person is a department HOD (Masool) — Jamea Internet Access joins their own menu.
 export function navSectionsForUser(user, extras = {}) {
   const role = user?.activeRole;
   const items = navForRole(role, user?.company);

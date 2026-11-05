@@ -123,7 +123,7 @@
       "icon": "PackagePlus"
     },
     "wifi": {
-      "label": "Guest Wi-Fi",
+      "label": "Jamea Internet Access",
       "path": "/wifi",
       "icon": "Wifi",
       "companies": [
