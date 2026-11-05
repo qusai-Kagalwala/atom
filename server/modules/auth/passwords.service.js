@@ -9,7 +9,8 @@ const { sendMail } = require('../../services/mailer');
 const safeCompare = require('../../utils/safeCompare');
 const repo = require('./passwords.repo');
 const { signSession } = require('./tokens');
-const { listCompanies } = require('./users.repo');
+const emailLayout = require('../../services/emailLayout');
+const emailDesign = require('../../services/emailDesign');
 const realtime = require('../../realtime');
 
 const MIN_LENGTH = 8;
@@ -82,37 +83,17 @@ async function changePassword(user, currentPassword, newPassword, { keepSocketId
 }
 
 // Footer line: only the companies that are open (Super Admin switch). Never fails the email.
-async function footerLine() {
-  let names = [];
-  try {
-    names = (await listCompanies()).map((c) => c.name);
-  } catch {
-    names = [];
-  }
-  return ['ATOM', 'Ticketing & Operations Manager', ...names, 'Aljamea-tus-Saifiyah'].join(' · ');
-}
-const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-function resetEmail(link, footer = 'ATOM · Ticketing & Operations Manager · Aljamea-tus-Saifiyah') {
+function resetEmail(link, design = emailDesign.DEFAULTS) {
   const minutes = config.passwordResetMinutes;
-  return {
-    subject: 'Reset your ATOM password',
-    text: [
-      'We received a request to reset your ATOM password.',
-      `Open this link within ${minutes} minutes to choose a new one:`,
-      link,
-      '',
-      'If you did not ask for this, you can ignore this email — your password will not change.',
-      '',
-      footer,
-    ].join('\n'),
-    html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1A1A1A;max-width:520px">
-  <p>We received a request to reset your ATOM password. Open the link below within ${minutes} minutes to choose a new one.</p>
-  <p><a href="${link}" style="display:inline-block;background:#0F5B5A;color:#FFFFFF;padding:10px 18px;border-radius:8px;text-decoration:none">Reset password</a></p>
-  <p style="color:#4B5563;font-size:13px">If you did not ask for this, you can ignore this email — your password will not change.</p>
-  <p style="color:#8C7B6B;font-size:12px">${escapeHtml(footer)}</p>
-</div>`,
-  };
+  const mail = emailLayout.render({
+    tag: 'Password reset',
+    tone: 'gold',
+    title: 'Reset your ATOM password',
+    paragraphs: [`We received a request to reset your ATOM password. Open the link below within ${minutes} minutes to choose a new one.`],
+    button: { label: 'Reset password', url: link },
+    note: 'If you did not ask for this, you can ignore this email — your password will not change.',
+  }, design);
+  return { subject: 'Reset your ATOM password', ...mail };
 }
 
 // Public. Unknown, inactive and no-email IDs all get the same "contact a Super Admin" answer.
@@ -129,7 +110,7 @@ async function requestReset(employeeId) {
 
   const link = `${config.appUrl}/reset-password?token=${encodeURIComponent(token)}`;
   try {
-    await sendMail({ to: employee.email, ...resetEmail(link, await footerLine()) });
+    await sendMail({ to: employee.email, ...resetEmail(link, await emailDesign.current()) });
   } catch (err) {
     console.error(`Reset email failed for user ${employee.id}: ${err.message}`);
     await repo.expireResetTokens(employee.id);
@@ -171,4 +152,4 @@ async function resetPassword(token, newPassword) {
   }
 }
 
-module.exports = { changePassword, requestReset, resetPassword, PasswordError, MSG, maskEmail, hashToken };
+module.exports = { changePassword, requestReset, resetPassword, PasswordError, MSG, maskEmail, hashToken, resetEmail };

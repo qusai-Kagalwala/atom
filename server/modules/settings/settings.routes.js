@@ -6,6 +6,11 @@
 //   PATCH /push        { enabled: boolean }                              → same   (Web Push, Phase 14)
 //   GET   /companies                     → { companies: [{ id, code, name, isOpen }] }
 //   PATCH /companies/:code { isOpen }    → { companies }   open / close a company (at least one stays open)
+//   GET   /email-design                  → { design, defaults, palettes, styles, smtpConfigured, history }
+//   PUT   /email-design  { design }      → { design }      save (checked, logged)
+//   POST  /email-design/reset            → { design }      back to the default look (logged)
+//   POST  /email-design/preview { design, sample, company } → { html }   nothing saved
+//   POST  /email-design/test    { design?, sample, company } → { sent, to }  to the Super Admin's own email
 const express = require('express');
 const { requireAuth, requireRole } = require('../../middleware/requireAuth');
 const { HttpError } = require('../../utils/httpError');
@@ -13,6 +18,8 @@ const timeFrames = require('../requests/timeFrames');
 const email = require('../notifications/email');
 const companies = require('./companies.service');
 const push = require('../push/push.service');
+const emailDesign = require('../../services/emailDesign');
+const emailDesignPage = require('./emailDesign.service');
 
 const handle = (fn) => async (req, res, next) => {
   try {
@@ -41,6 +48,20 @@ function createSettingsRouter() {
   router.patch('/push', handle(async (req, res) => res.json(await push.setEnabled(req.user, req.body?.enabled))));
   router.get('/companies', handle(async (req, res) => res.json({ companies: await companies.list() })));
   router.patch('/companies/:code', handle(async (req, res) => res.json({ companies: await companies.setOpen(req.user, req.params.code, req.body || {}) })));
+  router.get('/email-design', handle(async (req, res) => res.json(await emailDesignPage.overview())));
+  router.put('/email-design', handle(async (req, res) => res.json({ design: await emailDesign.save(req.user, req.body?.design) })));
+  router.post('/email-design/reset', handle(async (req, res) => res.json({ design: await emailDesign.reset(req.user) })));
+  router.post(
+    '/email-design/preview',
+    handle(async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      res.json(emailDesignPage.preview(req.body?.design, { sample: req.body?.sample, company: req.body?.company }));
+    })
+  );
+  router.post(
+    '/email-design/test',
+    handle(async (req, res) => res.json(await emailDesignPage.sendTest(req.user, req.body?.design || null, { sample: req.body?.sample, company: req.body?.company })))
+  );
   return router;
 }
 

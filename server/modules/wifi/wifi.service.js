@@ -11,6 +11,8 @@ const { HttpError, notFound } = require('../../utils/httpError');
 const notifRepo = require('../notifications/notifications.repo');
 const notifications = require('../notifications/notifications.service');
 const mailer = require('../../services/mailer');
+const emailLayout = require('../../services/emailLayout');
+const emailDesign = require('../../services/emailDesign');
 const ejamaat = require('../../services/ejamaatClient');
 const { config } = require('../../config/env');
 
@@ -601,11 +603,32 @@ function passMessage(p) {
   ].join('\n');
 }
 
+// Styled email for one pass. The password appears only in this email, never in logs or the queue.
+function passEmail(p, company = '', design = emailDesign.DEFAULTS) {
+  return emailLayout.render({
+    company,
+    tag: 'Guest Wi-Fi',
+    tone: 'info',
+    title: 'Your guest Wi-Fi pass',
+    greeting: `Assalamu Alaikum${p.recipient_name ? ` ${p.recipient_name}` : ''},`,
+    paragraphs: ['Here is your guest Wi-Fi access at Aljamea-tus-Saifiyah.'],
+    details: [
+      ['Wi-Fi network', p.ssid, { mono: true }],
+      ['Username', p.username, { mono: true }],
+      ['Password', p.password, { mono: true }],
+      ['Valid until', fmtDate(p.expires_at)],
+    ],
+    note: 'Connect to the network above, then sign in with this username and password. Please do not share it.',
+    preheader: `Wi-Fi network ${p.ssid} · valid until ${fmtDate(p.expires_at)}`,
+  }, design);
+}
+
 // Email passes straight through SMTP (never through the email queue, which keeps bodies for 90 days).
 async function emailPasses(user, passIds = []) {
   if (!Array.isArray(passIds) || !passIds.length) throw bad('Choose passes to email.', 'invalid');
   if (passIds.length > MAX_EMAILS_PER_CALL) throw bad(`Up to ${MAX_EMAILS_PER_CALL} emails at a time.`, 'too_many');
   if (!config.smtp.host) throw new HttpError(503, 'Email is not set up on the server (SMTP).', 'smtp_missing');
+  const design = await emailDesign.current(deps.pool);
   const results = [];
   for (const id of passIds) {
     let p;
@@ -622,7 +645,7 @@ async function emailPasses(user, passIds = []) {
     }
     try {
       // eslint-disable-next-line no-await-in-loop
-      await deps.mailer.sendMail({ to: p.recipient_email, subject: 'Your guest Wi-Fi pass — Aljamea-tus-Saifiyah', text: passMessage(p) });
+      await deps.mailer.sendMail({ to: p.recipient_email, subject: 'Your guest Wi-Fi pass — Aljamea-tus-Saifiyah', ...passEmail(p, user.company?.name || '', design) });
       // eslint-disable-next-line no-await-in-loop
       await deps.pool.query('UPDATE wifi_passes SET shared_email_at = now() WHERE id = $1::bigint', [p.id]);
       results.push({ id: String(p.id), ok: true });
@@ -700,5 +723,5 @@ async function decideRequest(user, id, body = {}) {
 module.exports = {
   me, getSettings, setHodPosts, listBatches, getBatch, uploadBatch, resetBatch, expireDue, allocate, departmentList,
   listPasses, departmentView, lookupIts, assign, unassign, markWhatsapp, emailPasses, requestMore, listRequests, decideRequest,
-  readPassesCsv, parseCsvText, passMessage, hodDepartments, setDeps,
+  readPassesCsv, parseCsvText, passMessage, passEmail, hodDepartments, setDeps,
 };

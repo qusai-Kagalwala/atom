@@ -15,6 +15,7 @@ import SetPasswordPage from './pages/SetPasswordPage';
 // Everything past login/home is loaded on first visit, so phones download less up front.
 // AppShell shows a spinner (Suspense) while a page loads.
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
+const EmailDesignPage = lazy(() => import('./pages/EmailDesignPage'));
 const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'));
 const AssetPage = lazy(() => import('./pages/AssetPage'));
 const AssistantPage = lazy(() => import('./pages/AssistantPage'));
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/users/:id" element={<UserDetailPage />} />
             <Route path="/sync" element={<SyncStatusPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/email-design" element={<EmailDesignPage />} />
             <Route path="/ai-usage" element={<AiUsagePage />} />
           </Route>
 

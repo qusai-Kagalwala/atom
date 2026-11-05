@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, Building2, LoaderCircle, Mail, Save, Timer } from 'lucide-react';
+import { BellRing, Building2, LoaderCircle, Mail, Palette, Save, Timer } from 'lucide-react';
 import { getPushSettings, getSettings, listCompanySettings, saveTimeFrames, setCompanyOpen, setEmailEnabled, setPushEnabled } from '../api/settings';
 import { errorMessage } from '../api/http';
 import { Alert, TextInput } from '../components/FormControls';
@@ -98,6 +99,9 @@ function Email({ email, onChanged }) {
           {email.emailEnabled ? 'Email is on' : 'Email is off'}
         </label>
       </div>
+      <Link to="/settings/email-design" className="btn-secondary inline-flex">
+        <Palette size={18} aria-hidden="true" /> Email design — colours, header, footer
+      </Link>
       {error && <Alert tone="error">{error}</Alert>}
       {!email.smtpConfigured && (
         <Alert tone="info">SMTP is not set in the server .env (SMTP_HOST, SMTP_FROM…). Emails wait in the queue and are sent once it is set.</Alert>

@@ -6,6 +6,8 @@
 const defaultPool = require('../../db/pool');
 const { config } = require('../../config/env');
 const mailer = require('../../services/mailer');
+const layout = require('../../services/emailLayout');
+const emailDesign = require('../../services/emailDesign');
 
 const MAX_TRIES = 3;
 const BATCH = 20;
@@ -27,16 +29,50 @@ const IST = new Intl.DateTimeFormat('en-IN', {
 });
 const when = (d) => IST.format(new Date(d));
 
-function compose(row, ticket) {
-  const lines = [row.title];
-  if (row.body) lines.push('', row.body);
-  if (ticket?.due_by && !['RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status)) {
-    lines.push('', `Expected by: ${when(ticket.due_by)}`);
-  }
-  if (row.link) lines.push('', `Open in ATOM: ${config.appUrl}${row.link}`);
-  lines.push('', '—', `${ticket?.service_unit_name ? `${ticket.service_unit_name} · ` : ''}ATOM (automatic message — please do not reply)`);
-  return lines.join('\n');
+// Notification type → small label and colour above the title.
+const KIND = {
+  created: ['New', 'gold'],
+  assign: ['Assigned', 'info'],
+  start: ['In progress', 'info'],
+  wait_user: ['Your reply needed', 'warning'],
+  wait_equipment: ['Waiting for equipment', 'warning'],
+  resume: ['In progress', 'info'],
+  resolve: ['Resolved', 'success'],
+  items_decided: ['Approval update', 'info'],
+  priority: ['Priority changed', 'warning'],
+  overdue: ['Overdue', 'danger'],
+  item_delivered: ['Delivered', 'success'],
+  close: ['Closed', 'success'],
+  reject: ['Rejected', 'danger'],
+  comment: ['New comment', 'info'],
+  to_recover: ['Equipment to collect', 'warning'],
+};
+const FINAL = ['RESOLVED', 'CLOSED', 'REJECTED'];
+const refOf = (t) => (t?.number ? `${t.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${t.number}` : null);
+
+// → { text, html } for one notification row. ticket may be null (onboarding / offboarding).
+// company: the sending company's name (defaults to the ticket's).
+function render(row, ticket, design = emailDesign.DEFAULTS, company = ticket?.service_unit_name || '') {
+  const kind = String(row.type || '').split('.').pop();
+  let [tag, tone] = KIND[kind] || ['Update', 'gold'];
+  if (kind === 'resolve' && ticket?.type === 'SERVICE_REQUEST') tag = 'Delivered';
+  const due = ticket?.due_by && !FINAL.includes(ticket.status) ? when(ticket.due_by) : null;
+  return layout.render({
+    company,
+    tag,
+    tone,
+    title: row.title,
+    paragraphs: row.body ? [row.body] : [],
+    details: [
+      [ticket?.type === 'SERVICE_REQUEST' ? 'Request' : 'Ticket', refOf(ticket)],
+      ['Expected by', due],
+    ],
+    button: row.link ? { url: `${config.appUrl}${row.link}` } : null,
+  }, design);
 }
+
+// Plain-text version (kept for tests and mail apps without HTML).
+const compose = (row, ticket) => render(row, ticket).text;
 
 // Inside the notification's transaction. rows = inserted notification rows.
 async function queueForRows(db, rows, ticket) {
@@ -49,13 +85,23 @@ async function queueForRows(db, rows, ticket) {
     [ids]
   );
   const emailOf = new Map(people.map((p) => [p.id, p.email.trim()]));
+  if (!emailOf.size) return 0;
+  // The sending company's name: the ticket's, else the notification's company (onboarding / offboarding).
+  const unitIds = [...new Set(rows.map((r) => r.service_unit_id).filter((x) => x != null).map(String))];
+  const { rows: units } = unitIds.length
+    ? await db.query('SELECT id::text AS id, name FROM service_units WHERE id = ANY($1::bigint[])', [unitIds])
+    : { rows: [] };
+  const unitName = new Map(units.map((u) => [u.id, u.name]));
+  const design = await emailDesign.current(db);
   let n = 0;
   for (const r of rows) {
     const to = emailOf.get(String(r.user_id));
     if (!to) continue;
+    const mail = render(r, ticket, design, ticket?.service_unit_name || unitName.get(String(r.service_unit_id)) || '');
     await db.query(
-      `INSERT INTO email_outbox (user_id, to_email, subject, body_text, request_id) VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::bigint)`,
-      [r.user_id, to, `ATOM: ${r.title}`.slice(0, 200), compose(r, ticket), r.request_id ?? null]
+      `INSERT INTO email_outbox (user_id, to_email, subject, body_text, body_html, request_id)
+       VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::text, $6::bigint)`,
+      [r.user_id, to, `ATOM: ${r.title}`.slice(0, 200), mail.text, mail.html, r.request_id ?? null]
     );
     n += 1;
   }
@@ -70,14 +116,14 @@ async function sendQueued({ pool = defaultPool, send = mailer.sendMail, limit = 
     `UPDATE email_outbox SET attempts = attempts + 1, next_try_at = now() + interval '5 minutes'
       WHERE id IN (SELECT id FROM email_outbox WHERE status = 'queued' AND next_try_at <= now()
                     ORDER BY id LIMIT $1::int FOR UPDATE SKIP LOCKED)
-      RETURNING id, to_email, subject, body_text, attempts`,
+      RETURNING id, to_email, subject, body_text, body_html, attempts`,
     [limit]
   );
   let sent = 0;
   let failed = 0;
   for (const m of rows) {
     try {
-      await send({ to: m.to_email, subject: m.subject, text: m.body_text });
+      await send({ to: m.to_email, subject: m.subject, text: m.body_text, html: m.body_html || undefined });
       await pool.query(`UPDATE email_outbox SET status = 'sent', sent_at = now(), last_error = NULL WHERE id = $1::bigint`, [m.id]);
       sent += 1;
     } catch (err) {
@@ -111,4 +157,4 @@ async function recentEmails({ limit = 30 } = {}, db = defaultPool) {
   };
 }
 
-module.exports = { getSettings, setEnabled, queueForRows, sendQueued, recentEmails, compose, MAX_TRIES };
+module.exports = { getSettings, setEnabled, queueForRows, sendQueued, recentEmails, compose, render, MAX_TRIES };
