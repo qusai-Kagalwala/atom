@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeftRight, Building2, ChevronDown, EyeOff, LoaderCircle, Menu, RefreshCw, ShieldUser, X } from 'lucide-react';
 import { queueCounts } from '../api/requests';
 import { companiesRequest } from '../api/auth';
+import { getWifiMe } from '../api/wifi';
 import useAuth from '../hooks/useAuth';
 import useLiveUpdates from '../hooks/useLiveUpdates';
 import usePwa from '../hooks/usePwa';
@@ -104,7 +105,9 @@ export default function AppShell() {
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { updateReady } = usePwa();
-  const sections = navSectionsForUser(user);
+  // Guest Wi-Fi: department HODs (Masool) get it in their menu (AVIT only).
+  const wifiMe = useQuery({ queryKey: ['wifi', 'me'], queryFn: getWifiMe, enabled: user.company?.code === 'AVIT', staleTime: 5 * 60_000 });
+  const sections = navSectionsForUser(user, { wifiHod: Boolean(wifiMe.data?.hodDepartments?.length) });
   const counts = useNavCounts(user);
   // Switching company only makes sense with more than one to go to (the Super Admin always can).
   const isSuper = user.roles.includes('SUPER_ADMIN');

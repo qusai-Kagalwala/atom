@@ -2,7 +2,8 @@
 // Calls go through ./ejamaatSoap.js — plain SOAP 1.1 POSTs that never download the service's
 // WSDL (the ?wsdl URL returns HTTP 500). Exports and return shapes are unchanged, so
 // auth.service.js needs no change.
-// ATOM uses only AuthenticateEjamaatId (login) and GetMuminNewPhoto (optional photo).
+// ATOM uses AuthenticateEjamaatId (login), GetMuminNewPhoto (optional photo) and Jamea_MuminDetails
+// (only to fill a guest's details for a Wi-Fi pass).
 // No profile lookup at login: names and emails come from the Idarah sync (ATOM_Decisions.md §4).
 // SECURITY: never log the password, the app key or an eJamaat answer.
 const { config } = require('../config/env');
@@ -40,4 +41,41 @@ async function getPhoto(itsNumber) {
   }
 }
 
-module.exports = { authenticate, getPhoto, isSuccess };
+// A person's name, mobile and email from Jamea_MuminDetails (Guest Wi-Fi passes, 5 Nov 2026), or null.
+// The answer's field names are matched loosely (they are not documented here). Best-effort: any failure
+// returns null and the caller lets the person type the details. Values are never logged.
+const FIELD = {
+  name: [/^full_?name(_?en)?$/i, /^(mumin_?)?name(_?en)?$/i, /name/i],
+  mobile: [/^mobile(_?no)?$/i, /mobile|cell/i, /phone/i],
+  email: [/^e_?mail(_?id)?$/i, /mail/i],
+};
+function pick(row, patterns, skip = []) {
+  const keys = Object.keys(row).filter((k) => !skip.some((r) => r.test(k)));
+  for (const p of patterns) {
+    const k = keys.find((key) => p.test(key) && String(row[key] ?? '').trim());
+    if (k) return String(row[k]).trim();
+  }
+  return null;
+}
+async function getMuminDetails(itsNumber) {
+  const its = String(itsNumber ?? '').trim();
+  if (!ITS_PATTERN.test(its)) return null;
+  try {
+    const { rows } = await callOperation('Jamea_MuminDetails', { EjamaatId: its, strKey: config.ejamaat.appKey });
+    const row = rows && rows[0];
+    if (!row) return null;
+    const name = pick(row, FIELD.name, [/arab/i, /father|mother|jamaat|jamiat|city|country|nationality/i]);
+    const mobile = pick(row, FIELD.mobile);
+    const email = pick(row, FIELD.email);
+    if (!name && !mobile && !email) {
+      console.warn(`[ATOM] Ejamaat Jamea_MuminDetails: no name/mobile/email field (fields: ${Object.keys(row).join(', ')})`);
+      return null;
+    }
+    return { name, mobile, email };
+  } catch (err) {
+    console.warn(`[ATOM] Ejamaat details lookup failed: ${err.message}`);
+    return null;
+  }
+}
+
+module.exports = { authenticate, getPhoto, getMuminDetails, isSuccess };

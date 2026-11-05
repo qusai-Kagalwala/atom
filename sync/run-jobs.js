@@ -33,7 +33,7 @@ async function main() {
 if (require.main === module) {
   main()
     .then(async (r) => {
-      console.log(`[${stamp()}] Jobs done: ${r.overdue} newly overdue · ${r.emailsSent} emails sent · ${r.emailsFailed} failed · ${r.emailsCleaned} old emails cleaned`);
+      console.log(`[${stamp()}] Jobs done: ${r.overdue} newly overdue · ${r.emailsSent} emails sent · ${r.emailsFailed} failed · ${r.emailsCleaned} old emails cleaned · ${r.wifiExpired} Wi-Fi batches expired`);
       await pool.end();
       process.exit(0);
     })

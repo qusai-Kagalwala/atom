@@ -26,6 +26,8 @@ const StaffPage = lazy(() => import('./pages/StaffPage'));
 const FaqEditPage = lazy(() => import('./pages/FaqEditPage'));
 const FaqsPage = lazy(() => import('./pages/FaqsPage'));
 const InventoryFilePage = lazy(() => import('./pages/InventoryFilePage'));
+const WifiPage = lazy(() => import('./pages/WifiPage'));
+const WifiBatchPage = lazy(() => import('./pages/WifiBatchPage'));
 const InventoryImportPage = lazy(() => import('./pages/InventoryImportPage'));
 const InventoryPage = lazy(() => import('./pages/InventoryPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -86,6 +88,8 @@ export default function App() {
             <Route index element={<HomePage />} />
             <Route path="/track" element={<MyRequestsPage />} />
             <Route path="/my-assets" element={<MyAssetsPage />} />
+            {/* Guest Wi-Fi: AVIT Admins and department HODs; the server decides who sees what. */}
+            <Route path="/wifi" element={<WifiPage />} />
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/request" element={<RequestPage />} />
             <Route path="/tickets/new" element={<RaiseTicketPage />} />
@@ -110,6 +114,7 @@ export default function App() {
               <Route path="/catalogue" element={<CataloguePage />} />
               <Route path="/problems" element={<ProblemsPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/wifi/batches/:id" element={<WifiBatchPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/faqs" element={<FaqsPage />} />

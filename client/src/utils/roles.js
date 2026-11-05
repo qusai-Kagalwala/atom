@@ -25,6 +25,7 @@ import {
   Tickets,
   UserCheck,
   Users,
+  Wifi,
 } from 'lucide-react';
 import rolesData from '@shared/roles.json';
 
@@ -32,7 +33,7 @@ export const ROLES = rolesData.roles;
 
 const ICONS = {
   BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, HardHat, House, LayoutDashboard, ListTree, Package, PackagePlus,
-  Receipt, RefreshCw, Settings, ShieldCheck, ShieldUser, ShoppingCart, Sparkles, Store, Ticket, Tickets, UserCheck, Users,
+  Receipt, RefreshCw, Settings, ShieldCheck, ShieldUser, ShoppingCart, Sparkles, Store, Ticket, Tickets, UserCheck, Users, Wifi,
 };
 
 // Admin of the active company (or the Super Admin inside it).
@@ -55,9 +56,14 @@ export function navForRole(role, company) {
 //   Super Admin: plus "Super Admin" (admins, users, sync, AI, settings). With no company chosen, only that.
 const PERSONAL = new Set(rolesData.navPersonal);
 const CONSOLE = new Set(rolesData.navConsole);
-export function navSectionsForUser(user) {
+// extras.wifiHod: this person is a department HOD (Masool) — Guest Wi-Fi joins their own menu.
+export function navSectionsForUser(user, extras = {}) {
   const role = user?.activeRole;
   const items = navForRole(role, user?.company);
+  if (extras.wifiHod && user?.company?.code === 'AVIT' && !items.some((i) => i.key === 'wifi')) {
+    const at = items.findIndex((i) => i.key === 'notifications');
+    items.splice(at === -1 ? items.length : at, 0, { key: 'wifi', ...rolesData.navItems.wifi, Icon: Wifi });
+  }
   const console = items.filter((i) => CONSOLE.has(i.key));
   if (!user?.company) return console.length ? [{ key: 'console', label: 'Super Admin', items: console }] : [];
   const personal = items.filter((i) => PERSONAL.has(i.key));
