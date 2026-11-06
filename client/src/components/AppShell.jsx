@@ -15,6 +15,7 @@ import Toasts from './Toasts';
 import { motionAllowed } from '../theme/motion';
 import { navSectionsForUser } from '../utils/roles';
 import UserMenu from './UserMenu';
+import PushPrompt from './PushPrompt';
 
 const linkClass = ({ isActive }) =>
   [
@@ -61,6 +62,41 @@ function NavItems({ items, counts, onNavigate }) {
   ));
 }
 
+// A sub-group inside Work (Tickets, Assets & stock, …): opens and closes on its own, remembered on this
+// device; the group holding the page you are on is always open. Closed, it shows the total of its counts.
+function NavGroup({ sectionKey, group, counts, onNavigate, open, onToggle }) {
+  const { pathname } = useLocation();
+  const key = `${sectionKey}.${group.key}`;
+  const here = group.items.some((i) => (i.path === '/' ? pathname === '/' : pathname === i.path || pathname.startsWith(`${i.path}/`)));
+  const isOpen = here || (open[key] ?? group.key === 'tickets');
+  const total = group.items.reduce((n, i) => n + (counts[i.key] > 0 ? counts[i.key] : 0), 0);
+  const id = `nav-${sectionKey}-${group.key}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => onToggle(key, !isOpen)}
+        aria-expanded={isOpen}
+        aria-controls={id}
+        className="flex min-h-[36px] items-center gap-2 rounded-btn px-3 font-ui text-xs font-medium text-white/70 hover:bg-white/5 hover:text-white"
+      >
+        <ChevronDown size={14} aria-hidden="true" className={`shrink-0 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+        <span>{group.label}</span>
+        {!isOpen && total > 0 && (
+          <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${total} waiting`}>
+            {total > 99 ? '99+' : total}
+          </span>
+        )}
+      </button>
+      {isOpen && (
+        <div id={id} className="anim-drop flex flex-col gap-1 border-l border-white/10 pl-2 ml-3">
+          <NavItems items={group.items} counts={counts} onNavigate={onNavigate} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Staff / Admins: "Personal" and "Work" (+ "Super Admin" for the Super Admin), each opens and closes
 // on its own; remembered on this device. A closed section shows the total of its counts.
 function SideNav({ sections, counts, onNavigate, open, onToggle }) {
@@ -90,7 +126,13 @@ function SideNav({ sections, counts, onNavigate, open, onToggle }) {
             </button>
             {isOpen && (
               <div id={id} className="anim-drop flex flex-col gap-1">
-                <NavItems items={sec.items} counts={counts} onNavigate={onNavigate} />
+                {sec.groups ? (
+                  sec.groups.map((g) => (
+                    <NavGroup key={g.key} sectionKey={sec.key} group={g} counts={counts} onNavigate={onNavigate} open={open} onToggle={onToggle} />
+                  ))
+                ) : (
+                  <NavItems items={sec.items} counts={counts} onNavigate={onNavigate} />
+                )}
               </div>
             )}
           </div>
@@ -114,9 +156,10 @@ export default function AppShell() {
   const companies = useQuery({ queryKey: ['auth', 'companies'], queryFn: companiesRequest, enabled: !isSuper, staleTime: 5 * 60_000 });
   const canSwitch = isSuper || (companies.data || []).filter((c) => c.roles.length).length > 1;
   const [open, setOpen] = useState(readOpen);
-  const toggle = (key) =>
+  // value: set it (sub-groups know their own open state); without: flip it (sections, open by default).
+  const toggle = (key, value) =>
     setOpen((o) => {
-      const next = { ...o, [key]: o[key] === false };
+      const next = { ...o, [key]: value === undefined ? o[key] === false : value };
       try {
         localStorage.setItem(SECTIONS_KEY, JSON.stringify(next));
       } catch {
@@ -246,6 +289,7 @@ export default function AppShell() {
         </footer>
       </div>
       <Toasts />
+      <PushPrompt />
     </div>
   );
 }

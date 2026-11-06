@@ -198,10 +198,12 @@ function toPublic(row) {
 // After COMMIT: push each new row to its recipient, then tell everyone involved that the ticket
 // changed so open lists and sidebar counts refresh. Never throws (the change is already saved).
 function publish(rows, ticket, extraUserIds = []) {
+  // Rows already read on arrival belong to people with "In app" off: no pop-up, count or push.
+  const live = (rows || []).filter((r) => !r.read_at);
   // Phones / closed browsers too (Web Push, Phase 14) — in the background, never throws.
-  if (rows?.length) push.sendForRows(rows).catch(() => {});
+  if (live.length) push.sendForRows(live).catch(() => {});
   try {
-    for (const row of rows) {
+    for (const row of live) {
       const payload = toPublic(row);
       if (row.role) realtime.emitToUserRole(row.user_id, row.role, 'notification:new', payload);
       else realtime.emitToUser(row.user_id, 'notification:new', payload);

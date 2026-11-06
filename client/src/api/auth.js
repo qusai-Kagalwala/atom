@@ -2,8 +2,13 @@ import http from './http';
 import { saveToken } from '../auth/storage';
 import { reconnectSocket } from './socket';
 
-export const loginRequest = (identifier, password) =>
-  http.post('/auth/login', { identifier, password }).then((r) => r.data);
+// keep: "Keep me signed in on this device" (default sign-out after 8 hours).
+export const loginRequest = (identifier, password, keep = false) =>
+  http.post('/auth/login', { identifier, password, keep }).then((r) => r.data);
+
+export const signOutEverywhereRequest = () => http.post('/auth/sign-out-everywhere').then((r) => r.data);
+// How I get notified: { inApp, email } — at least one on.
+export const setNotifyRequest = (prefs) => http.patch('/auth/notify', prefs).then((r) => r.data.notify);
 
 export const switchRoleRequest = (role) => http.post('/auth/switch-role', { role }).then((r) => r.data);
 
@@ -20,6 +25,8 @@ export const updatePreferencesRequest = (prefs) =>
   http.patch('/auth/preferences', prefs).then((r) => r.data.user);
 
 export const meRequest = () => http.get('/auth/me').then((r) => r.data.user);
+// The whole answer: { user, keepSignedIn } (Profile → Signed in).
+export const sessionRequest = () => http.get('/auth/me').then((r) => r.data);
 
 // Employee-ID users only. Other devices are signed out; this one gets a fresh token and stays in.
 export const changePasswordRequest = (currentPassword, newPassword) =>

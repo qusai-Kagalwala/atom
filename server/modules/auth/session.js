@@ -58,6 +58,8 @@ function toPublicUser(row, activeRole) {
     name,
     nameArabic,
     nameLanguage,
+    // How I get notified (031). Both on by default.
+    notify: { inApp: row.notify_in_app !== false, email: row.notify_email !== false },
     displayName: nameLanguage === 'ar' ? nameArabic : name,
     email: row.email || null,
     roles: row.roles,

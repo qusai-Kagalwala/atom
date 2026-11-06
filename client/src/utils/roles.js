@@ -88,10 +88,24 @@ export function navSectionsForUser(user, extras = {}) {
     .map((f) => ({ key: f.nav, ...rolesData.navItems[f.nav], Icon: ICONS[rolesData.navItems[f.nav]?.icon] || CircleHelp }));
   if (!work.length && !console.length && !delegated.length) return [{ key: null, label: null, items }];
   const sections = [{ key: 'personal', label: 'Personal', items: personal }];
-  if (work.length) sections.push({ key: 'work', label: 'Work', items: work });
+  if (work.length) sections.push({ key: 'work', label: 'Work', items: work, groups: groupItems(work) });
   if (delegated.length) sections.push({ key: 'delegated', label: 'Delegated', items: delegated });
   if (console.length) sections.push({ key: 'console', label: 'Super Admin', items: console });
   return sections;
+}
+
+// Work in sub-groups (6 Nov 2026): Tickets · Assets & stock · People · Help content · Services · Reports.
+// Only when the list is long (Admins); a short list (Staff) stays flat. Items in no group go under "More".
+const GROUP_MIN_ITEMS = 7;
+function groupItems(items) {
+  if (items.length < GROUP_MIN_ITEMS) return null;
+  const groups = rolesData.navGroups
+    .map((g) => ({ key: g.key, label: g.label, items: g.items.map((k) => items.find((i) => i.key === k)).filter(Boolean) }))
+    .filter((g) => g.items.length);
+  const placed = new Set(groups.flatMap((g) => g.items.map((i) => i.key)));
+  const rest = items.filter((i) => !placed.has(i.key));
+  if (rest.length) groups.push({ key: 'more', label: 'More', items: rest });
+  return groups;
 }
 
 // "Staff" shows as the person's occupation ("Carpenter") when we know it.

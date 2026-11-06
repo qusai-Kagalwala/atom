@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { clearSession, getToken } from '../auth/storage';
+import { clearSession, getToken, saveToken } from '../auth/storage';
 import { socketId } from './socket';
 
 // BASE_URL is '/Atom/' (from vite.config.js base), so every call goes to /Atom/api/...
@@ -28,7 +28,12 @@ http.interceptors.request.use((cfg) => {
 let redirecting = false;
 
 http.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // "Keep me signed in": the server renews a day-old token while it is used.
+    const renewed = res.headers?.['x-atom-token'];
+    if (renewed) saveToken(renewed);
+    return res;
+  },
   (error) => {
     const status = error.response?.status;
     const url = error.config?.url || '';

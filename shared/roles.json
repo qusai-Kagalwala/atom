@@ -348,5 +348,59 @@
       "label": "Reports (PDF)",
       "hint": "Download PDF reports"
     }
-  }
+  },
+  "navGroups": [
+    {
+      "key": "tickets",
+      "label": "Tickets",
+      "items": [
+        "workQueue",
+        "assignQueue",
+        "approvals",
+        "allRequests"
+      ]
+    },
+    {
+      "key": "assets",
+      "label": "Assets & stock",
+      "items": [
+        "inventory",
+        "catalogue",
+        "invoices",
+        "onboarding"
+      ]
+    },
+    {
+      "key": "people",
+      "label": "People",
+      "items": [
+        "staff",
+        "delegate",
+        "staffLeave"
+      ]
+    },
+    {
+      "key": "help",
+      "label": "Help content",
+      "items": [
+        "problems",
+        "faqs"
+      ]
+    },
+    {
+      "key": "services",
+      "label": "Services",
+      "items": [
+        "wifi"
+      ]
+    },
+    {
+      "key": "reports",
+      "label": "Reports",
+      "items": [
+        "analytics",
+        "reports"
+      ]
+    }
+  ]
 }

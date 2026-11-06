@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Check, KeyRound, LoaderCircle } from 'lucide-react';
-import { changePasswordRequest, updatePreferencesRequest } from '../api/auth';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, KeyRound, LoaderCircle, LogOut } from 'lucide-react';
+import { changePasswordRequest, sessionRequest, setNotifyRequest, signOutEverywhereRequest, updatePreferencesRequest } from '../api/auth';
+import { saveToken } from '../auth/storage';
 import { errorMessage } from '../api/http';
 import { Alert, Field, PasswordInput } from '../components/FormControls';
 import DeviceCard from '../components/DeviceCard';
@@ -17,6 +18,98 @@ function Detail({ label, children }) {
       <dt className="w-40 shrink-0 font-ui text-xs uppercase tracking-wider text-ink-3">{label}</dt>
       <dd className="font-ui text-sm text-ink">{children}</dd>
     </div>
+  );
+}
+
+// How I get notified (6 Nov 2026): In app and / or Email — at least one on.
+function NotifyCard({ user }) {
+  const queryClient = useQueryClient();
+  const [prefs, setPrefs] = useState(user.notify || { inApp: true, email: true });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function change(key, value) {
+    const next = { ...prefs, [key]: value };
+    if (!next.inApp && !next.email) {
+      setMsg({ tone: 'error', text: 'Keep at least one way on.' });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      setPrefs(await setNotifyRequest(next));
+      setMsg({ tone: 'success', text: 'Saved.' });
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const row = (key, label, hint) => (
+    <label className="flex min-h-tap cursor-pointer items-start gap-3 py-2 font-ui text-sm text-ink">
+      <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-brand" checked={prefs[key]} disabled={busy} onChange={(e) => change(key, e.target.checked)} />
+      <span>
+        {label}
+        <span className="block text-xs text-ink-3">{hint}</span>
+      </span>
+    </label>
+  );
+
+  return (
+    <section className="card">
+      <h2 className="text-xl">How I get notified</h2>
+      <p className="mt-1 font-ui text-sm text-ink-2">Choose one or both.</p>
+      <div className="mt-3 divide-y divide-line">
+        {row('inApp', 'In app', 'The bell count, pop-ups and phone notifications. Off: they still go to your Notifications list, already read.')}
+        {row('email', 'Email', user.email ? `Sent to ${user.email}.` : 'No email address is on file for you, so nothing can be sent yet.')}
+      </div>
+      {msg && (
+        <div className="mt-2">
+          <Alert tone={msg.tone}>{msg.text}</Alert>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// This device's sign-in, and "Sign out of all other devices" (6 Nov 2026).
+function SessionCard() {
+  const me = useQuery({ queryKey: ['auth', 'me', 'session'], queryFn: sessionRequest });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  async function everywhere() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const { token } = await signOutEverywhereRequest();
+      saveToken(token);
+      setMsg({ tone: 'success', text: 'Every other device is signed out. This one stays signed in.' });
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not do that.') });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="card">
+      <h2 className="text-xl">Signed in</h2>
+      <p className="mt-1 font-ui text-sm text-ink-2">
+        {me.data?.keepSignedIn
+          ? 'This device stays signed in until you sign out (or don’t open ATOM for 90 days).'
+          : 'This device signs out 8 hours after you signed in. Tick “Keep me signed in” on the sign-in page to stay signed in.'}
+      </p>
+      <p className="mt-2 font-ui text-sm text-ink-2">Lost a phone, or signed in on someone else’s computer? Sign out everywhere else:</p>
+      <button type="button" className="btn-secondary mt-3" disabled={busy} onClick={everywhere}>
+        {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <LogOut size={18} aria-hidden="true" />} Sign out of all other devices
+      </button>
+      {msg && (
+        <div className="mt-3">
+          <Alert tone={msg.tone}>{msg.text}</Alert>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -223,7 +316,11 @@ export default function ProfilePage() {
         </div>
       </section>
 
+      <NotifyCard user={user} />
+
       <DeviceCard />
+
+      <SessionCard />
 
       {isIts ? (
         <Alert tone="info">Your password is managed by ITS. Change or reset it there.</Alert>

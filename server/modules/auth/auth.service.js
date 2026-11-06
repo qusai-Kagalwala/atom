@@ -58,7 +58,7 @@ async function checkIts(itsNumber, password) {
   return user.id;
 }
 
-async function login({ identifier, password, preferredRole, companyId: askedCompany }) {
+async function login({ identifier, password, preferredRole, companyId: askedCompany, keep = false }) {
   let userId = await checkEmployeeId(identifier, password);
 
   if (!userId) {
@@ -78,7 +78,7 @@ async function login({ identifier, password, preferredRole, companyId: askedComp
   user = await repo.loadSessionUser(userId, companyId);
   const allowed = companyId ? rolesIn(user, companyId) : user.roles;
   const activeRole = pickActiveRole(allowed.length ? allowed : user.roles, preferredRole);
-  return { token: signSession(user.id, activeRole, user.session_version, companyId), user: toPublicUser(user, activeRole) };
+  return { token: signSession(user.id, activeRole, user.session_version, companyId, { keep }), user: toPublicUser(user, activeRole), keep };
 }
 
 module.exports = { login, AuthError, MSG };

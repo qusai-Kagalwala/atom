@@ -23,6 +23,7 @@ export default function LoginPage() {
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [keep, setKeep] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(() => URL_ERRORS[params.get('error')] || '');
   const notice = location.state?.notice; // e.g. after a password reset
@@ -37,7 +38,7 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      await login(identifier, password);
+      await login(identifier, password, keep);
       // Every login: choose the company first, then go on to the page they came for.
       const from = location.state?.from;
       navigate('/choose-company', { replace: true, state: { from: from && from !== '/login' ? from : null } });
@@ -76,7 +77,7 @@ export default function LoginPage() {
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ''))}
             className="tabular-nums"
-            placeholder="e.g. 30328701"
+            placeholder="e.g. 12345678"
           />
         </Field>
 
@@ -89,6 +90,14 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
+
+        <label className="flex min-h-tap cursor-pointer items-start gap-3 font-ui text-sm text-ink">
+          <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-brand" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
+          <span>
+            Keep me signed in on this device
+            <span className="block text-xs text-ink-3">Otherwise you are signed out after 8 hours. Don&apos;t tick this on a shared computer.</span>
+          </span>
+        </label>
 
         <button type="submit" disabled={!canSubmit} className="btn-primary w-full">
           {submitting ? (

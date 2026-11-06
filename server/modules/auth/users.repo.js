@@ -27,7 +27,7 @@ async function findItsUser(itsNumber) {
 // companyId is given — that company if it exists and is active (else company = null).
 async function loadSessionUser(userId, companyId = null) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic, u.name_language,
+    `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic, u.name_language, u.notify_in_app, u.notify_email,
             u.email, u.is_active, u.session_version, u.must_change_password,
             COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
             uc.service_unit_id AS staff_company_id, sc.code AS staff_company_code, sc.name AS staff_company_name,
@@ -62,6 +62,17 @@ async function listCompanies({ includeClosed = false } = {}) {
 }
 
 // 'en' | 'ar'. Arabic only when the user has an Arabic name (checked here, not just in the UI).
+// How I get notified (031): at least one on.
+async function setNotifyPrefs(userId, { inApp, email }) {
+  await pool.query('UPDATE users SET notify_in_app = $2::boolean, notify_email = $3::boolean WHERE id = $1::bigint', [userId, inApp, email]);
+}
+
+// "Sign out of all devices": every other token stops working (session_version goes up). → the new version.
+async function bumpSessionVersion(userId) {
+  const { rows } = await pool.query('UPDATE users SET session_version = session_version + 1 WHERE id = $1::bigint RETURNING session_version', [userId]);
+  return rows[0].session_version;
+}
+
 async function setNameLanguage(userId, language) {
   const { rowCount } = await pool.query(
     `UPDATE users SET name_language = $2::text
@@ -71,4 +82,4 @@ async function setNameLanguage(userId, language) {
   return rowCount === 1;
 }
 
-module.exports = { findEmployeeForLogin, findItsUser, loadSessionUser, listCompanies, setNameLanguage };
+module.exports = { findEmployeeForLogin, findItsUser, loadSessionUser, listCompanies, setNameLanguage, setNotifyPrefs, bumpSessionVersion };

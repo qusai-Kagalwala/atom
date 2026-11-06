@@ -64,7 +64,7 @@ function checkNewPassword(newPassword, currentPassword, employeeId) {
 
 // Logged-in employee-ID user, from the profile page.
 // keepSocketId: this device's Socket.IO id (X-Socket-Id header), so only OTHER devices are dropped.
-async function changePassword(user, currentPassword, newPassword, { keepSocketId } = {}) {
+async function changePassword(user, currentPassword, newPassword, { keepSocketId, keep = false } = {}) {
   if (user.loginType !== 'EMPLOYEE_ID') throw new PasswordError(400, MSG.itsUser, 'its_user');
 
   const stored = await repo.getEmployeePassword(user.id);
@@ -79,7 +79,7 @@ async function changePassword(user, currentPassword, newPassword, { keepSocketId
   const except = /^[A-Za-z0-9_-]{1,64}$/.test(String(keepSocketId || '')) ? keepSocketId : undefined;
   realtime.disconnectUser(user.id, { except }); // other devices' live connections drop now; their next request gets 401
   // Other devices are signed out (session_version went up). This device gets a fresh token and stays in.
-  return { message: MSG.changed, token: signSession(user.id, user.activeRole, version, user.companyId) };
+  return { message: MSG.changed, token: signSession(user.id, user.activeRole, version, user.companyId, { keep }) };
 }
 
 // Footer line: only the companies that are open (Super Admin switch). Never fails the email.

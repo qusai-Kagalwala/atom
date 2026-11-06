@@ -6,6 +6,8 @@ const pool = require('../../db/pool');
 const COLUMNS = `id, user_id, role, type, title, body, link, request_id, service_unit_id, read_at, created_at,
   (SELECT s.code FROM service_units s WHERE s.id = notifications.service_unit_id) AS company_code,
   (SELECT s.name FROM service_units s WHERE s.id = notifications.service_unit_id) AS company_name`;
+// "In app" off (031): the notification is kept as history but arrives already read — no count, pop-up or push.
+const READ_AT = 'CASE WHEN u.notify_in_app THEN NULL ELSE now() END';
 const VISIBLE = `user_id = $1::bigint
   AND (role IS NULL OR (role = $2::app_role AND service_unit_id IS NOT DISTINCT FROM $3::bigint))`;
 const visibleParams = (user) => [user.id, user.activeRole, user.companyId ?? null];
@@ -14,8 +16,8 @@ const visibleParams = (user) => [user.id, user.activeRole, user.companyId ?? nul
 // holds that role in that company.
 async function insertForUser(db, n) {
   const { rows } = await db.query(
-    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id)
-     SELECT u.id, $2::app_role, $3::text, $4::text, $5::text, $6::text, $7::bigint, $8::bigint, $9::bigint
+    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id, read_at)
+     SELECT u.id, $2::app_role, $3::text, $4::text, $5::text, $6::text, $7::bigint, $8::bigint, $9::bigint, ${READ_AT}
        FROM users u
       WHERE u.id = $1::bigint AND u.is_active
         AND ($2::app_role IS NULL
@@ -33,8 +35,8 @@ async function insertForUser(db, n) {
 async function insertForRole(db, n) {
   const delegates = n.features && n.features.length ? await insertForDelegates(db, n) : [];
   const { rows } = await db.query(
-    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id)
-     SELECT u.id, $1::app_role, $2::text, $3::text, $4::text, $5::text, $6::bigint, $7::bigint, $8::bigint
+    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id, read_at)
+     SELECT u.id, $1::app_role, $2::text, $3::text, $4::text, $5::text, $6::bigint, $7::bigint, $8::bigint, ${READ_AT}
        FROM users u
        JOIN user_roles r ON r.user_id = u.id AND r.role = $1::app_role
        JOIN user_company c ON c.user_id = u.id AND c.service_unit_id = $8::bigint
@@ -47,8 +49,8 @@ async function insertForRole(db, n) {
 
 async function insertForDelegates(db, n) {
   const { rows } = await db.query(
-    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id)
-     SELECT DISTINCT u.id, NULL::app_role, $2::text, $3::text, $4::text, $5::text, $6::bigint, $7::bigint, $8::bigint
+    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id, read_at)
+     SELECT DISTINCT u.id, NULL::app_role, $2::text, $3::text, $4::text, $5::text, $6::bigint, $7::bigint, $8::bigint, ${READ_AT}
        FROM users u
        JOIN user_features f ON f.user_id = u.id AND f.service_unit_id = $8::bigint AND f.revoked_at IS NULL AND f.feature = ANY($1::text[])
        JOIN user_company c ON c.user_id = u.id AND c.service_unit_id = $8::bigint

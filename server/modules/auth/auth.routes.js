@@ -22,7 +22,8 @@ const { login, AuthError } = require('./auth.service');
 const { changePassword, requestReset, resetPassword, PasswordError } = require('./passwords.service');
 const { requireAuth } = require('../../middleware/requireAuth');
 const { ROLE_KEYS, pickActiveRole, rolesIn, toPublicUser } = require('./session');
-const { loadSessionUser, listCompanies, setNameLanguage } = require('./users.repo');
+const { loadSessionUser, listCompanies, setNameLanguage, setNotifyPrefs, bumpSessionVersion } = require('./users.repo');
+const realtime = require('../../realtime');
 const { signSession } = require('./tokens');
 const { getTheme, setTheme } = require('./theme.repo');
 const themes = require('../../../shared/themes.json');
@@ -76,18 +77,43 @@ function createAuthRouter() {
     body('password').isString().isLength({ min: 1, max: 256 }),
     body('role').optional({ values: 'null' }).isIn(ROLE_KEYS),
     body('companyId').optional({ values: 'null' }).matches(/^\d{1,18}$/),
+    body('keep').optional().isBoolean({ strict: true }),
     (req, res, next) =>
       invalid(req)
         ? res.status(400).json({ message: 'Enter your ITS number or Employee ID and password.' })
         : next(),
     handle((req) => {
-      const { identifier, password, role, companyId } = req.body;
-      return login({ identifier, password, preferredRole: role, companyId });
+      const { identifier, password, role, companyId, keep } = req.body;
+      return login({ identifier, password, preferredRole: role, companyId, keep: keep === true });
     })
   );
 
   // ---------- Session ----------
-  router.get('/me', requireAuth, (req, res) => res.json({ user: req.user }));
+  // keepSignedIn: this device was signed in with "Keep me signed in".
+  router.get('/me', requireAuth, (req, res) => res.json({ user: req.user, keepSignedIn: req.sessionKeep }));
+
+  // "Sign out of all devices" (6 Nov 2026): every other device is signed out; this one gets a fresh token.
+  router.post('/sign-out-everywhere', requireAuth, async (req, res, next) => {
+    try {
+      const version = await bumpSessionVersion(req.user.id);
+      const except = /^[A-Za-z0-9_-]{1,64}$/.test(String(req.get('X-Socket-Id') || '')) ? req.get('X-Socket-Id') : undefined;
+      realtime.disconnectUser(req.user.id, { except });
+      return res.json({ token: signSession(req.user.id, req.user.activeRole, version, req.user.companyId, { keep: req.sessionKeep }) });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // How I get notified: { inApp, email } — at least one on.
+  router.patch('/notify', requireAuth, body('inApp').isBoolean({ strict: true }), body('email').isBoolean({ strict: true }), async (req, res, next) => {
+    if (invalid(req) || (!req.body.inApp && !req.body.email)) return res.status(400).json({ message: 'Keep at least one way on.', code: 'need_one' });
+    try {
+      await setNotifyPrefs(req.user.id, { inApp: req.body.inApp, email: req.body.email });
+      return res.json({ notify: { inApp: req.body.inApp, email: req.body.email } });
+    } catch (err) {
+      return next(err);
+    }
+  });
 
   // Before sign-in: the open companies' names (login page subtitle).
   router.get('/open-companies', async (req, res, next) => {
@@ -131,7 +157,7 @@ function createAuthRouter() {
           return res.status(403).json({ message: 'You do not have that role here.', code: 'role_not_granted' });
         }
         const role = pickActiveRole(allowed, req.body.role);
-        return res.json({ token: signSession(req.user.id, role, req.sessionVersion, companyId), user: toPublicUser(row, role) });
+        return res.json({ token: signSession(req.user.id, role, req.sessionVersion, companyId, { keep: req.sessionKeep }), user: toPublicUser(row, role) });
       } catch (err) {
         return next(err);
       }
@@ -148,7 +174,7 @@ function createAuthRouter() {
       return res.status(403).json({ message: 'You do not have that role in this company.', code: 'role_not_granted' });
     }
     const user = { ...req.user, activeRole: role };
-    return res.json({ token: signSession(user.id, role, req.sessionVersion, req.user.companyId), user });
+    return res.json({ token: signSession(user.id, role, req.sessionVersion, req.user.companyId, { keep: req.sessionKeep }), user });
   });
 
   // ---------- Preferences ----------
@@ -220,7 +246,7 @@ function createAuthRouter() {
     (req, res, next) =>
       invalid(req) ? res.status(400).json({ message: 'Enter your current and new password.' }) : next(),
     handle((req) =>
-      changePassword(req.user, req.body.currentPassword, req.body.newPassword, { keepSocketId: req.get('X-Socket-Id') })
+      changePassword(req.user, req.body.currentPassword, req.body.newPassword, { keepSocketId: req.get('X-Socket-Id'), keep: req.sessionKeep })
     )
   );
 

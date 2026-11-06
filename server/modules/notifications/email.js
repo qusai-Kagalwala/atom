@@ -85,7 +85,7 @@ async function queueForRows(db, rows, ticket) {
   if (!s[0]?.email_enabled) return 0;
   const ids = [...new Set(rows.map((r) => String(r.user_id)))];
   const { rows: people } = await db.query(
-    `SELECT id::text AS id, email FROM users WHERE id = ANY($1::bigint[]) AND is_active AND email IS NOT NULL AND email LIKE '%@%'`,
+    `SELECT id::text AS id, email FROM users WHERE id = ANY($1::bigint[]) AND is_active AND notify_email AND email IS NOT NULL AND email LIKE '%@%'`, // 031: email off = none
     [ids]
   );
   const emailOf = new Map(people.map((p) => [p.id, p.email.trim()]));

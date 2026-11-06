@@ -41,7 +41,7 @@ beforeEach(() => {
   realtime._setIo(fakeIo());
   ids = {
     emp: db.add({ login_type: 'EMPLOYEE_ID', employee_id: '1002', legacy_password: OLD, email: 'a.b@jameasaifiyah.edu' }, ['EMPLOYEE', 'ENGINEER']),
-    admin: db.add({ login_type: 'ITS', its_number: '30328701' }, ['EMPLOYEE', 'SUPER_ADMIN']),
+    admin: db.add({ login_type: 'ITS', its_number: '90009991' }, ['EMPLOYEE', 'SUPER_ADMIN']),
   };
 });
 
@@ -53,8 +53,8 @@ const me = (token) => request(app).get(`${API}/me`).set('Authorization', `Bearer
 
 describe('session version in the token', () => {
   test('signed tokens carry sv; tokens from before 7.1 (no sv) count as version 0', () => {
-    expect(verifySession(signSession('5', 'EMPLOYEE', 3))).toEqual({ userId: '5', role: 'EMPLOYEE', version: 3, companyId: null });
-    expect(verifySession(signSession('5', 'ADMIN', 3, 2))).toEqual({ userId: '5', role: 'ADMIN', version: 3, companyId: '2' });
+    expect(verifySession(signSession('5', 'EMPLOYEE', 3))).toMatchObject({ userId: '5', role: 'EMPLOYEE', version: 3, companyId: null, keep: false });
+    expect(verifySession(signSession('5', 'ADMIN', 3, 2))).toMatchObject({ userId: '5', role: 'ADMIN', version: 3, companyId: '2', keep: false });
     const legacy = jwt.sign({ role: 'EMPLOYEE' }, config.sessionSecret, { algorithm: 'HS256', subject: '5', expiresIn: '1h' });
     expect(verifySession(legacy).version).toBe(0);
   });
@@ -90,7 +90,7 @@ describe('change password (logged in)', () => {
     for (const old of [thisDevice, otherDevice]) {
       const r = await me(old);
       expect(r.status).toBe(401);
-      expect(r.body).toEqual({ code: 'password_changed', message: 'Your password was changed. Please sign in again.' });
+      expect(r.body).toEqual({ code: 'password_changed', message: 'You were signed out (password changed, or signed out of all devices). Please sign in again.' });
     }
     // Live connections of other devices drop; this device's socket is kept.
     expect(dropped).toEqual([{ room: `user:${ids.emp}`, except: 'sock_ABC-123' }]);
@@ -149,7 +149,7 @@ describe('reset by email link', () => {
 
 describe('ITS users', () => {
   test('ITS logins are unaffected (their password lives on eJamaat)', async () => {
-    const token = await login('30328701', 'anything');
+    const token = await login('90009991', 'anything');
     expect((await me(token)).status).toBe(200);
     const res = await request(app)
       .post(`${API}/change-password`)

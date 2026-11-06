@@ -16,7 +16,7 @@
 // Temporary password (Phase 3.1): while users.must_change_password is set, every route except
 // GET /auth/me and POST /auth/change-password answers 403 { code: 'must_change_password' }.
 const { config } = require('../config/env');
-const { verifySession } = require('../modules/auth/tokens');
+const { verifySession, signSession } = require('../modules/auth/tokens');
 const { loadSessionUser } = require('../modules/auth/users.repo');
 const { rolesIn, toPublicUser } = require('../modules/auth/session');
 const { ADMIN_ROLES } = require('../utils/roles');
@@ -25,7 +25,7 @@ const DENY = {
   session_expired: 'Your session has expired. Please sign in again.',
   removed: 'Your ATOM access has been removed.',
   role_changed: 'Your role has changed. Please sign in again.',
-  password_changed: 'Your password was changed. Please sign in again.',
+  password_changed: 'You were signed out (password changed, or signed out of all devices). Please sign in again.',
   company_changed: 'Your access to this company has changed. Please sign in again.',
 };
 
@@ -55,14 +55,14 @@ async function checkSession(token) {
   // A company the Super Admin has closed: everyone else is treated as being in no company, so company
   // routes answer 409 choose_company and the app goes back to the company picker.
   if (row.company && row.company.open === false && !row.roles.includes('SUPER_ADMIN')) {
-    return { user: toPublicUser({ ...row, company: null }, session.role), sessionVersion: session.version };
+    return { user: toPublicUser({ ...row, company: null }, session.role), sessionVersion: session.version, session };
   }
   // In a company: it must still be active and the role still allowed there (Admin / Staff: own company).
   if (session.companyId && (!row.company || !rolesIn(row, session.companyId).includes(session.role))) {
     return { code: 'company_changed' };
   }
 
-  return { user: toPublicUser(row, session.role), sessionVersion: session.version };
+  return { user: toPublicUser(row, session.role), sessionVersion: session.version, session };
 }
 
 async function requireAuth(req, res, next) {
@@ -80,6 +80,13 @@ async function requireAuth(req, res, next) {
     }
     req.user = result.user;
     req.sessionVersion = result.sessionVersion;
+    req.sessionKeep = Boolean(result.session?.keep);
+    // "Keep me signed in": renew a token older than a day, so a device in use never signs out.
+    // The client stores X-Atom-Token when it is present.
+    const s = result.session;
+    if (s?.keep && Date.now() / 1000 - (s.issuedAt || 0) > 86400) {
+      res.set('X-Atom-Token', signSession(s.userId, s.role, s.version, s.companyId, { keep: true }));
+    }
     return next();
   } catch (err) {
     return next(err);

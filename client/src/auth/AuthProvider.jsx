@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { markPushPrompt } from '../utils/pushPrompt';
 import { loginRequest, meRequest, switchCompanyRequest, switchRoleRequest } from '../api/auth';
 import { LOGIN_PATH } from '../api/http';
 import { turnPushOff } from '../pwa';
@@ -41,8 +42,9 @@ export default function AuthProvider({ children }) {
   }, [me.data]);
 
   // After login the company picker always opens (LoginPage sends them there).
-  const login = useCallback(async (identifier, password) => {
-    const { token, user: next } = await loginRequest(identifier, password);
+  const login = useCallback(async (identifier, password, keep = false) => {
+    const { token, user: next } = await loginRequest(identifier, password, keep);
+    markPushPrompt(); // the first thing after signing in: offer notifications on this device
     saveSession(token, next);
     setStoredUser(next);
     return next;
