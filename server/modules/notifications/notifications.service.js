@@ -24,6 +24,7 @@ const realtime = require('../../realtime');
 
 const ticketNumber = (t) => `${t.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${t.number}`;
 const same = (a, b) => a != null && b != null && String(a) === String(b);
+const STATUS_LABELS = Object.fromEntries(Object.entries(require('../../../shared/statuses.json').requestStatuses).map(([k, v]) => [k, v.label]));
 
 function short(text, max = 140) {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim();
@@ -43,13 +44,15 @@ function planTicket(ticket, e) {
   const out = [];
   const toRequester = (title, body) => out.push({ userId: requester, role: null, title, body });
   const toEngineer = (id, title, body) => id && out.push({ userId: id, role: 'ENGINEER', title, body });
-  const toAdmins = (title, body) => out.push({ toRole: 'ADMIN', role: 'ADMIN', title, body });
+  // features: people given these Admin features (Delegate access) hear about it too.
+  const toAdmins = (title, body, features = ['assign', 'tickets']) => out.push({ toRole: 'ADMIN', role: 'ADMIN', title, body, features });
 
   switch (e.kind) {
     case 'created':
       toAdmins(
         ticket.type === 'SERVICE_REQUEST' ? `New request ${num} to approve` : `New ticket ${num}`,
-        e.autoAssignedTo ? short(`${ticket.title} · assigned automatically to ${e.autoAssignedTo}`, 280) : short(ticket.title)
+        e.autoAssignedTo ? short(`${ticket.title} · assigned automatically to ${e.autoAssignedTo}`, 280) : short(ticket.title),
+        ticket.type === 'SERVICE_REQUEST' ? ['approvals', 'tickets'] : ['assign', 'tickets']
       );
       if (e.raisedFor) toRequester(`${num} was raised for you`, short(ticket.title));
       break;
@@ -106,6 +109,13 @@ function planTicket(ticket, e) {
     case 'item_delivered':
       toRequester(`${num}: ${short(e.itemName, 60)} delivered`, short(e.note));
       break;
+    case 'status_override': {
+      const label = (st) => STATUS_LABELS[st] || st;
+      const title = `${num} moved to ${label(e.to)}`;
+      toRequester(title, short(e.note));
+      toEngineer(engineer, title, short(e.note));
+      break;
+    }
     case 'close':
       toRequester(`${num} is closed`, short(ticket.title));
       toEngineer(engineer, `${num} was closed`, short(ticket.title));
@@ -152,7 +162,7 @@ async function recordTicketEvent(db, ticket, e) {
   const companyId = ticket.service_unit_id ?? null;
   for (const n of planTicket(ticket, e)) {
     const base = { type, title: n.title, body: n.body, link, requestId: ticket.id, actorId: e.actorId, companyId };
-    if (n.toRole) rows.push(...(await repo.insertForRole(db, { ...base, role: n.toRole })));
+    if (n.toRole) rows.push(...(await repo.insertForRole(db, { ...base, role: n.toRole, features: n.features })));
     else {
       const row = await repo.insertForUser(db, { ...base, userId: n.userId, role: n.role });
       if (row) rows.push(row);

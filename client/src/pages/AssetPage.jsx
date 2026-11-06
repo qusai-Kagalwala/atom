@@ -243,7 +243,7 @@ export default function AssetPage() {
           </div>
           <span className={statusClass(a.status)}>{statusLabel(a.status)}</span>
         </div>
-        <dl className="mt-4 grid gap-x-6 gap-y-3 font-ui text-sm sm:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 font-ui text-sm sm:grid-cols-2">
           <Detail label="Assigned to">
             {a.holder ? `${a.holder.name} · ${loginIdLabel(a.holder)}` : a.holderUnknown ? 'Not known yet (was with “Admin Marol” in Snipe-IT)' : 'Nobody — not assigned to a person'}
           </Detail>

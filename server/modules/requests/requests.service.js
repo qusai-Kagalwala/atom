@@ -153,6 +153,8 @@ async function toDetail(db, user, r) {
       canDecideItems: lifecycle.canDecideItems(user, r),
       canDeliverItems: lifecycle.canDeliverItems(user, r),
       canAddPhotos: lifecycle.canComment(user, r) && attachments.length < files.MAX_FILES_PER_TICKET,
+      // Super Admin: move to any status (Change status), all companies.
+      canChangeStatus: user.activeRole === 'SUPER_ADMIN',
       photosLeft: Math.max(0, files.MAX_FILES_PER_TICKET - attachments.length),
     },
   };
@@ -387,6 +389,63 @@ async function act(user, numberParam, action, body = {}) {
   });
 }
 
+// Super Admin only (decided 6 Nov 2026): move a ticket or request to any status — e.g. Closed → In
+// progress — with a reason. Overrides "no reopening" for the Super Admin alone. Statuses that need someone
+// working on it keep the current engineer or take the one chosen; Open / Waiting for approval clear it.
+// Moving back clears the resolved / closed / rejected times that no longer apply. Logged and notified.
+const STATUS_KEYS = Object.keys(require('../../../shared/statuses.json').requestStatuses);
+const NEEDS_ENGINEER = new Set(['ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED']);
+
+async function overrideStatus(user, numberParam, body = {}) {
+  if (user?.activeRole !== 'SUPER_ADMIN') throw notFound();
+  const to = clean(body.status).toUpperCase();
+  const note = clean(body.note);
+  if (!STATUS_KEYS.includes(to)) throw bad('Choose a status.', 'bad_status');
+  if (note.length < 3) throw bad('Say why the status is being changed.', 'note_required');
+  if (note.length > 2000) throw bad('Keep the reason under 2000 characters.', 'note_too_long');
+  return inTransaction(async (db, afterCommit) => {
+    const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
+    if (to === r.status) throw bad('It already has this status.', 'no_change');
+    if (to === 'PENDING_APPROVAL' && r.type !== 'SERVICE_REQUEST') throw bad('Only service requests wait for approval.', 'bad_status');
+    let engineerId = r.assigned_engineer_id ? String(r.assigned_engineer_id) : null;
+    let engineer = null;
+    const chosen = clean(body.engineerId);
+    if (to === 'OPEN' || to === 'PENDING_APPROVAL') engineerId = null;
+    else if (chosen && chosen !== engineerId) {
+      engineer = await repo.eligibleEngineer(db, chosen, r.service_unit_id);
+      if (!engineer) throw bad('Choose an active staff member of this company.', 'bad_engineer');
+      engineerId = chosen;
+    }
+    if (NEEDS_ENGINEER.has(to) && !engineerId) throw bad('Choose who works on it.', 'engineer_required');
+    await db.query(
+      `UPDATE requests SET status = $2::request_status,
+              assigned_engineer_id = $3::bigint,
+              assigned_at = CASE WHEN $3::bigint IS NULL THEN NULL WHEN assigned_engineer_id IS DISTINCT FROM $3::bigint THEN now() ELSE assigned_at END,
+              resolved_at = CASE WHEN $2::request_status IN ('RESOLVED', 'CLOSED') THEN COALESCE(resolved_at, now()) ELSE NULL END,
+              closed_at   = CASE WHEN $2::request_status = 'CLOSED' THEN now() ELSE NULL END,
+              rejected_at = CASE WHEN $2::request_status = 'REJECTED' THEN now() ELSE NULL END,
+              rejection_note = CASE WHEN $2::request_status = 'REJECTED' THEN $4::text ELSE rejection_note END,
+              updated_at = now()
+        WHERE id = $1::bigint`,
+      [r.id, to, engineerId, note]
+    );
+    await repo.insertEvent(db, {
+      requestId: r.id,
+      type: 'status',
+      actorId: user.id,
+      fromStatus: r.status,
+      toStatus: to,
+      note,
+      data: { action: 'override', engineerId, engineerName: engineer?.name || null },
+    });
+    const event = { kind: 'status_override', actorId: user.id, note, from: r.status, to };
+    const sent = await notifications.recordTicketEvent(db, { ...r, status: to, assigned_engineer_id: engineerId }, event);
+    afterCommit(() => notifications.publish(sent, r, engineerId ? [engineerId] : []));
+    const fresh = await repo.getByNumber(db, r.number);
+    return toDetail(db, user, fresh);
+  });
+}
+
 // Super Admin triage: priority / category.
 // Super Admin: priority (with an optional message to the requester and engineer — in-app + email;
 // the time frame is recalculated from when it was raised) and category.
@@ -601,6 +660,7 @@ async function eligibleEngineers(user, numberParam) {
 
 module.exports = {
   inTransaction,
+  overrideStatus,
   loadInScope,
   toDetail,
   ALL_PRIORITIES,

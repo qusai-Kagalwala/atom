@@ -10,3 +10,7 @@ export const listOccupations = (includeInactive = false) =>
   http.get('/staff/occupations', { params: includeInactive ? { includeInactive: 1 } : {} }).then((r) => r.data.occupations);
 export const createOccupation = (body) => http.post('/staff/occupations', body).then((r) => r.data.occupation);
 export const updateOccupation = (id, body) => http.patch(`/staff/occupations/${id}`, body).then((r) => r.data.occupation);
+
+// Delegate access (company Admin / Super Admin): give single Admin features to staff.
+export const listDelegates = () => http.get('/delegates').then((r) => r.data);
+export const setDelegateFeatures = (userId, features) => http.put(`/delegates/${userId}`, { features }).then((r) => r.data);

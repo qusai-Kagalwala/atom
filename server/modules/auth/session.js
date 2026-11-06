@@ -71,6 +71,8 @@ function toPublicUser(row, activeRole) {
       ? { id: String(row.staff_company_id), code: row.staff_company_code, name: row.staff_company_name }
       : null,
     occupation: row.occupation_name || null,
+    // Admin features given to this person in the active company (Delegate access). Admins don't need them.
+    features: company && !['ADMIN', 'SUPER_ADMIN'].includes(activeRole) ? row.features || [] : [],
     // Still on a temporary password (employee ID / Super Admin reset): only "Set your password" works.
     mustChangePassword: row.login_type === 'EMPLOYEE_ID' && Boolean(row.must_change_password),
   };

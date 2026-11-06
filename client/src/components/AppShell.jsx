@@ -25,7 +25,7 @@ const linkClass = ({ isActive }) =>
 // Numbers on nav items: work waiting for the active role in this company + unread notifications.
 // Live pushes refresh them; the interval is only a fallback if the live connection is down.
 function useNavCounts(user) {
-  const enabled = Boolean(user.company) && ['ENGINEER', 'ADMIN', 'SUPER_ADMIN'].includes(user.activeRole);
+  const enabled = Boolean(user.company) && (['ENGINEER', 'ADMIN', 'SUPER_ADMIN'].includes(user.activeRole) || user.features?.length > 0);
   const { data } = useQuery({
     queryKey: ['requests', 'counts'],
     queryFn: queueCounts,
@@ -161,7 +161,7 @@ export default function AppShell() {
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
           />
-          <aside className="anim-slide-left scrollbar-nav absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-primary shadow-xl">
+          <aside className="anim-slide-left scrollbar-nav absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-primary pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-xl">
             <div className="flex h-16 items-center justify-between border-b border-primary-border px-4">
               <span className="font-display text-2xl font-bold leading-none text-white">ATOM</span>
               <button
@@ -179,7 +179,7 @@ export default function AppShell() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-primary-border bg-primary text-white">
+        <header className="sticky top-0 z-30 border-b border-primary-border bg-primary pt-[env(safe-area-inset-top)] text-white">
           <div className="flex h-16 items-center gap-2 px-3 sm:px-5">
             <button
               type="button"

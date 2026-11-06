@@ -50,7 +50,7 @@ export default function OverviewPage() {
       {q.isPending && <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />}
 
       {/* One card per company (phones and desktop alike — three companies fit side by side). */}
-      <div className={`grid gap-4 md:grid-cols-3 ${q.isFetching ? 'opacity-70' : ''}`}>
+      <div className={`grid grid-cols-1 gap-4 md:grid-cols-3 ${q.isFetching ? 'opacity-70' : ''}`}>
         {list.map((c) => (
           <div key={c.code} className="card space-y-2">
             <h2 className="flex flex-wrap items-center gap-2 text-2xl">

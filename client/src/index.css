@@ -290,6 +290,22 @@
 
   body {
     @apply min-h-screen bg-cream font-sans text-ink antialiased;
+    min-height: 100dvh; /* iPhone: the visible height, not behind the address bar */
+  }
+
+  /* Phones (iPhone Safari especially): grid items may shrink, so long names wrap or end in "..."
+     instead of pushing past the screen edge. */
+  .grid > * {
+    min-width: 0;
+  }
+
+  /* iPhone Safari zooms into any text box with text under 16px. Touch screens get 16px. */
+  @media (hover: none) and (pointer: coarse) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+    select,
+    textarea {
+      font-size: max(16px, 1em) !important;
+    }
   }
 
   h1,
@@ -526,4 +542,17 @@ html[data-motion='reduced'] *::after {
 html[data-motion='reduced'] .animate-spin {
   animation-duration: 1s !important;
   animation-iteration-count: infinite !important;
+}
+
+@layer utilities {
+  /* Full-height screens: the visible height on phones (100dvh: not behind the iPhone address bar),
+     Browsers without dvh keep Tailwind's 100vh. */
+  @supports (height: 100dvh) {
+    .min-h-screen {
+      min-height: 100dvh;
+    }
+    .h-screen {
+      height: 100dvh;
+    }
+  }
 }

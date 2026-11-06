@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bot, Lock, LoaderCircle, MapPin, MessageSquare, Send } from 'lucide-react';
-import { addComment, eligibleEngineers, getTicket, listCategories, ticketAction, triageTicket } from '../api/requests';
+import { addComment, changeTicketStatus, eligibleEngineers, getTicket, listCategories, ticketAction, triageTicket } from '../api/requests';
+import statusesData from '@shared/statuses.json';
 import StaffOptions from '../components/StaffOptions';
 import { errorMessage } from '../api/http';
 import AuthImage from '../components/AuthImage';
@@ -32,6 +33,76 @@ const selectClass =
 const textareaClass =
   'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const buttonClass = { primary: 'btn-primary', secondary: 'btn-secondary', danger: 'btn-danger' };
+
+// Super Admin (6 Nov 2026): move to any status — e.g. Closed → In progress — with a reason.
+const NEEDS_ENGINEER = new Set(['ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED']);
+function StatusChange({ ticket, onDone }) {
+  const options = Object.values(statusesData.requestStatuses)
+    .filter((st) => st.key !== ticket.status && (st.key !== 'PENDING_APPROVAL' || ticket.type === 'SERVICE_REQUEST'))
+    .sort((a, b) => a.order - b.order);
+  const [status, setStatus] = useState('');
+  const [engineerId, setEngineerId] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const current = ticket.assignedEngineer?.id || '';
+  const needsEngineer = NEEDS_ENGINEER.has(status);
+  const engineers = useQuery({ queryKey: ['requests', ticket.number, 'engineers'], queryFn: () => eligibleEngineers(ticket.number), enabled: needsEngineer });
+  const ready = status && note.trim().length >= 3 && (!needsEngineer || current || engineerId);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!ready) return;
+    setBusy(true);
+    setError('');
+    try {
+      const fresh = await changeTicketStatus(ticket.number, { status, note, engineerId: needsEngineer && engineerId ? engineerId : undefined });
+      onDone(fresh, `${ticket.number} moved to ${statusLabel(status, { type: ticket.type })}.`);
+      setStatus('');
+      setNote('');
+      setEngineerId('');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not change the status.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <p className="font-ui text-sm text-ink-2">
+        Now: <span className="font-medium text-ink">{statusLabel(ticket.status, { type: ticket.type })}</span>. Move it to any status — the requester and the engineer are told, and it shows in the activity.
+      </p>
+      {error && <Alert tone="error">{error}</Alert>}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field id="cs-status" label="New status">
+          <select id="cs-status" className="block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Choose…</option>
+            {options.map((st) => (
+              <option key={st.key} value={st.key}>
+                {statusLabel(st.key, { type: ticket.type })}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {needsEngineer && (
+          <Field id="cs-engineer" label="Who works on it" hint={current ? `Leave as is to keep ${ticket.assignedEngineer.name}.` : 'Required for this status.'}>
+            <select id="cs-engineer" className="block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink" value={engineerId} onChange={(e) => setEngineerId(e.target.value)}>
+              <option value="">{current ? `Keep ${ticket.assignedEngineer.name}` : 'Choose…'}</option>
+              <StaffOptions staff={engineers.data || []} currentId={current || null} />
+            </select>
+          </Field>
+        )}
+      </div>
+      <Field id="cs-note" label="Reason (required)">
+        <textarea id="cs-note" rows={2} maxLength={2000} className="block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink" value={note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
+      <button type="submit" className="btn-primary" disabled={!ready || busy}>
+        {busy && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />} Change status
+      </button>
+    </form>
+  );
+}
 
 // One modal for every action that needs a note or an engineer.
 function ActionModal({ ticket, action, onClose, onDone }) {
@@ -323,7 +394,7 @@ export default function TicketPage() {
 
         <TicketTrack status={t.status} type={t.type} />
 
-        <dl className="mt-4 grid gap-x-6 gap-y-2 font-ui text-sm sm:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 font-ui text-sm sm:grid-cols-2">
           <div>
             <dt className="text-xs uppercase tracking-wider text-ink-3">For</dt>
             <dd className="text-ink">
@@ -421,6 +492,16 @@ export default function TicketPage() {
             setNotice(message);
           }}
         />
+      )}
+
+      {t.permissions.canChangeStatus && (
+        <section className="card">
+          <h2 className="text-xl">Change status</h2>
+          <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">Super Admin</p>
+          <div className="mt-3">
+            <StatusChange ticket={t} onDone={done} />
+          </div>
+        </section>
       )}
 
       {t.permissions.canEditTriage && (

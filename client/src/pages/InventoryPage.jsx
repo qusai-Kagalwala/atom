@@ -9,7 +9,7 @@ import { CategoriesTab, PlacesTab, PlacePicker } from '../components/InventorySe
 import Modal from '../components/Modal';
 import { Pager, Tabs } from '../components/RequestList';
 import useAuth from '../hooks/useAuth';
-import { canEditAssets, isAdminRole, roleLabel } from '../utils/roles';
+import { canEditAssets, hasFeature, roleLabel } from '../utils/roles';
 import { ASSET_STATUS, assetTitle, assetWhere, statusClass, statusLabel } from '../utils/assets';
 
 const selectClass =
@@ -282,7 +282,7 @@ const TABS = [
 // The company's Admin manages; Staff read. Each company has its own inventory.
 export default function InventoryPage() {
   const { user } = useAuth();
-  const isAdmin = isAdminRole(user.activeRole);
+  const isAdmin = hasFeature(user, 'inventory'); // the Admin, or given Inventory
   const canEdit = canEditAssets(user);
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'assets';

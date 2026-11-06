@@ -45,7 +45,7 @@ export default function HomePage() {
       <p className="mt-2 font-ui text-sm text-ink-2">What do you need help with today?</p>
 
       {/* The two things people come for, one tap away. */}
-      <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
         <Link to="/tickets/new" className="btn-primary justify-center">
           <TriangleAlert size={18} aria-hidden="true" /> Raise a ticket
         </Link>
@@ -54,7 +54,7 @@ export default function HomePage() {
         </Link>
       </div>
 
-      <ul className="mt-6 grid gap-4 md:grid-cols-3">
+      <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         {cards.map(({ to, Icon, title, text }, i) => (
           <li key={to} className="anim-rise" style={{ '--i': i + 1 }}>
             <Link

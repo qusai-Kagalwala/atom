@@ -9,7 +9,8 @@
 //     POST  /problems     { itemId, name }       · PATCH /problems/:id { name?, isActive? }
 // Another company's rows = 404.
 const express = require('express');
-const { requireAuth, requireCompany, requireAdmin } = require('../../middleware/requireAuth');
+const { requireAuth, requireCompany } = require('../../middleware/requireAuth');
+const { feature, elevateIf } = require('../../middleware/features');
 const { isAdmin } = require('../../utils/roles');
 const svc = require('./problems.service');
 
@@ -25,15 +26,15 @@ function createProblemsRouter() {
   const router = express.Router();
   router.use(requireAuth, requireCompany);
 
-  router.get('/', handle(async (req, res) => res.json(await svc.tree(req.user, { includeInactive: req.query.includeInactive === '1' && isAdmin(req.user) }))));
+  router.get('/', elevateIf('problems'), handle(async (req, res) => res.json(await svc.tree(req.user, { includeInactive: req.query.includeInactive === '1' && isAdmin(req.user) }))));
 
-  router.patch('/settings', ...requireAdmin, handle(async (req, res) => res.json(await svc.setAutoAssign(req.user, req.body || {}))));
-  router.post('/categories', ...requireAdmin, handle(async (req, res) => res.status(201).json(await svc.createCategory(req.user, req.body || {}))));
-  router.patch('/categories/:id', ...requireAdmin, handle(async (req, res) => res.json(await svc.updateCategory(req.user, req.params.id, req.body || {}))));
-  router.post('/items', ...requireAdmin, handle(async (req, res) => res.status(201).json(await svc.createItem(req.user, req.body || {}))));
-  router.patch('/items/:id', ...requireAdmin, handle(async (req, res) => res.json(await svc.updateItem(req.user, req.params.id, req.body || {}))));
-  router.post('/problems', ...requireAdmin, handle(async (req, res) => res.status(201).json(await svc.createProblem(req.user, req.body || {}))));
-  router.patch('/problems/:id', ...requireAdmin, handle(async (req, res) => res.json(await svc.updateProblem(req.user, req.params.id, req.body || {}))));
+  router.patch('/settings', feature('problems'), handle(async (req, res) => res.json(await svc.setAutoAssign(req.user, req.body || {}))));
+  router.post('/categories', feature('problems'), handle(async (req, res) => res.status(201).json(await svc.createCategory(req.user, req.body || {}))));
+  router.patch('/categories/:id', feature('problems'), handle(async (req, res) => res.json(await svc.updateCategory(req.user, req.params.id, req.body || {}))));
+  router.post('/items', feature('problems'), handle(async (req, res) => res.status(201).json(await svc.createItem(req.user, req.body || {}))));
+  router.patch('/items/:id', feature('problems'), handle(async (req, res) => res.json(await svc.updateItem(req.user, req.params.id, req.body || {}))));
+  router.post('/problems', feature('problems'), handle(async (req, res) => res.status(201).json(await svc.createProblem(req.user, req.body || {}))));
+  router.patch('/problems/:id', feature('problems'), handle(async (req, res) => res.json(await svc.updateProblem(req.user, req.params.id, req.body || {}))));
 
   return router;
 }

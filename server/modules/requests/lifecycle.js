@@ -38,10 +38,18 @@ const same = (a, b) => a != null && b != null && String(a) === String(b);
 const isAdmin = (user) => roles.isAdmin(user);
 const isAssignedEngineer = (user, req) => user?.activeRole === 'ENGINEER' && same(req.assigned_engineer_id, user.id);
 
+// Delegate access (6 Nov 2026). A person given ticket features is treated as Admin on ticket routes
+// (user.delegated set); here their Admin powers are narrowed to what the features allow.
+const ACTION_FEATURES = { assign: ['assign', 'tickets', 'approvals'], close: ['assign', 'tickets'], reject: ['assign', 'tickets', 'approvals'] };
+const hasAny = (user, keys) => keys.some((k) => Array.isArray(user?.features) && user.features.includes(k));
+const asThemselves = (user) => (user?.delegated ? { ...user, activeRole: user.actualRole } : user);
+const fullAdmin = (user) => isAdmin(user) && !user.delegated;
+
 function canDo(user, req, action) {
   const rule = ACTIONS[action];
   if (!rule || !rule.from.has(req.status)) return false;
   if (action === 'resolve' && req.type === 'SERVICE_REQUEST') return false; // delivered item by item
+  if (user?.delegated) return rule.who === 'admin' ? hasAny(user, ACTION_FEATURES[action] || []) : isAssignedEngineer(asThemselves(user), req);
   if (isAdmin(user)) return true;
   return rule.who === 'worker' && isAssignedEngineer(user, req);
 }
@@ -52,11 +60,12 @@ function allowedActions(user, req) {
 
 const canComment = (user, req) => !FINAL.has(req.status) && Boolean(user);
 const canSeeInternal = (user, req) => isAdmin(user) || isAssignedEngineer(user, req);
-const canEditTriage = (user, req) => isAdmin(user) && !FINAL.has(req.status); // priority / category
+const canEditTriage = (user, req) => isAdmin(user) && (!user.delegated || hasAny(user, ['assign', 'tickets'])) && !FINAL.has(req.status); // priority / category
 // Service requests: decide items (Admin, while waiting for approval) · deliver approved items.
-const canDecideItems = (user, req) => req.type === 'SERVICE_REQUEST' && isAdmin(user) && req.status === 'PENDING_APPROVAL';
+const canDecideItems = (user, req) =>
+  req.type === 'SERVICE_REQUEST' && isAdmin(user) && (!user.delegated || hasAny(user, ['approvals', 'tickets'])) && req.status === 'PENDING_APPROVAL';
 const canDeliverItems = (user, req) =>
-  req.type === 'SERVICE_REQUEST' && WORKING.has(req.status) && (isAdmin(user) || isAssignedEngineer(user, req));
+  req.type === 'SERVICE_REQUEST' && WORKING.has(req.status) && (fullAdmin(user) || isAssignedEngineer(asThemselves(user), req));
 
 // Throws 409 for a wrong stage (the ticket moved on), 404 when the role can't act at all.
 function assertAllowed(user, req, action) {
@@ -82,6 +91,7 @@ function nextStatus(action, current) {
 module.exports = {
   ACTIONS,
   ACTION_KEYS,
+  ACTION_FEATURES,
   FINAL,
   allowedActions,
   assertAllowed,

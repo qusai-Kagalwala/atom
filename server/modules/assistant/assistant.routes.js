@@ -25,7 +25,8 @@
 const express = require('express');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
-const { requireAuth, requireRole, requireCompany, requireAdmin } = require('../../middleware/requireAuth');
+const { requireAuth, requireRole, requireCompany } = require('../../middleware/requireAuth');
+const { feature } = require('../../middleware/features');
 const { HttpError } = require('../../utils/httpError');
 const svc = require('./assistant.service');
 const faqs = require('./faqAdmin.service');
@@ -95,7 +96,7 @@ function createAssistantRouter() {
   router.post('/sessions/:id/feedback', handle(async (req, res) => res.json(await svc.feedback(req.user, req.params.id, req.body || {}))));
   router.get('/sessions/:id/draft', handle(async (req, res) => res.json(await svc.draft(req.user, req.params.id))));
 
-  const admin = requireAdmin;
+  const admin = feature('faqs');
   router.get('/faqs', admin, handle(async (req, res) => res.json({ faqs: await faqs.listFaqs(req.user, { includeInactive: yes(req.query.includeInactive) }) })));
   router.get('/faqs/:id', admin, handle(async (req, res) => res.json({ faq: await faqs.getFaq(req.user, req.params.id) })));
   router.post('/faqs', admin, handle(async (req, res) => res.status(201).json({ faq: await faqs.createFaq(req.user, req.body || {}) })));

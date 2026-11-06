@@ -13,7 +13,8 @@
 //   POST  /:number/links/:requestNumber/unlink  { reason }  Super Admin → { invoice }
 const express = require('express');
 const { query, validationResult } = require('express-validator');
-const { requireAuth, requireRole, requireCompany } = require('../../middleware/requireAuth');
+const { requireAuth, requireCompany } = require('../../middleware/requireAuth');
+const { elevateIf, has } = require('../../middleware/features');
 const { invoiceFileField } = require('./invoiceFiles');
 const svc = require('./invoices.service');
 const { sendStoredFile } = require('../../utils/sendStoredFile');
@@ -30,7 +31,14 @@ const handle = (fn) => async (req, res, next) => {
 
 function createInvoicesRouter() {
   const router = express.Router();
-  router.use(requireAuth, requireCompany, requireRole('ENGINEER', 'ADMIN', 'SUPER_ADMIN'));
+  // Staff and Admins; anyone given Invoices works here as the Admin (Delegate access, 6 Nov 2026).
+  router.use(
+    requireAuth,
+    requireCompany,
+    (req, res, next) =>
+      ['ENGINEER', 'ADMIN', 'SUPER_ADMIN'].includes(req.user.activeRole) || has(req.user, ['invoices']) ? next() : res.status(404).json({ message: 'Not found.' }),
+    elevateIf('invoices')
+  );
 
   router.get(
     '/',

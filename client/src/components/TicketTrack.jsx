@@ -25,7 +25,7 @@ export default function TicketTrack({ status, type }) {
   const Marker = type === 'SERVICE_REQUEST' ? Truck : Ticket;
 
   return (
-    <ol aria-label="Progress" className="mt-5 grid" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+    <ol aria-label="Progress" className="mt-5 grid grid-cols-1" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
       {steps.map(([key, label], i) => {
         const done = i < at || (i === at && finished);
         const current = i === at && !finished;

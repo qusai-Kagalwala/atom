@@ -33,8 +33,9 @@
 const express = require('express');
 const multer = require('multer');
 const { query, validationResult } = require('express-validator');
-const { requireAuth, requireRole, requireCompany, requireCompanyCode, requireAdmin } = require('../../middleware/requireAuth');
+const { requireAuth, requireCompany, requireCompanyCode } = require('../../middleware/requireAuth');
 const { canEditAssets } = require('../../utils/roles');
+const { feature, elevateIf, has } = require('../../middleware/features');
 const { HttpError } = require('../../utils/httpError');
 const { MAX_BYTES } = require('../../utils/csv');
 const svc = require('./inventory.service');
@@ -103,10 +104,27 @@ function createInventoryRouter() {
 
   router.get('/mine', handle(async (req, res) => res.json(await svc.myAssets(req.user))));
 
-  const read = requireRole('ENGINEER', 'ADMIN', 'SUPER_ADMIN');
-  const admin = requireAdmin;
-  // Add / edit / move / assign / return: the Admin, and AVIT engineers (others 404).
-  const assetEditor = [requireCompany, (req, res, next) => (canEditAssets(req.user) ? next() : res.status(404).json({ message: 'Not found.' }))];
+  // Read: Staff, Admins, and anyone given Inventory or Onboarding (Delegate access, 6 Nov 2026).
+  const read = [
+    (req, res, next) =>
+      ['ENGINEER', 'ADMIN', 'SUPER_ADMIN'].includes(req.user.activeRole) || has(req.user, ['inventory', 'onboarding'])
+        ? next()
+        : res.status(404).json({ message: 'Not found.' }),
+    elevateIf('inventory'),
+  ];
+  // Admin-only inventory work: the Admin, or someone given Inventory.
+  const admin = feature('inventory');
+  const onboardingOnly = feature('onboarding');
+  // Add / edit / move / assign / return: the Admin, AVIT engineers, or someone given Inventory (others 404).
+  const assetEditor = [
+    elevateIf('inventory'),
+    (req, res, next) => (canEditAssets(req.user) ? next() : res.status(404).json({ message: 'Not found.' })),
+  ];
+  // Person search for assigning / onboarding.
+  const peopleSearch = [
+    elevateIf('inventory', 'onboarding'),
+    (req, res, next) => (canEditAssets(req.user) ? next() : res.status(404).json({ message: 'Not found.' })),
+  ];
 
   router.get(
     '/assets',
@@ -150,10 +168,10 @@ function createInventoryRouter() {
   router.post('/assets/:tag/status', admin, handle(async (req, res) => res.json({ asset: await svc.setStatus(req.user, req.params.tag, req.body || {}) })));
 
   // Onboarding / offboarding (Phase 10): people, their equipment here, receive many, to recover.
-  router.get('/people', assetEditor, handle(async (req, res) => res.json({ people: await onboarding.searchPeople(req.user, req.query.q) })));
-  router.get('/people/:id', admin, handle(async (req, res) => res.json(await onboarding.personEquipment(req.user, req.params.id))));
-  router.post('/people/:id/receive', admin, handle(async (req, res) => res.json(await onboarding.receive(req.user, req.params.id, req.body || {}))));
-  router.get('/to-recover', admin, handle(async (req, res) => res.json(await onboarding.toRecover(req.user))));
+  router.get('/people', peopleSearch, handle(async (req, res) => res.json({ people: await onboarding.searchPeople(req.user, req.query.q) })));
+  router.get('/people/:id', onboardingOnly, handle(async (req, res) => res.json(await onboarding.personEquipment(req.user, req.params.id))));
+  router.post('/people/:id/receive', onboardingOnly, handle(async (req, res) => res.json(await onboarding.receive(req.user, req.params.id, req.body || {}))));
+  router.get('/to-recover', onboardingOnly, handle(async (req, res) => res.json(await onboarding.toRecover(req.user))));
 
   router.post('/categories', admin, handle(async (req, res) => res.status(201).json({ category: await svc.createCategory(req.user, req.body || {}) })));
   router.patch('/categories/:id', admin, handle(async (req, res) => res.json({ category: await svc.renameCategory(req.user, req.params.id, req.body || {}) })));

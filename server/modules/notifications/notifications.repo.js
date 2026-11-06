@@ -28,7 +28,10 @@ async function insertForUser(db, n) {
 }
 
 // Everyone active who holds `role` in the company (the company's Admins), except the person who caused it.
+// n.features (Delegate access, 6 Nov 2026): also people given one of these features in the company — as
+// their own notification (role NULL), so they see it whatever role they are using.
 async function insertForRole(db, n) {
+  const delegates = n.features && n.features.length ? await insertForDelegates(db, n) : [];
   const { rows } = await db.query(
     `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id)
      SELECT u.id, $1::app_role, $2::text, $3::text, $4::text, $5::text, $6::bigint, $7::bigint, $8::bigint
@@ -38,6 +41,21 @@ async function insertForRole(db, n) {
       WHERE u.is_active AND u.id IS DISTINCT FROM $7::bigint
      RETURNING ${COLUMNS}`,
     [n.role, n.type, n.title, n.body ?? null, n.link ?? null, n.requestId ?? null, n.actorId ?? null, n.companyId ?? null]
+  );
+  return [...rows, ...delegates];
+}
+
+async function insertForDelegates(db, n) {
+  const { rows } = await db.query(
+    `INSERT INTO notifications (user_id, role, type, title, body, link, request_id, actor_id, service_unit_id)
+     SELECT DISTINCT u.id, NULL::app_role, $2::text, $3::text, $4::text, $5::text, $6::bigint, $7::bigint, $8::bigint
+       FROM users u
+       JOIN user_features f ON f.user_id = u.id AND f.service_unit_id = $8::bigint AND f.revoked_at IS NULL AND f.feature = ANY($1::text[])
+       JOIN user_company c ON c.user_id = u.id AND c.service_unit_id = $8::bigint
+      WHERE u.is_active AND u.id IS DISTINCT FROM $7::bigint
+        AND NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role IN ('ADMIN', 'SUPER_ADMIN'))
+     RETURNING ${COLUMNS}`,
+    [n.features, n.type, n.title, n.body ?? null, n.link ?? null, n.requestId ?? null, n.actorId ?? null, n.companyId ?? null]
   );
   return rows;
 }

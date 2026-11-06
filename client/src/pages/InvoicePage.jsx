@@ -239,7 +239,7 @@ export default function InvoicePage() {
             </button>
           )}
         </div>
-        <dl className="mt-4 grid gap-x-6 gap-y-3 font-ui text-sm sm:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 font-ui text-sm sm:grid-cols-2">
           <Detail label="Supplier">{inv.supplier}</Detail>
           <Detail label="Invoice number">{inv.reference}</Detail>
           <Detail label="Invoice date">{formatInvoiceDate(inv.invoiceDate)}</Detail>

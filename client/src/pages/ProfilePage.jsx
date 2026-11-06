@@ -135,7 +135,7 @@ function NameLanguageCard({ user }) {
     <section className="card">
       <h2 className="text-xl">Show my name in</h2>
       <p className="mt-1 font-ui text-sm text-ink-2">Used on your home page and in the top bar.</p>
-      <div role="radiogroup" aria-label="Show my name in" className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div role="radiogroup" aria-label="Show my name in" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {options.map((o) => {
           const selected = user.nameLanguage === o.value;
           return (
@@ -146,7 +146,7 @@ function NameLanguageCard({ user }) {
               aria-checked={selected}
               disabled={Boolean(saving)}
               onClick={() => choose(o.value)}
-              className={`flex min-h-tap items-center justify-between gap-3 rounded-btn border px-4 py-3 text-left transition-colors ${
+              className={`flex min-h-tap w-full min-w-0 items-center justify-between gap-3 rounded-btn border px-4 py-3 text-left transition-colors ${
                 selected ? 'border-brand bg-primary-tint' : 'border-line bg-surface hover:border-gold'
               }`}
             >

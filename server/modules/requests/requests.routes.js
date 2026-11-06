@@ -10,6 +10,7 @@
 //   GET    /:number                                            → { request }
 //   POST   /:number/actions/:action  { note?, engineerId? }    → { request }
 //          action = assign | start | wait_user | wait_equipment | resume | resolve | close | reject
+//   POST   /:number/status { status, note, engineerId? }  Super Admin only: any status, reason required → { request }
 //   PATCH  /:number        { priority?, categoryId?, message? }  (Super Admin; priority change tells requester + engineer) → { request }
 //   GET    /time-frames                                        → { timeFrames }  window per priority
 //   POST   /:number/comments  multipart: note, internal, photos[]              → { request }
@@ -30,13 +31,19 @@
 //   POST   /:number/items/:itemId/deliver   { note?, assetTags? }   assigned engineer / Super Admin → { request }
 const express = require('express');
 const { query, validationResult } = require('express-validator');
-const { requireAuth, requireCompany, requireAdmin } = require('../../middleware/requireAuth');
+const { requireAuth, requireCompany } = require('../../middleware/requireAuth');
 const { photosField } = require('./attachments');
 const lifecycle = require('./lifecycle');
 const svc = require('./requests.service');
 const sr = require('./serviceRequests.service');
 const timeFrames = require('./timeFrames');
 const { sendStoredFile } = require('../../utils/sendStoredFile');
+const { feature, elevateIf, elevate, has, TICKET_FEATURES } = require('../../middleware/features');
+const { isAdmin } = require('../../utils/roles');
+
+// Delegate access (6 Nov 2026): which Admin actions on a ticket each feature allows (lifecycle.js).
+const { ACTION_FEATURES } = lifecycle;
+const anyTicketFeature = elevateIf(...TICKET_FEATURES);
 
 const handle = (fn) => async (req, res, next) => {
   const err = validationResult(req).array({ onlyFirstError: true })[0];
@@ -89,9 +96,22 @@ function createRequestsRouter() {
     return { page, pageSize, limit: pageSize, offset: (page - 1) * pageSize };
   };
 
-  router.get('/counts', handle(async (req, res) => res.json({ counts: await svc.queueCounts(req.user) })));
+  router.get(
+    '/counts',
+    handle(async (req, res) => {
+      const own = await svc.queueCounts(req.user);
+      const k = !isAdmin(req.user) && has(req.user, TICKET_FEATURES);
+      if (!k) return res.json({ counts: own });
+      // Delegate: their own work queue plus the badges of the features they were given.
+      const a = await svc.queueCounts(elevate(req.user, k));
+      const counts = { ...own };
+      if (has(req.user, ['assign', 'tickets'])) Object.assign(counts, { assignQueue: a.assignQueue, toClose: a.toClose });
+      if (has(req.user, ['approvals', 'tickets'])) counts.approvals = a.approvals;
+      return res.json({ counts });
+    })
+  );
 
-  router.get('/engineers', handle(async (req, res) => res.json({ engineers: await svc.listEngineers(req.user) })));
+  router.get('/engineers', anyTicketFeature, handle(async (req, res) => res.json({ engineers: await svc.listEngineers(req.user) })));
 
   router.get(
     '/queue/work',
@@ -105,6 +125,7 @@ function createRequestsRouter() {
 
   router.get(
     '/queue/assign',
+    elevateIf('assign', 'tickets'),
     ...paging,
     handle(async (req, res) => {
       const p = pageOf(req);
@@ -115,6 +136,13 @@ function createRequestsRouter() {
 
   router.get(
     '/all',
+    // All tickets: the 'tickets' feature. Approvals only reach the list of requests waiting for approval.
+    (req, res, next) => {
+      if (isAdmin(req.user)) return next();
+      if (has(req.user, ['tickets'])) req.user = elevate(req.user, 'tickets');
+      else if (has(req.user, ['approvals']) && req.query.status === 'approval' && req.query.type === 'SERVICE_REQUEST') req.user = elevate(req.user, 'approvals');
+      return next();
+    },
     ...paging,
     handle(async (req, res) => {
       const p = pageOf(req);
@@ -134,25 +162,26 @@ function createRequestsRouter() {
   );
 
   // ---------- Phase 9: catalogue + service requests ----------
-  const admin = requireAdmin;
+  const admin = feature('catalogue');
   // Time frame per priority (everyone: shown when raising) — edited in /Atom/api/settings.
   router.get('/time-frames', handle(async (req, res) => res.json({ timeFrames: await timeFrames.listTargets() })));
-  router.get('/catalogue', handle(async (req, res) => res.json({ items: await sr.listCatalogue(req.user, { includeInactive: req.query.includeInactive === '1' }) })));
+  router.get('/catalogue', elevateIf('catalogue'), handle(async (req, res) => res.json({ items: await sr.listCatalogue(req.user, { includeInactive: req.query.includeInactive === '1' }) })));
   router.post('/catalogue', admin, handle(async (req, res) => res.status(201).json({ item: await sr.createCatalogueItem(req.user, req.body || {}) })));
   router.patch('/catalogue/:id', admin, handle(async (req, res) => res.json({ item: await sr.updateCatalogueItem(req.user, req.params.id, req.body || {}) })));
   router.post('/catalogue/:id/stock', admin, handle(async (req, res) => res.json({ item: await sr.adjustStock(req.user, req.params.id, req.body || {}) })));
   router.get('/catalogue/:id/stock', admin, handle(async (req, res) => res.json({ movements: await sr.stockHistory(req.user, req.params.id) })));
   router.post('/service', handle(async (req, res) => res.status(201).json({ request: await sr.createServiceRequest(req.user, req.body || {}) })));
-  router.post('/:number/items/decide', handle(async (req, res) => res.json({ request: await sr.decideItems(req.user, req.params.number, req.body || {}) })));
+  router.post('/:number/items/decide', elevateIf('approvals', 'tickets'), handle(async (req, res) => res.json({ request: await sr.decideItems(req.user, req.params.number, req.body || {}) })));
   router.post(
     '/:number/items/:itemId/deliver',
     handle(async (req, res) => res.json({ request: await sr.deliverItem(req.user, req.params.number, req.params.itemId, req.body || {}) }))
   );
 
-  router.get('/:number', handle(async (req, res) => res.json({ request: await svc.getTicket(req.user, req.params.number) })));
+  router.get('/:number', anyTicketFeature, handle(async (req, res) => res.json({ request: await svc.getTicket(req.user, req.params.number) })));
 
   router.post(
     '/:number/actions/:action',
+    (req, res, next) => (ACTION_FEATURES[req.params.action] ? elevateIf(...ACTION_FEATURES[req.params.action])(req, res, next) : next()),
     handle(async (req, res) => {
       if (!lifecycle.ACTION_KEYS.includes(req.params.action)) {
         return res.status(400).json({ message: 'Unknown action.', code: 'bad_action' });
@@ -162,8 +191,15 @@ function createRequestsRouter() {
     })
   );
 
+  // Super Admin only: move to any status with a reason (6 Nov 2026). Everyone else 404.
+  router.post(
+    '/:number/status',
+    handle(async (req, res) => res.json({ request: await svc.overrideStatus(req.user, req.params.number, req.body || {}) }))
+  );
+
   router.patch(
     '/:number',
+    elevateIf('assign', 'tickets'),
     handle(async (req, res) => {
       const { priority, categoryId, message } = req.body || {};
       res.json({ request: await svc.triage(req.user, req.params.number, { priority, categoryId, message }) });
@@ -172,6 +208,7 @@ function createRequestsRouter() {
 
   router.post(
     '/:number/comments',
+    anyTicketFeature,
     photosField,
     handle(async (req, res) => {
       res.json({ request: await svc.comment(req.user, req.params.number, req.body || {}, req.files || []) });
@@ -180,11 +217,13 @@ function createRequestsRouter() {
 
   router.get(
     '/:number/engineers',
+    anyTicketFeature,
     handle(async (req, res) => res.json({ engineers: await svc.eligibleEngineers(req.user, req.params.number) }))
   );
 
   router.get(
     '/:number/attachments/:attachmentId',
+    anyTicketFeature,
     handle(async (req, res) => {
       const file = await svc.getAttachmentFile(req.user, req.params.number, req.params.attachmentId);
       await sendStoredFile(

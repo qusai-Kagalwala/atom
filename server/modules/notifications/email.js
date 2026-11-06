@@ -46,6 +46,8 @@ const KIND = {
   reject: ['Rejected', 'danger'],
   comment: ['New comment', 'info'],
   to_recover: ['Equipment to collect', 'warning'],
+  status_override: ['Status changed', 'warning'],
+  access: ['Access', 'info'],
 };
 const FINAL = ['RESOLVED', 'CLOSED', 'REJECTED'];
 const refOf = (t) => (t?.number ? `${t.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${t.number}` : null);

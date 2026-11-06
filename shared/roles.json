@@ -117,6 +117,11 @@
       "path": "/staff",
       "icon": "HardHat"
     },
+    "delegate": {
+      "label": "Delegate access",
+      "path": "/delegate",
+      "icon": "UserCog"
+    },
     "onboarding": {
       "label": "Onboarding / Offboarding",
       "path": "/onboarding",
@@ -224,6 +229,7 @@
       "faqs",
       "invoices",
       "staff",
+      "delegate",
       "onboarding",
       "wifi",
       "analytics",
@@ -246,6 +252,7 @@
       "faqs",
       "invoices",
       "staff",
+      "delegate",
       "onboarding",
       "wifi",
       "analytics",
@@ -257,5 +264,70 @@
       "aiUsage",
       "settings"
     ]
+  },
+  "features": {
+    "assign": {
+      "nav": "assignQueue",
+      "label": "Assign queue",
+      "hint": "Assign tickets and requests, close resolved ones"
+    },
+    "approvals": {
+      "nav": "approvals",
+      "label": "Approvals",
+      "hint": "Approve or reject requested items"
+    },
+    "tickets": {
+      "nav": "allRequests",
+      "label": "All tickets & requests",
+      "hint": "See every ticket and request; reassign, change priority, close, reject"
+    },
+    "inventory": {
+      "nav": "inventory",
+      "label": "Inventory",
+      "hint": "Full asset management: add, edit, assign, status, import, export"
+    },
+    "catalogue": {
+      "nav": "catalogue",
+      "label": "Catalogue",
+      "hint": "Items people can request, stock"
+    },
+    "problems": {
+      "nav": "problems",
+      "label": "Problem list",
+      "hint": "Problem categories, items and auto-assign"
+    },
+    "faqs": {
+      "nav": "faqs",
+      "label": "FAQs",
+      "hint": "FAQs and AI assistant guidelines"
+    },
+    "invoices": {
+      "nav": "invoices",
+      "label": "Invoices",
+      "hint": "All invoices: upload, link, unlink"
+    },
+    "onboarding": {
+      "nav": "onboarding",
+      "label": "Onboarding / Offboarding",
+      "hint": "Equipment for people joining and leaving"
+    },
+    "wifi": {
+      "nav": "wifi",
+      "label": "Jamea Internet Access",
+      "hint": "Batches, department allocation, giving passes",
+      "companies": [
+        "AVIT"
+      ]
+    },
+    "analytics": {
+      "nav": "analytics",
+      "label": "Analytics",
+      "hint": "Company charts and numbers"
+    },
+    "reports": {
+      "nav": "reports",
+      "label": "Reports (PDF)",
+      "hint": "Download PDF reports"
+    }
   }
 }

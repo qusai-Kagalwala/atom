@@ -31,7 +31,7 @@ export default function ThemePicker() {
     <div className="space-y-5">
       <div>
         <p className="font-ui text-xs uppercase tracking-wider text-ink-3">Colour</p>
-        <div role="radiogroup" aria-label="Colour theme" className="mt-2 grid gap-3 sm:grid-cols-3">
+        <div role="radiogroup" aria-label="Colour theme" className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {THEMES.map((t) => {
             const selected = theme === t.id;
             return (

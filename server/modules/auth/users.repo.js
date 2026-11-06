@@ -33,7 +33,11 @@ async function loadSessionUser(userId, companyId = null) {
             uc.service_unit_id AS staff_company_id, sc.code AS staff_company_code, sc.name AS staff_company_name,
             uc.occupation_id, o.name AS occupation_name,
             (SELECT json_build_object('id', s.id::text, 'code', s.code, 'name', s.name, 'assistant', s.assistant_enabled, 'open', s.is_open)
-               FROM service_units s WHERE s.id = $2::bigint AND s.is_active) AS company
+               FROM service_units s WHERE s.id = $2::bigint AND s.is_active) AS company,
+            -- Delegated Admin features in this company (staff of it only).
+            COALESCE((SELECT array_agg(f.feature ORDER BY f.feature) FROM user_features f
+                       WHERE f.user_id = u.id AND f.service_unit_id = $2::bigint AND f.revoked_at IS NULL
+                         AND f.service_unit_id = uc.service_unit_id), '{}') AS features
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id
        LEFT JOIN user_company uc ON uc.user_id = u.id

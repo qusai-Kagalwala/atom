@@ -20,6 +20,7 @@ const express = require('express');
 const multer = require('multer');
 const { requireAuth, requireCompany, requireCompanyCode, requireRole } = require('../../middleware/requireAuth');
 const { HttpError } = require('../../utils/httpError');
+const { feature, elevateIf } = require('../../middleware/features');
 const svc = require('./wifi.service');
 
 const handle = (fn) => async (req, res, next) => {
@@ -29,7 +30,8 @@ const handle = (fn) => async (req, res, next) => {
     return next(e);
   }
 };
-const admin = requireRole('ADMIN', 'SUPER_ADMIN');
+// The AVIT Admin, or someone given Jamea Internet Access (Delegate access, 6 Nov 2026).
+const admin = feature('wifi');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -54,8 +56,8 @@ function createWifiRouter() {
   const router = express.Router();
   router.use(requireAuth, requireCompany, requireCompanyCode('AVIT'), noStore);
 
-  router.get('/me', handle(async (req, res) => res.json(await svc.me(req.user))));
-  router.get('/lookup', handle(async (req, res) => {
+  router.get('/me', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.me(req.user))));
+  router.get('/lookup', elevateIf('wifi'), handle(async (req, res) => {
     const me = await svc.me(req.user);
     if (!me.isAdmin && !me.hodDepartments.length) throw new HttpError(404, 'Not found.');
     res.json(await svc.lookupIts(req.user, req.query.its));
@@ -64,10 +66,10 @@ function createWifiRouter() {
   // HOD (checked per department in the service) and Admin
   router.get('/departments/:id', handle(async (req, res) => res.json(await svc.departmentView(req.user, req.params.id))));
   router.post('/departments/:id/requests', handle(async (req, res) => res.status(201).json(await svc.requestMore(req.user, req.params.id, req.body || {}))));
-  router.post('/batches/:id/assign', handle(async (req, res) => res.json(await svc.assign(req.user, req.params.id, req.body || {}))));
-  router.post('/passes/email', handle(async (req, res) => res.json(await svc.emailPasses(req.user, req.body?.passIds))));
-  router.post('/passes/:id/unassign', handle(async (req, res) => res.json(await svc.unassign(req.user, req.params.id))));
-  router.post('/passes/:id/whatsapp', handle(async (req, res) => res.json(await svc.markWhatsapp(req.user, req.params.id))));
+  router.post('/batches/:id/assign', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.assign(req.user, req.params.id, req.body || {}))));
+  router.post('/passes/email', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.emailPasses(req.user, req.body?.passIds))));
+  router.post('/passes/:id/unassign', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.unassign(req.user, req.params.id))));
+  router.post('/passes/:id/whatsapp', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.markWhatsapp(req.user, req.params.id))));
 
   // AVIT Admin
   router.get('/batches', admin, handle(async (req, res) => res.json({ batches: await svc.listBatches(req.user) })));

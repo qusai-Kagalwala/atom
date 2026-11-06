@@ -215,7 +215,7 @@ export default function UsersPage() {
         </button>
       </div>
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
+      <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
         <label className="relative sm:col-span-2 lg:col-span-1">
           <span className="sr-only">Search users</span>
           <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden="true" />

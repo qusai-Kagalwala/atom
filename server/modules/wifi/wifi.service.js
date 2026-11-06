@@ -729,7 +729,7 @@ async function requestMore(user, departmentId, body = {}) {
     await log(db, { kind: 'request', actorId: user.id, departmentId, count, note: `request ${r[0].id}` });
     const { rows: d } = await db.query('SELECT name FROM departments WHERE id = $1::bigint', [departmentId]);
     return notifRepo.insertForRole(db, {
-      role: 'ADMIN', type: 'wifi', title: `${d[0]?.name || 'A department'} asks for ${count} Jamea Internet Access passes`,
+      role: 'ADMIN', features: ['wifi'], type: 'wifi', title: `${d[0]?.name || 'A department'} asks for ${count} Jamea Internet Access passes`,
       body: reason, link: '/wifi?tab=requests', actorId: user.id, companyId: user.companyId,
     });
   });

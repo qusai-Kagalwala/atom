@@ -16,6 +16,7 @@ import SetPasswordPage from './pages/SetPasswordPage';
 // AppShell shows a spinner (Suspense) while a page loads.
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
 const EmailDesignPage = lazy(() => import('./pages/EmailDesignPage'));
+const DelegatePage = lazy(() => import('./pages/DelegatePage'));
 const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'));
 const AssetPage = lazy(() => import('./pages/AssetPage'));
 const AssistantPage = lazy(() => import('./pages/AssistantPage'));
@@ -53,7 +54,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems', 'onboarding', 'analytics', 'reports', 'overview']);
+const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems', 'onboarding', 'analytics', 'reports', 'overview', 'delegate', 'wifi']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -99,30 +100,41 @@ export default function App() {
 
             <Route element={<ProtectedRoute roles={['ENGINEER', 'ADMIN', 'SUPER_ADMIN']} />}>
               <Route path="/work-queue" element={<WorkQueuePage />} />
+            </Route>
+            {/* Staff and Admins, or anyone given the feature (Delegate access). UI guard only — the API decides. */}
+            <Route element={<ProtectedRoute roles={['ENGINEER', 'ADMIN', 'SUPER_ADMIN']} feature="invoices" />}>
               <Route path="/invoices" element={<InvoicesPage />} />
               <Route path="/invoices/:number" element={<InvoicePage />} />
+            </Route>
+            <Route element={<ProtectedRoute roles={['ENGINEER', 'ADMIN', 'SUPER_ADMIN']} feature="inventory" />}>
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/inventory/assets/:tag" element={<AssetPage />} />
             </Route>
 
-            {/* Company Admin (UI guard only — the API returns 404 to anyone else) */}
+            {/* Company Admin, or someone given that feature (UI guard only — the API returns 404 to anyone else) */}
             <Route element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']} />}>
-              <Route path="/assign" element={<AssignQueuePage />} />
-              <Route path="/all" element={<AllRequestsPage />} />
               <Route path="/staff" element={<StaffPage />} />
-              <Route path="/inventory/import" element={<InventoryImportPage />} />
-              <Route path="/inventory/import-file" element={<InventoryFilePage />} />
-              <Route path="/approvals" element={<ApprovalsPage />} />
-              <Route path="/catalogue" element={<CataloguePage />} />
-              <Route path="/problems" element={<ProblemsPage />} />
-              <Route path="/onboarding" element={<OnboardingPage />} />
-              <Route path="/wifi/batches/:id" element={<WifiBatchPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/faqs" element={<FaqsPage />} />
-              <Route path="/faqs/new" element={<FaqEditPage />} />
-              <Route path="/faqs/:id" element={<FaqEditPage />} />
+              <Route path="/delegate" element={<DelegatePage />} />
             </Route>
+            {[
+              ['assign', [['/assign', <AssignQueuePage />]]],
+              ['tickets', [['/all', <AllRequestsPage />]]],
+              ['approvals', [['/approvals', <ApprovalsPage />]]],
+              ['inventory', [['/inventory/import', <InventoryImportPage />], ['/inventory/import-file', <InventoryFilePage />]]],
+              ['catalogue', [['/catalogue', <CataloguePage />]]],
+              ['problems', [['/problems', <ProblemsPage />]]],
+              ['onboarding', [['/onboarding', <OnboardingPage />]]],
+              ['wifi', [['/wifi/batches/:id', <WifiBatchPage />]]],
+              ['analytics', [['/analytics', <AnalyticsPage />]]],
+              ['reports', [['/reports', <ReportsPage />]]],
+              ['faqs', [['/faqs', <FaqsPage />], ['/faqs/new', <FaqEditPage />], ['/faqs/:id', <FaqEditPage />]]],
+            ].map(([feature, pages]) => (
+              <Route key={feature} element={<ProtectedRoute roles={['ADMIN', 'SUPER_ADMIN']} feature={feature} />}>
+                {pages.map(([path, el]) => (
+                  <Route key={path} path={path} element={el} />
+                ))}
+              </Route>
+            ))}
 
             {PLACEHOLDERS.map(([key, item]) => (
               <Route key={key} path={item.path} element={<ComingSoonPage title={item.label} />} />

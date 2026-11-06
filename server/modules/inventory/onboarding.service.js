@@ -173,6 +173,7 @@ async function flagToRecover(db, userIds, reason) {
     out.push(
       ...(await notifRepo.insertForRole(db, {
         role: 'ADMIN',
+        features: ['onboarding', 'inventory'],
         type: 'asset.to_recover',
         title: `Recover ${n} ${n === 1 ? 'asset' : 'assets'} from ${g.name}`.slice(0, 200),
         body: `${g.name} is no longer active. ${list}`.slice(0, 300),

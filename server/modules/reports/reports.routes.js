@@ -9,7 +9,8 @@
 //   Super Admin (any company or none):
 //     GET /analytics/overview?from&to                      → headline numbers for every company
 const express = require('express');
-const { requireAuth, requireRole, requireAdmin } = require('../../middleware/requireAuth');
+const { requireAuth, requireRole } = require('../../middleware/requireAuth');
+const { feature } = require('../../middleware/features');
 const analytics = require('./analytics.service');
 const reports = require('./reports.service');
 
@@ -25,13 +26,13 @@ function createAnalyticsRouter() {
   const router = express.Router();
   router.use(requireAuth);
   router.get('/overview', requireRole('SUPER_ADMIN'), handle(async (req, res) => res.json(await analytics.overview(req.query))));
-  router.get('/', ...requireAdmin, handle(async (req, res) => res.json(await analytics.companyAnalytics(req.user, req.query))));
+  router.get('/', feature('analytics'), handle(async (req, res) => res.json(await analytics.companyAnalytics(req.user, req.query))));
   return router;
 }
 
 function createReportsRouter() {
   const router = express.Router();
-  router.use(requireAuth, ...requireAdmin);
+  router.use(requireAuth, feature('reports'));
   router.get('/', (req, res) => res.json({ reports: Object.entries(reports.REPORTS).map(([key, r]) => ({ key, title: r.title })) }));
   router.get(
     '/:type',

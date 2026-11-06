@@ -59,6 +59,7 @@ export function eventText(e) {
       return d.previousEngineerId ? `Reassigned from ${d.previousEngineerName || 'someone else'} to ${who}` : `Assigned to ${who}`;
     }
     case 'status':
+      if (d.action === 'override') return `Status changed by Super Admin: ${statusLabel(e.fromStatus)} → ${statusLabel(e.toStatus)}${d.engineerName ? ` (to ${d.engineerName})` : ''}`;
       return ACTION_TEXT[d.action] || `Changed status to ${statusLabel(e.toStatus)}`;
     case 'priority':
       return `Changed priority from ${priorityLabel(d.from)} to ${priorityLabel(d.to)}`;

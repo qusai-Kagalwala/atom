@@ -47,3 +47,6 @@ export const raiseServiceRequest = (body) => http.post('/requests/service', body
 export const decideItems = (number, decisions) => http.post(`/requests/${number}/items/decide`, { decisions }).then((r) => r.data.request);
 export const deliverItem = (number, itemId, body) => http.post(`/requests/${number}/items/${itemId}/deliver`, body).then((r) => r.data.request);
 export const getTimeFrames = () => http.get('/requests/time-frames').then((r) => r.data.timeFrames);
+
+// Super Admin only: move a ticket or request to any status, with a reason (6 Nov 2026).
+export const changeTicketStatus = (number, body) => http.post(`/requests/${number}/status`, body).then((r) => r.data.request);

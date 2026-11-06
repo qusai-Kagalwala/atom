@@ -87,7 +87,7 @@ export default function ChooseCompanyPage() {
             <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Opening {single.name}…
           </p>
         )}
-        <ul className={`grid gap-4 ${single ? 'hidden' : usable.length >= 3 ? 'sm:grid-cols-3' : usable.length === 2 ? 'sm:grid-cols-2' : 'mx-auto max-w-sm'}`}>
+        <ul className={`grid grid-cols-1 gap-4 ${single ? 'hidden' : usable.length >= 3 ? 'sm:grid-cols-3' : usable.length === 2 ? 'sm:grid-cols-2' : 'mx-auto max-w-sm'}`}>
           {usable.map((c, i) => {
             const Icon = ICONS[c.code] || Building2;
             const isLast = last ? last === c.id : false;

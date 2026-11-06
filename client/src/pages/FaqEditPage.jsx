@@ -122,7 +122,7 @@ function Editor({ faq, from }) {
         </p>
       )}
 
-      <div className="card grid gap-4 sm:grid-cols-3">
+      <div className="card grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Field id="faq-cat" label="Category">
           <TextInput id="faq-cat" value={f.category} onChange={set('category')} maxLength={60} placeholder="Hardware" />
         </Field>
@@ -219,7 +219,7 @@ function Editor({ faq, from }) {
         </div>
       </div>
 
-      <div className="card grid gap-4 sm:grid-cols-2">
+      <div className="card grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field id="faq-details" label="More detailed steps (English)" hint="One per line — shown behind “More detailed steps”">
           <textarea id="faq-details" rows={5} value={f.detailsEn} onChange={set('detailsEn')} className={areaClass} />
         </Field>
