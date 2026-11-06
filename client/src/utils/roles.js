@@ -27,6 +27,8 @@ import {
   Users,
   UserCog,
   Wifi,
+  CalendarDays,
+  CalendarCheck,
 } from 'lucide-react';
 import rolesData from '@shared/roles.json';
 
@@ -34,7 +36,7 @@ export const ROLES = rolesData.roles;
 
 const ICONS = {
   BarChart3, Bell, Bot, Boxes, CircleHelp, ClipboardList, FileDown, HardHat, House, LayoutDashboard, ListTree, Package, PackagePlus,
-  Receipt, RefreshCw, Settings, ShieldCheck, ShieldUser, ShoppingCart, Sparkles, Store, Ticket, Tickets, UserCheck, UserCog, Users, Wifi,
+  Receipt, RefreshCw, Settings, ShieldCheck, ShieldUser, ShoppingCart, Sparkles, Store, Ticket, Tickets, UserCheck, UserCog, Users, Wifi, CalendarDays, CalendarCheck,
 };
 
 // Admin features that can be given to staff (Delegate access, 6 Nov 2026): { key: { nav, label, hint, companies? } }.

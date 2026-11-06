@@ -17,6 +17,8 @@ import SetPasswordPage from './pages/SetPasswordPage';
 const AllRequestsPage = lazy(() => import('./pages/AllRequestsPage'));
 const EmailDesignPage = lazy(() => import('./pages/EmailDesignPage'));
 const DelegatePage = lazy(() => import('./pages/DelegatePage'));
+const MyLeavePage = lazy(() => import('./pages/MyLeavePage'));
+const StaffLeavePage = lazy(() => import('./pages/StaffLeavePage'));
 const ApprovalsPage = lazy(() => import('./pages/ApprovalsPage'));
 const AssetPage = lazy(() => import('./pages/AssetPage'));
 const AssistantPage = lazy(() => import('./pages/AssistantPage'));
@@ -54,7 +56,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const WorkQueuePage = lazy(() => import('./pages/WorkQueuePage'));
 
 // Nav items not built yet get a placeholder route (replaced phase by phase).
-const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems', 'onboarding', 'analytics', 'reports', 'overview', 'delegate', 'wifi']);
+const BUILT = new Set(['home', 'assistant', 'faqs', 'request', 'approvals', 'catalogue', 'settings', 'users', 'syncStatus', 'track', 'notifications', 'invoices', 'inventory', 'myAssets', 'workQueue', 'assignQueue', 'allRequests', 'staff', 'admins', 'aiUsage', 'problems', 'onboarding', 'analytics', 'reports', 'overview', 'delegate', 'wifi', 'myLeave', 'staffLeave']);
 const PLACEHOLDERS = Object.entries(rolesData.navItems).filter(([key]) => !BUILT.has(key));
 
 export default function App() {
@@ -101,6 +103,8 @@ export default function App() {
             <Route element={<ProtectedRoute roles={['ENGINEER', 'ADMIN', 'SUPER_ADMIN']} />}>
               <Route path="/work-queue" element={<WorkQueuePage />} />
             </Route>
+            {/* Staff leave: staff ask (any role — the API checks they are staff here) */}
+            <Route path="/my-leave" element={<MyLeavePage />} />
             {/* Staff and Admins, or anyone given the feature (Delegate access). UI guard only — the API decides. */}
             <Route element={<ProtectedRoute roles={['ENGINEER', 'ADMIN', 'SUPER_ADMIN']} feature="invoices" />}>
               <Route path="/invoices" element={<InvoicesPage />} />
@@ -124,6 +128,7 @@ export default function App() {
               ['catalogue', [['/catalogue', <CataloguePage />]]],
               ['problems', [['/problems', <ProblemsPage />]]],
               ['onboarding', [['/onboarding', <OnboardingPage />]]],
+              ['leave', [['/staff-leave', <StaffLeavePage />]]],
               ['wifi', [['/wifi/batches/:id', <WifiBatchPage />]]],
               ['analytics', [['/analytics', <AnalyticsPage />]]],
               ['reports', [['/reports', <ReportsPage />]]],

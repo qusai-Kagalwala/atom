@@ -1,4 +1,6 @@
 // SQL for tickets. Functions take `db` (pool or transaction client).
+const { config } = require('../../config/env');
+const { onLeaveUntil } = require('../leave/leave.sql');
 const PERSON = (alias) => `json_build_object(
     'id', ${alias}.id::text, 'name', COALESCE(${alias}.name, 'Employee ' || ${alias}.employee_id),
     'loginType', ${alias}.login_type, 'itsNumber', ${alias}.its_number, 'employeeId', ${alias}.employee_id)`;
@@ -133,34 +135,38 @@ async function touch(db, id) {
 
 // Staff who may be assigned: active, hold ENGINEER (Staff), work for the ticket's company with an
 // occupation there. Grouped by occupation in the picker; least open work first.
+// on_leave_until: the end date of today's approved leave (Staff leave, 6 Nov 2026), else NULL.
 async function eligibleEngineers(db, serviceUnitId) {
   const { rows } = await db.query(
     `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name,
             o.id::text AS occupation_id, o.name AS occupation,
             (SELECT count(*)::int FROM requests w
               WHERE w.assigned_engineer_id = u.id
-                AND w.status IN ('ASSIGNED','IN_PROGRESS','WAITING_FOR_USER','WAITING_FOR_EQUIPMENT')) AS open_work
+                AND w.status IN ('ASSIGNED','IN_PROGRESS','WAITING_FOR_USER','WAITING_FOR_EQUIPMENT')) AS open_work,
+            to_char(${onLeaveUntil('u.id', 't.service_unit_id', '$2::text')}, 'YYYY-MM-DD') AS on_leave_until
        FROM users u
        JOIN user_roles r ON r.user_id = u.id AND r.role = 'ENGINEER'
        JOIN user_company t ON t.user_id = u.id AND t.service_unit_id = $1::bigint
        JOIN occupations o ON o.id = t.occupation_id
       WHERE u.is_active
       ORDER BY o.sort_order, lower(o.name), open_work, lower(u.name)`,
-    [serviceUnitId]
+    [serviceUnitId, config.timeZone]
   );
   return rows;
 }
 
-// -> { id, name, occupation } when the user may be assigned in this company, else null.
+// -> { id, name, occupation, on_leave_until } when the user may be assigned in this company, else null.
 async function eligibleEngineer(db, userId, serviceUnitId) {
   if (!/^\d{1,18}$/.test(String(userId))) return null;
   const { rows } = await db.query(
-    `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name, o.name AS occupation FROM users u
+    `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name, o.name AS occupation,
+            to_char(${onLeaveUntil('u.id', 't.service_unit_id', '$3::text')}, 'YYYY-MM-DD') AS on_leave_until
+       FROM users u
        JOIN user_roles r ON r.user_id = u.id AND r.role = 'ENGINEER'
        JOIN user_company t ON t.user_id = u.id AND t.service_unit_id = $2::bigint
        JOIN occupations o ON o.id = t.occupation_id
       WHERE u.id = $1::bigint AND u.is_active`,
-    [userId, serviceUnitId]
+    [userId, serviceUnitId, config.timeZone]
   );
   return rows[0] || null;
 }

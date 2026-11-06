@@ -18,6 +18,7 @@ const { createWifiRouter } = require('./modules/wifi/wifi.routes');
 const { createPushRouter } = require('./modules/push/push.routes');
 const { createStaffRouter } = require('./modules/staff/staff.routes');
 const { createDelegatesRouter } = require('./modules/delegates/delegates.routes');
+const { createLeaveRouter } = require('./modules/leave/leave.routes');
 const { createProblemsRouter } = require('./modules/problems/problems.routes');
 const { HttpError } = require('./utils/httpError');
 
@@ -60,6 +61,7 @@ function createApp() {
   api.use('/reports', createReportsRouter());
   api.use('/staff', createStaffRouter());
   api.use('/delegates', createDelegatesRouter());
+  api.use('/leave', createLeaveRouter());
   api.use('/problems', createProblemsRouter());
   api.use((req, res) => res.status(404).json({ message: 'Not found.' }));
 

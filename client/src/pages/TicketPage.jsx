@@ -89,7 +89,7 @@ function StatusChange({ ticket, onDone }) {
           <Field id="cs-engineer" label="Who works on it" hint={current ? `Leave as is to keep ${ticket.assignedEngineer.name}.` : 'Required for this status.'}>
             <select id="cs-engineer" className="block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink" value={engineerId} onChange={(e) => setEngineerId(e.target.value)}>
               <option value="">{current ? `Keep ${ticket.assignedEngineer.name}` : 'Choose…'}</option>
-              <StaffOptions staff={engineers.data || []} currentId={current || null} />
+              <StaffOptions staff={engineers.data || []} currentId={current || null} blockLeave />
             </select>
           </Field>
         )}
@@ -167,7 +167,7 @@ function ActionModal({ ticket, action, onClose, onDone }) {
             ) : (
               <select id="engineer" className={selectClass} value={engineerId} onChange={(e) => setEngineerId(e.target.value)}>
                 <option value="">{engineers.isPending ? 'Loading…' : 'Choose who does it'}</option>
-                <StaffOptions staff={engineers.data || []} currentId={currentId} />
+                <StaffOptions staff={engineers.data || []} currentId={currentId} blockLeave />
               </select>
             )}
             {engineers.isSuccess && engineers.data.length === 0 && (

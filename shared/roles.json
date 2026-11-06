@@ -62,6 +62,11 @@
       "path": "/my-assets",
       "icon": "Package"
     },
+    "myLeave": {
+      "label": "My leave",
+      "path": "/my-leave",
+      "icon": "CalendarDays"
+    },
     "notifications": {
       "label": "Notifications",
       "path": "/notifications",
@@ -121,6 +126,11 @@
       "label": "Delegate access",
       "path": "/delegate",
       "icon": "UserCog"
+    },
+    "staffLeave": {
+      "label": "Staff leave",
+      "path": "/staff-leave",
+      "icon": "CalendarCheck"
     },
     "onboarding": {
       "label": "Onboarding / Offboarding",
@@ -182,6 +192,7 @@
     "request",
     "track",
     "myAssets",
+    "myLeave",
     "notifications"
   ],
   "navConsole": [
@@ -207,6 +218,7 @@
       "request",
       "track",
       "myAssets",
+      "myLeave",
       "notifications",
       "workQueue",
       "inventory",
@@ -230,6 +242,7 @@
       "invoices",
       "staff",
       "delegate",
+      "staffLeave",
       "onboarding",
       "wifi",
       "analytics",
@@ -253,6 +266,7 @@
       "invoices",
       "staff",
       "delegate",
+      "staffLeave",
       "onboarding",
       "wifi",
       "analytics",
@@ -310,6 +324,11 @@
       "nav": "onboarding",
       "label": "Onboarding / Offboarding",
       "hint": "Equipment for people joining and leaving"
+    },
+    "leave": {
+      "nav": "staffLeave",
+      "label": "Staff leave",
+      "hint": "Approve or reject leave; see who is on leave"
     },
     "wifi": {
       "nav": "wifi",

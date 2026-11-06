@@ -6,6 +6,8 @@
 // keeps the change (unless the Super Admin overwrites).
 const pool = require('../../db/pool');
 const { HttpError, notFound } = require('../../utils/httpError');
+const { config } = require('../../config/env');
+const { onLeaveUntil } = require('../leave/leave.sql');
 
 const bad = (message, code) => new HttpError(400, message, code);
 const clean = (v) => (v == null ? '' : String(v).replace(/\s+/g, ' ').trim());
@@ -234,9 +236,10 @@ async function pickAutoAssignee(db, companyId, categoryId) {
        JOIN user_company t ON t.user_id = u.id AND t.service_unit_id = $1::bigint AND t.occupation_id = $2::bigint
        JOIN occupations o ON o.id = t.occupation_id AND o.is_active
       WHERE u.is_active
+        AND ${onLeaveUntil('u.id', 't.service_unit_id', '$3::text')} IS NULL -- not on approved leave today
       ORDER BY open_work, last_at NULLS FIRST, lower(u.name), u.id
       LIMIT 1`,
-    [companyId, c[0].occupation_id]
+    [companyId, c[0].occupation_id, config.timeZone]
   );
   return rows[0] || null;
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleAlert, CircleCheck, Eye, EyeOff, Info } from 'lucide-react';
+import { CircleAlert, CircleCheck, Eye, EyeOff, Info, TriangleAlert } from 'lucide-react';
 
 const inputClass =
   'block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-ink placeholder:text-ink-3 ' +
@@ -65,6 +65,7 @@ const ALERT = {
   error: { Icon: CircleAlert, cls: 'border-error/20 bg-error-bg text-error', role: 'alert' },
   success: { Icon: CircleCheck, cls: 'border-success/20 bg-success-bg text-success', role: 'status' },
   info: { Icon: Info, cls: 'border-info/20 bg-info-bg text-info', role: 'status' },
+  warning: { Icon: TriangleAlert, cls: 'border-warning/20 bg-warning-bg text-warning', role: 'status' },
 };
 
 export function Alert({ tone = 'error', children }) {

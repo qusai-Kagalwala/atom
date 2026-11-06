@@ -341,6 +341,7 @@ async function act(user, numberParam, action, body = {}) {
       const engineer = await repo.eligibleEngineer(db, engineerId, r.service_unit_id);
       if (!engineer) throw bad('Choose an active staff member of this company.', 'bad_engineer');
       if (String(r.assigned_engineer_id) === engineerId) throw bad('Already assigned to this engineer.', 'no_change');
+      if (engineer.on_leave_until) throw onLeave(engineer);
       const to = lifecycle.nextStatus('assign', r.status);
       await repo.assignEngineer(db, r.id, engineerId, to);
       await repo.insertEvent(db, {
@@ -389,6 +390,12 @@ async function act(user, numberParam, action, body = {}) {
   });
 }
 
+// Staff on approved leave today can't be given work (Staff leave, 6 Nov 2026).
+const onLeave = (e) => {
+  const until = new Date(`${e.on_leave_until}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return new HttpError(409, `${e.name} is on leave till ${until}.`, 'on_leave');
+};
+
 // Super Admin only (decided 6 Nov 2026): move a ticket or request to any status — e.g. Closed → In
 // progress — with a reason. Overrides "no reopening" for the Super Admin alone. Statuses that need someone
 // working on it keep the current engineer or take the one chosen; Open / Waiting for approval clear it.
@@ -414,6 +421,7 @@ async function overrideStatus(user, numberParam, body = {}) {
     else if (chosen && chosen !== engineerId) {
       engineer = await repo.eligibleEngineer(db, chosen, r.service_unit_id);
       if (!engineer) throw bad('Choose an active staff member of this company.', 'bad_engineer');
+      if (engineer.on_leave_until) throw onLeave(engineer);
       engineerId = chosen;
     }
     if (NEEDS_ENGINEER.has(to) && !engineerId) throw bad('Choose who works on it.', 'engineer_required');
@@ -644,7 +652,14 @@ async function queueCounts(user) {
     : { workQueue: c.work };
 }
 
-const toStaff = (e) => ({ id: e.id, name: e.name, occupation: e.occupation, occupationId: e.occupation_id, open_work: e.open_work });
+const toStaff = (e) => ({
+  id: e.id,
+  name: e.name,
+  occupation: e.occupation,
+  occupationId: e.occupation_id,
+  open_work: e.open_work,
+  onLeaveUntil: e.on_leave_until || null, // approved leave today (Staff leave): can't be assigned
+});
 
 // Admin: staff who can take this company's tickets (for quick-assign in the queue).
 async function listEngineers(user) {
