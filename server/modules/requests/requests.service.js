@@ -13,7 +13,7 @@ const invoices = require('../invoices/invoices.service');
 const assistant = require('../assistant/assistant.service');
 const problems = require('../problems/problems.service');
 const { locationLabel } = require('../sync/hrPlan');
-const { assertRecordInScope, recordScopeSql } = require('../../middleware/scope');
+const { assertRecordInScope, isRecordInScope, recordScopeSql } = require('../../middleware/scope');
 const roles = require('../../utils/roles');
 const { HttpError, notFound } = require('../../utils/httpError');
 
@@ -66,6 +66,10 @@ async function loadInScope(db, req, numberParam, opts) {
   const number = parseNumber(numberParam);
   const record = number && (await repo.getByNumber(db, number, opts));
   if (!record) throw notFound();
+  // Pool members (staff of the company) may open a ticket offered to them (Phase 2).
+  if (record.pool_started_at && !isRecordInScope(req.user, record) && String(record.service_unit_id) === String(req.user?.companyId)) {
+    if (await repo.isPoolMember(db, record.id, req.user.id)) return record;
+  }
   assertRecordInScope(req, record);
   return record;
 }
@@ -80,6 +84,8 @@ function toSummary(r) {
     priority: r.priority,
     title: r.title,
     category: r.category_name || null,
+    // The category's occupation (Problem list): suggested for a pool.
+    suggestedOccupationId: r.category_occupation_id ? String(r.category_occupation_id) : null,
     requester: r.requester,
     assignedEngineer: r.assigned_engineer || null,
     createdAt: r.created_at,
@@ -93,7 +99,12 @@ function toSummary(r) {
 
 async function toDetail(db, user, r) {
   const seeInternal = lifecycle.canSeeInternal(user, r);
-  const [events, attachments] = await Promise.all([repo.listEvents(db, r.id), repo.listAttachments(db, r.id)]);
+  const [events, attachments, members] = await Promise.all([
+    repo.listEvents(db, r.id),
+    repo.listAttachments(db, r.id),
+    r.pool_started_at ? repo.poolMembers(db, r.id) : [],
+  ]);
+  const inPool = members.some((m) => String(m.id) === String(user.id));
   const visibleAttachments = attachments.filter((a) => seeInternal || !a.is_internal);
 
   return {
@@ -113,6 +124,10 @@ async function toDetail(db, user, r) {
     resolvedAt: r.resolved_at,
     closedAt: r.closed_at,
     rejectedAt: r.rejected_at,
+    // Pool (Phase 2): members are listed for whoever can assign; members see that it is offered to them.
+    pool: r.pool_started_at
+      ? { ...poolInfo(r.pool_started_at, members.length), members: lifecycle.canDo(user, r, 'assign') ? members : undefined, mine: inPool }
+      : null,
     attachments: visibleAttachments.map((a) => ({
       id: a.id,
       eventId: a.event_id,
@@ -153,6 +168,9 @@ async function toDetail(db, user, r) {
       canDecideItems: lifecycle.canDecideItems(user, r),
       canDeliverItems: lifecycle.canDeliverItems(user, r),
       canAddPhotos: lifecycle.canComment(user, r) && attachments.length < files.MAX_FILES_PER_TICKET,
+      // Pool: send it / take it back (assigners, while nobody has it) · take it (members).
+      canPool: !r.assigned_engineer_id && lifecycle.canDo(user, r, 'assign'),
+      canTake: inPool && !r.assigned_engineer_id,
       // Super Admin: move to any status (Change status), all companies.
       canChangeStatus: user.activeRole === 'SUPER_ADMIN',
       photosLeft: Math.max(0, files.MAX_FILES_PER_TICKET - attachments.length),
@@ -336,6 +354,8 @@ async function act(user, numberParam, action, body = {}) {
     if (rule.noteRequired && note.length < 3) throw bad(rule.noteRequired, 'note_required');
     if (note.length > 5000) throw bad('Keep the note under 5000 characters.', 'note_too_long');
 
+    // A direct assignment, rejection or close ends any pool.
+    if (['assign', 'reject', 'close'].includes(action)) await repo.clearPool(db, r.id);
     if (action === 'assign') {
       const engineerId = clean(body.engineerId);
       const engineer = await repo.eligibleEngineer(db, engineerId, r.service_unit_id);
@@ -390,6 +410,173 @@ async function act(user, numberParam, action, body = {}) {
   });
 }
 
+// ---------- Pool assignment (Phase 2, decided 6 Nov 2026) ----------
+// The Admin (or someone given Assign queue / All tickets / Approvals) sends an unassigned ticket or request
+// to a pool: whole occupations (e.g. all Engineers, all Help desk), chosen people, or everyone available.
+// The pool is fixed when it is sent. Staff on leave are never in it. Everyone in it is told; the first to
+// "Take it" gets it; nobody can decline. After POOL_HOURS with no taker it goes to the member with the
+// fewest ongoing tickets (jobs.js → expirePools).
+const POOL_HOURS = 12;
+
+// Assign to one person inside an open transaction (direct, taken from the pool, or automatic).
+async function assignInTx(db, r, engineer, { actorId, note = null, via = null }) {
+  const to = lifecycle.nextStatus('assign', r.status);
+  await repo.assignEngineer(db, r.id, engineer.id, to);
+  const data = {
+    engineerId: engineer.id,
+    engineerName: engineer.name,
+    occupation: engineer.occupation,
+    previousEngineerId: r.assigned_engineer_id ? String(r.assigned_engineer_id) : null,
+    previousEngineerName: r.assigned_engineer?.name || null,
+  };
+  if (via) data.via = via; // 'pool' (taken) | 'pool_auto' (nobody took it in time)
+  await repo.insertEvent(db, { requestId: r.id, type: 'assigned', actorId, fromStatus: r.status, toStatus: to, note, data });
+  return { kind: 'assign', actorId, note, engineerId: engineer.id, engineerName: engineer.name, occupation: engineer.occupation, previousEngineerId: data.previousEngineerId, via };
+}
+
+async function sendToPool(user, numberParam, body = {}) {
+  const note = clean(body.note);
+  if (note.length > 1000) throw bad('Keep the note under 1000 characters.', 'note_too_long');
+  const ids = (list) => (Array.isArray(list) ? [...new Set(list.map(String))] : []);
+  const occupationIds = ids(body.occupationIds);
+  const engineerIds = ids(body.engineerIds);
+  const everyone = body.all === true;
+  if ([...occupationIds, ...engineerIds].some((x) => !/^\d{1,18}$/.test(x))) throw bad('Choose from the list.', 'bad_choice');
+  return inTransaction(async (db, afterCommit) => {
+    const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
+    lifecycle.assertAllowed(user, r, 'assign');
+    if (r.assigned_engineer_id) throw new HttpError(409, `Already with ${r.assigned_engineer?.name || 'someone'} — reassign it directly instead.`, 'already_assigned');
+    const staff = await repo.eligibleEngineers(db, r.service_unit_id);
+    const byId = new Map(staff.map((e) => [e.id, e]));
+    const unknown = engineerIds.find((x) => !byId.has(x));
+    if (unknown) throw bad('Choose active staff of this company.', 'bad_engineer');
+    const onLeaveChosen = engineerIds.map((x) => byId.get(x)).find((e) => e.on_leave_until);
+    if (onLeaveChosen) throw onLeave(onLeaveChosen);
+    const members = staff.filter(
+      (e) => !e.on_leave_until && (everyone || occupationIds.includes(String(e.occupation_id)) || engineerIds.includes(e.id))
+    );
+    if (!everyone && !occupationIds.length && engineerIds.length < 2) throw bad('Choose an occupation, everyone, or at least two people — or assign to one person directly.', 'pool_too_small');
+    if (!members.length) throw new HttpError(409, 'Nobody available in that choice — everyone there is on leave.', 'pool_empty');
+    await repo.setPool(db, r.id, members.map((m) => m.id), user.id);
+    const occNames = [...new Set(staff.filter((e) => occupationIds.includes(String(e.occupation_id))).map((e) => e.occupation))];
+    await repo.insertEvent(db, {
+      requestId: r.id,
+      type: 'status',
+      actorId: user.id,
+      fromStatus: r.status,
+      toStatus: r.status,
+      note: note || null,
+      data: { action: 'pool', everyone, occupations: occNames, memberIds: members.map((m) => m.id), memberNames: members.map((m) => m.name), hours: POOL_HOURS },
+    });
+    const event = { kind: 'pooled', actorId: user.id, memberIds: members.map((m) => m.id), note };
+    const sent = await notifications.recordTicketEvent(db, r, event);
+    afterCommit(() => notifications.publish(sent, r, event.memberIds));
+    return toDetail(db, user, await repo.getByNumber(db, r.number));
+  });
+}
+
+// A pool member takes it: it is theirs; the pool ends.
+async function takeFromPool(user, numberParam) {
+  return inTransaction(async (db, afterCommit) => {
+    const number = parseNumber(numberParam);
+    const r = number && (await repo.getByNumber(db, number, { forUpdate: true }));
+    if (!r || String(r.service_unit_id) !== String(user.companyId)) throw notFound();
+    const member = await repo.isPoolMember(db, r.id, user.id);
+    if (!member) {
+      if (r.assigned_engineer_id) throw new HttpError(409, `${r.assigned_engineer?.name || 'Someone'} has already taken it.`, 'taken');
+      throw notFound();
+    }
+    if (r.assigned_engineer_id) throw new HttpError(409, `${r.assigned_engineer?.name || 'Someone'} has already taken it.`, 'taken');
+    const engineer = await repo.eligibleEngineer(db, user.id, r.service_unit_id);
+    if (!engineer) throw notFound();
+    if (engineer.on_leave_until) throw onLeave(engineer);
+    const others = (await repo.poolMembers(db, r.id)).map((m) => m.id);
+    await repo.clearPool(db, r.id);
+    const event = await assignInTx(db, r, engineer, { actorId: user.id, via: 'pool' });
+    const sent = await notifications.recordTicketEvent(db, r, event);
+    afterCommit(() => notifications.publish(sent, r, [engineer.id, ...others]));
+    return toDetail(db, user, await repo.getByNumber(db, r.number));
+  });
+}
+
+// The Admin takes it back out of the pool (back to the Assign queue).
+async function cancelPool(user, numberParam) {
+  return inTransaction(async (db, afterCommit) => {
+    const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
+    lifecycle.assertAllowed(user, r, 'assign');
+    const others = (await repo.poolMembers(db, r.id)).map((m) => m.id);
+    if (!(await repo.clearPool(db, r.id))) throw new HttpError(409, 'It is not in a pool.', 'no_pool');
+    await repo.insertEvent(db, { requestId: r.id, type: 'status', actorId: user.id, fromStatus: r.status, toStatus: r.status, note: null, data: { action: 'pool_cancel' } });
+    afterCommit(() => notifications.publish([], r, others));
+    return toDetail(db, user, await repo.getByNumber(db, r.number));
+  });
+}
+
+// Scheduled (jobs.js): pools nobody took within POOL_HOURS → the member with the fewest ongoing tickets
+// (on leave skipped; ties: the one who got work longest ago). If every member is now on leave or gone,
+// the pool ends and the Admins are told. → number of tickets handled.
+async function expirePools() {
+  const { rows } = await pool.query(
+    `SELECT number FROM requests WHERE pool_started_at IS NOT NULL AND pool_started_at <= now() - make_interval(hours => $1::int)
+      ORDER BY pool_started_at LIMIT 200`,
+    [POOL_HOURS]
+  );
+  let n = 0;
+  for (const { number } of rows) {
+    // eslint-disable-next-line no-await-in-loop
+    const done = await inTransaction(async (db, afterCommit) => {
+      const r = await repo.getByNumber(db, number, { forUpdate: true });
+      if (!r || !r.pool_started_at || Date.now() - new Date(r.pool_started_at).getTime() < POOL_HOURS * 3600000) return false;
+      const memberIds = (await repo.poolMembers(db, r.id)).map((m) => m.id);
+      const { rows: pick } = await db.query(
+        `SELECT e.id::text AS id FROM unnest($1::bigint[]) AS e(id)
+          ORDER BY (SELECT count(*) FROM requests w WHERE w.assigned_engineer_id = e.id
+                      AND w.status IN ('ASSIGNED','IN_PROGRESS','WAITING_FOR_USER','WAITING_FOR_EQUIPMENT')),
+                   (SELECT max(w.assigned_at) FROM requests w WHERE w.assigned_engineer_id = e.id) NULLS FIRST, e.id`,
+        [memberIds]
+      );
+      let engineer = null;
+      for (const p of pick) {
+        // eslint-disable-next-line no-await-in-loop
+        const e = await repo.eligibleEngineer(db, p.id, r.service_unit_id);
+        if (e && !e.on_leave_until) {
+          engineer = e;
+          break;
+        }
+      }
+      await repo.clearPool(db, r.id);
+      if (r.assigned_engineer_id || !lifecycle.ACTIONS.assign.from.has(r.status)) return true; // already handled
+      if (!engineer) {
+        await repo.insertEvent(db, { requestId: r.id, type: 'status', actorId: null, fromStatus: r.status, toStatus: r.status, note: null, data: { action: 'pool_empty' } });
+        const sent = await notifications.recordTicketEvent(db, r, { kind: 'pool_empty', actorId: null });
+        afterCommit(() => notifications.publish(sent, r, memberIds));
+        return true;
+      }
+      const event = await assignInTx(db, r, engineer, {
+        actorId: null,
+        note: `Nobody took it within ${POOL_HOURS} hours — given to the person in the pool with the fewest ongoing tickets.`,
+        via: 'pool_auto',
+      });
+      const sent = await notifications.recordTicketEvent(db, r, event);
+      afterCommit(() => notifications.publish(sent, r, [engineer.id, ...memberIds]));
+      return true;
+    });
+    if (done) n += 1;
+  }
+  return n;
+}
+
+// Pool members: tickets waiting for someone to take them.
+async function listPoolQueue(user, { limit, offset }) {
+  if (!user?.companyId) throw notFound();
+  const scope = {
+    clause: 'r.service_unit_id = $1::bigint AND EXISTS (SELECT 1 FROM request_pool p WHERE p.request_id = r.id AND p.user_id = $2::bigint)',
+    params: [user.companyId, user.id],
+  };
+  const { rows, total } = await repo.listRequests(pool, scope, { sort: 'priority', limit, offset });
+  return { requests: rows.map(toQueueItem), total };
+}
+
 // Staff on approved leave today can't be given work (Staff leave, 6 Nov 2026).
 const onLeave = (e) => {
   const until = new Date(`${e.on_leave_until}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -425,6 +612,7 @@ async function overrideStatus(user, numberParam, body = {}) {
       engineerId = chosen;
     }
     if (NEEDS_ENGINEER.has(to) && !engineerId) throw bad('Choose who works on it.', 'engineer_required');
+    await repo.clearPool(db, r.id);
     await db.query(
       `UPDATE requests SET status = $2::request_status,
               assigned_engineer_id = $3::bigint,
@@ -580,8 +768,11 @@ const STATUS_GROUPS = {
 
 const WORK_GROUPS = ['active', 'to_start', 'in_progress', 'waiting', 'resolved'];
 
+const poolInfo = (startedAt, size) =>
+  startedAt ? { startedAt, size: size ?? null, autoAssignAt: new Date(new Date(startedAt).getTime() + POOL_HOURS * 3600000).toISOString() } : null;
+
 function toQueueItem(r) {
-  return { ...toSummary(r), location: r.location || null, statusSince: r.status_since };
+  return { ...toSummary(r), location: r.location || null, statusSince: r.status_since, pool: poolInfo(r.pool_started_at, r.pool_size) };
 }
 
 const requireStaffOrAdmin = (user) => {
@@ -647,9 +838,16 @@ async function listAll(user, f) {
 async function queueCounts(user) {
   if (!roles.isAdmin(user) && !roles.isStaff(user)) return {};
   const c = await repo.queueCounts(pool, user.id, user.companyId);
+  // Tickets offered to me in a pool count on My work queue too (Phase 2).
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS n FROM request_pool p JOIN requests r ON r.id = p.request_id
+      WHERE p.user_id = $1::bigint AND r.service_unit_id = $2::bigint AND r.assigned_engineer_id IS NULL`,
+    [user.id, user.companyId]
+  );
+  const work = c.work + rows[0].n;
   return roles.isAdmin(user)
-    ? { workQueue: c.work, assignQueue: c.unassigned, toClose: c.to_close, approvals: c.approvals }
-    : { workQueue: c.work };
+    ? { workQueue: work, assignQueue: c.unassigned, toClose: c.to_close, approvals: c.approvals }
+    : { workQueue: work };
 }
 
 const toStaff = (e) => ({
@@ -676,6 +874,12 @@ async function eligibleEngineers(user, numberParam) {
 module.exports = {
   inTransaction,
   overrideStatus,
+  sendToPool,
+  takeFromPool,
+  cancelPool,
+  expirePools,
+  listPoolQueue,
+  POOL_HOURS,
   loadInScope,
   toDetail,
   ALL_PRIORITIES,

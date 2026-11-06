@@ -10,6 +10,9 @@
 //   GET    /:number                                            → { request }
 //   POST   /:number/actions/:action  { note?, engineerId? }    → { request }
 //          action = assign | start | wait_user | wait_equipment | resume | resolve | close | reject
+//   GET    /queue/pool      tickets offered to me in a pool (Phase 2)
+//   POST   /:number/pool   { occupationIds?, engineerIds?, all?, note? }  send an unassigned ticket to a pool
+//   POST   /:number/pool/cancel   back to the Assign queue · POST /:number/take   a pool member takes it
 //   POST   /:number/status { status, note, engineerId? }  Super Admin only: any status, reason required → { request }
 //   PATCH  /:number        { priority?, categoryId?, message? }  (Super Admin; priority change tells requester + engineer) → { request }
 //   GET    /time-frames                                        → { timeFrames }  window per priority
@@ -124,6 +127,14 @@ function createRequestsRouter() {
   );
 
   router.get(
+    '/queue/pool',
+    ...paging,
+    handle(async (req, res) => {
+      const p = pageOf(req);
+      res.json({ ...(await svc.listPoolQueue(req.user, p)), page: p.page, pageSize: p.pageSize });
+    })
+  );
+  router.get(
     '/queue/assign',
     elevateIf('assign', 'tickets'),
     ...paging,
@@ -190,6 +201,19 @@ function createRequestsRouter() {
       return res.json({ request });
     })
   );
+
+  // Pool (Phase 2): send to a pool / take it back (whoever may assign), take it (pool members).
+  router.post(
+    '/:number/pool',
+    elevateIf(...ACTION_FEATURES.assign),
+    handle(async (req, res) => res.json({ request: await svc.sendToPool(req.user, req.params.number, req.body || {}) }))
+  );
+  router.post(
+    '/:number/pool/cancel',
+    elevateIf(...ACTION_FEATURES.assign),
+    handle(async (req, res) => res.json({ request: await svc.cancelPool(req.user, req.params.number) }))
+  );
+  router.post('/:number/take', handle(async (req, res) => res.json({ request: await svc.takeFromPool(req.user, req.params.number) })));
 
   // Super Admin only: move to any status with a reason (6 Nov 2026). Everyone else 404.
   router.post(

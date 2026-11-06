@@ -119,7 +119,7 @@ maybe('background jobs script on real PostgreSQL', () => {
 
     // Next round: nothing new.
     webpush.sendNotification.mockClear();
-    expect(await main()).toEqual({ overdue: 0, emailsSent: 0, emailsFailed: 0, emailsCleaned: 0, wifiExpired: 0 });
+    expect(await main()).toEqual({ overdue: 0, poolsAssigned: 0, emailsSent: 0, emailsFailed: 0, emailsCleaned: 0, wifiExpired: 0 });
     expect(webpush.sendNotification).not.toHaveBeenCalled();
   });
 

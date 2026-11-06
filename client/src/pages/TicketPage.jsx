@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bot, Lock, LoaderCircle, MapPin, MessageSquare, Send } from 'lucide-react';
-import { addComment, changeTicketStatus, eligibleEngineers, getTicket, listCategories, ticketAction, triageTicket } from '../api/requests';
+import { addComment, cancelPool, changeTicketStatus, eligibleEngineers, getTicket, listCategories, takeTicket, ticketAction, triageTicket } from '../api/requests';
+import PoolDialog from '../components/PoolDialog';
 import statusesData from '@shared/statuses.json';
 import StaffOptions from '../components/StaffOptions';
 import { errorMessage } from '../api/http';
@@ -33,6 +34,74 @@ const selectClass =
 const textareaClass =
   'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const buttonClass = { primary: 'btn-primary', secondary: 'btn-secondary', danger: 'btn-danger' };
+
+// Pool (Phase 2): members take it; whoever assigns sends it to a pool or takes it back out.
+function PoolCard({ ticket, onDone }) {
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState(false);
+  const p = ticket.pool;
+  const engineers = useQuery({ queryKey: ['requests', ticket.number, 'engineers'], queryFn: () => eligibleEngineers(ticket.number), enabled: ticket.permissions.canPool && open });
+  const at = p ? formatDateTime(p.autoAssignAt) : '';
+  async function run(kind, fn, message) {
+    setBusy(kind);
+    setError('');
+    try {
+      onDone(await fn(), message);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not do that.'));
+    } finally {
+      setBusy('');
+    }
+  }
+  if (ticket.permissions.canTake) {
+    return (
+      <section className="card space-y-3 border-gold">
+        <h2 className="text-xl">Offered to you</h2>
+        <p className="font-ui text-sm text-ink-2">This was sent to {p.size} people. The first to take it gets it. If nobody does, it is assigned automatically at {at}.</p>
+        {error && <Alert tone="error">{error}</Alert>}
+        <button type="button" className="btn-primary" disabled={Boolean(busy)} onClick={() => run('take', () => takeTicket(ticket.number), `${ticket.number} is yours now.`)}>
+          {busy === 'take' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />} Take it
+        </button>
+      </section>
+    );
+  }
+  if (!ticket.permissions.canPool) return null;
+  return (
+    <section className="card space-y-3">
+      <h2 className="text-xl">Pool</h2>
+      {p ? (
+        <>
+          <p className="font-ui text-sm text-ink-2">
+            Offered to {p.members?.map((m) => m.name).join(', ') || `${p.size} people`}. If nobody takes it, it goes to the one with the fewest ongoing tickets at {at}.
+          </p>
+          {error && <Alert tone="error">{error}</Alert>}
+          <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => run('cancel', () => cancelPool(ticket.number), `${ticket.number} taken out of the pool.`)}>
+            {busy === 'cancel' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />} Take it out of the pool
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="font-ui text-sm text-ink-2">Send it to a whole occupation, everyone available, or chosen people — the first to take it gets it.</p>
+          <button type="button" className="btn-secondary" onClick={() => setOpen(true)}>
+            Send to a pool
+          </button>
+        </>
+      )}
+      {open && engineers.isSuccess && (
+        <PoolDialog
+          ticket={ticket}
+          staff={engineers.data}
+          onClose={() => setOpen(false)}
+          onDone={(fresh, message) => {
+            setOpen(false);
+            onDone(fresh, message);
+          }}
+        />
+      )}
+    </section>
+  );
+}
 
 // Super Admin (6 Nov 2026): move to any status — e.g. Closed → In progress — with a reason.
 const NEEDS_ENGINEER = new Set(['ASSIGNED', 'IN_PROGRESS', 'WAITING_FOR_USER', 'WAITING_FOR_EQUIPMENT', 'RESOLVED']);
@@ -493,6 +562,8 @@ export default function TicketPage() {
           }}
         />
       )}
+
+      {(t.permissions.canTake || t.permissions.canPool) && <PoolCard ticket={t} onDone={done} />}
 
       {t.permissions.canChangeStatus && (
         <section className="card">

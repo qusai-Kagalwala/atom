@@ -47,6 +47,8 @@ const KIND = {
   comment: ['New comment', 'info'],
   to_recover: ['Equipment to collect', 'warning'],
   status_override: ['Status changed', 'warning'],
+  pooled: ['Available to take', 'gold'],
+  pool_empty: ['Pool ended', 'warning'],
   access: ['Access', 'info'],
 };
 const FINAL = ['RESOLVED', 'CLOSED', 'REJECTED'];

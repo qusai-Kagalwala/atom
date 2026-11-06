@@ -56,9 +56,15 @@ export function eventText(e) {
       // Full name with the occupation: "Carpenter: Abbas Test Carpenter".
       const who = d.engineerName ? (d.occupation ? `${d.occupation}: ${d.engineerName}` : d.engineerName) : 'a staff member';
       if (d.auto) return `Assigned automatically to ${who}`;
+      if (d.via === 'pool') return `Taken from the pool by ${who}`;
+      if (d.via === 'pool_auto') return `Nobody took it from the pool — assigned automatically to ${who}`;
       return d.previousEngineerId ? `Reassigned from ${d.previousEngineerName || 'someone else'} to ${who}` : `Assigned to ${who}`;
     }
     case 'status':
+      if (d.action === 'pool')
+        return `Sent to a pool: ${d.everyone ? 'everyone available' : [...(d.occupations || []).map((o) => `all ${o}`), ...(d.occupations?.length ? [] : d.memberNames || [])].join(', ')} (${(d.memberNames || []).length} people)`;
+      if (d.action === 'pool_cancel') return 'Taken out of the pool';
+      if (d.action === 'pool_empty') return 'Nobody in the pool could take it — back to the Assign queue';
       if (d.action === 'override') return `Status changed by Super Admin: ${statusLabel(e.fromStatus)} → ${statusLabel(e.toStatus)}${d.engineerName ? ` (to ${d.engineerName})` : ''}`;
       return ACTION_TEXT[d.action] || `Changed status to ${statusLabel(e.toStatus)}`;
     case 'priority':

@@ -61,7 +61,8 @@ function planTicket(ticket, e) {
       // Lower-case the occupation for the sentence, but keep acronyms ("AC technician").
       const occ = String(e.occupation || 'Engineer').split(' ').map((w) => (/^[A-Z]{2,}$/.test(w) ? w : w.toLowerCase())).join(' ');
       const who = e.occupation ? `${e.occupation}: ${e.engineerName || ''}`.trim() : e.engineerName || 'An engineer';
-      toEngineer(e.engineerId, `${num} is assigned to you`, short(ticket.title));
+      if (e.via === 'pool_auto') toEngineer(e.engineerId, `${num} is assigned to you — nobody took it from the pool`, short(ticket.title));
+      else if (e.via !== 'pool') toEngineer(e.engineerId, `${num} is assigned to you`, short(ticket.title)); // taking it needs no notice
       toRequester(`${/^[aeiouAEIOU]/.test(occ) ? 'An' : 'A'} ${occ} is on ${num}`, short(`${who} will help with: ${ticket.title}`));
       if (e.previousEngineerId && !same(e.previousEngineerId, e.engineerId)) {
         toEngineer(e.previousEngineerId, `${num} moved to someone else`, short(ticket.title));
@@ -108,6 +109,13 @@ function planTicket(ticket, e) {
       break;
     case 'item_delivered':
       toRequester(`${num}: ${short(e.itemName, 60)} delivered`, short(e.note));
+      break;
+    case 'pooled':
+      // Pool (Phase 2): everyone in it, as staff.
+      for (const id of e.memberIds || []) toEngineer(id, `${num} is available — take it if you can`, short(ticket.title));
+      break;
+    case 'pool_empty':
+      toAdmins(`Nobody in the pool could take ${num}`, short(`Everyone in the pool is on leave or gone — assign ${ticket.title} directly.`, 280));
       break;
     case 'status_override': {
       const label = (st) => STATUS_LABELS[st] || st;

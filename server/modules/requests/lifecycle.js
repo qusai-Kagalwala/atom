@@ -95,6 +95,7 @@ module.exports = {
   FINAL,
   allowedActions,
   assertAllowed,
+  canDo,
   canComment,
   canSeeInternal,
   canEditTriage,

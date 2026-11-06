@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, LoaderCircle } from 'lucide-react';
-import { listAssignQueue, listEngineers, queueCounts, ticketAction } from '../api/requests';
+import { Check, LoaderCircle, Users, X } from 'lucide-react';
+import { cancelPool, listAssignQueue, listEngineers, queueCounts, ticketAction } from '../api/requests';
+import PoolDialog from '../components/PoolDialog';
 import StaffOptions from '../components/StaffOptions';
 import { errorMessage } from '../api/http';
 import { Alert } from '../components/FormControls';
 import RequestList, { Pager, Tabs } from '../components/RequestList';
 import useAuth from '../hooks/useAuth';
+import { formatDateTime } from '../utils/format';
 
 const TABS = [
   ['unassigned', 'Waiting to be assigned'],
@@ -15,7 +17,7 @@ const TABS = [
 ];
 
 // One row's quick-assign control.
-function QuickAssign({ ticket, engineers, onDone }) {
+function QuickAssign({ ticket, engineers, onDone, onPool }) {
   const [engineerId, setEngineerId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -51,11 +53,44 @@ function QuickAssign({ ticket, engineers, onDone }) {
       <button type="button" className="btn-primary" disabled={!engineerId || busy} onClick={assign}>
         {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />} Assign
       </button>
+      {ticket.pool ? (
+        <PoolBadge ticket={ticket} onDone={onDone} />
+      ) : (
+        <button type="button" className="btn-secondary" disabled={busy || !engineers.length} onClick={() => onPool(ticket)} title="Send to several people — the first to take it gets it">
+          <Users size={18} aria-hidden="true" /> Pool
+        </button>
+      )}
       <Link to={`/tickets/${ticket.number}`} state={{ from: '/assign' }} className="inline-flex min-h-tap items-center px-2 font-ui text-sm text-brand hover:underline">
         Open
       </Link>
       {error && <p className="w-full font-ui text-xs text-error">{error}</p>}
     </>
+  );
+}
+
+// In a pool: how many were told, when it goes automatically, and take it back.
+function PoolBadge({ ticket, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const at = formatDateTime(ticket.pool.autoAssignAt);
+  async function cancel() {
+    setBusy(true);
+    try {
+      await cancelPool(ticket.number);
+      onDone(`${ticket.number} taken out of the pool.`);
+    } catch (err) {
+      onDone(errorMessage(err, 'Could not take it out of the pool.'));
+      setBusy(false);
+    }
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="status-in-progress" title={`If nobody takes it, it goes automatically at ${at}`}>
+        In pool · {ticket.pool.size} {ticket.pool.size === 1 ? 'person' : 'people'} · auto {at}
+      </span>
+      <button type="button" className="btn-secondary px-3" disabled={busy} onClick={cancel} aria-label={`Take ${ticket.number} out of the pool`} title="Take it out of the pool">
+        {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <X size={16} aria-hidden="true" />}
+      </button>
+    </span>
   );
 }
 
@@ -101,6 +136,7 @@ export default function AssignQueuePage() {
   const view = params.get('view') || 'unassigned';
   const page = Number(params.get('page')) || 1;
   const [notice, setNotice] = useState('');
+  const [pooling, setPooling] = useState(null);
 
   const query = useQuery({
     queryKey: ['requests', 'queue', 'assign', view, page],
@@ -144,13 +180,24 @@ export default function AssignQueuePage() {
         onPriorityChanged={(fresh, message) => done(message)}
         renderActions={(t) =>
           view === 'unassigned' ? (
-            <QuickAssign ticket={t} engineers={engineers.data || []} onDone={done} />
+            <QuickAssign ticket={t} engineers={engineers.data || []} onDone={done} onPool={setPooling} />
           ) : (
             <QuickClose ticket={t} onDone={done} />
           )
         }
       />
       {query.data && <Pager page={page} total={query.data.total} pageSize={query.data.pageSize} onPage={(p) => setParams({ view, page: String(p) })} />}
+      {pooling && (
+        <PoolDialog
+          ticket={pooling}
+          staff={engineers.data || []}
+          onClose={() => setPooling(null)}
+          onDone={(fresh, message) => {
+            setPooling(null);
+            done(message);
+          }}
+        />
+      )}
     </section>
   );
 }

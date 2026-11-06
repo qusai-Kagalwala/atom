@@ -50,3 +50,10 @@ export const getTimeFrames = () => http.get('/requests/time-frames').then((r) =>
 
 // Super Admin only: move a ticket or request to any status, with a reason (6 Nov 2026).
 export const changeTicketStatus = (number, body) => http.post(`/requests/${number}/status`, body).then((r) => r.data.request);
+
+// Pool assignment (Phase 2): send an unassigned ticket to occupations / people / everyone available; a pool
+// member takes it; the assigner can take it back to the Assign queue.
+export const sendToPool = (number, body) => http.post(`/requests/${number}/pool`, body).then((r) => r.data.request);
+export const cancelPool = (number) => http.post(`/requests/${number}/pool/cancel`).then((r) => r.data.request);
+export const takeTicket = (number) => http.post(`/requests/${number}/take`).then((r) => r.data.request);
+export const listPoolQueue = (params) => http.get('/requests/queue/pool', { params }).then((r) => r.data);

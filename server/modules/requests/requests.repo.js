@@ -12,10 +12,10 @@ const STAFF = (alias) => `CASE WHEN ${alias}.id IS NULL THEN NULL ELSE json_buil
 
 const REQUEST_SELECT = `
   SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.description, r.location,
-         r.category_id, c.name AS category_name, r.service_unit_id, s.code AS service_unit_code, s.name AS service_unit_name,
+         r.category_id, c.name AS category_name, c.occupation_id AS category_occupation_id, r.service_unit_id, s.code AS service_unit_code, s.name AS service_unit_name,
          r.requester_id, r.raised_by_id, r.assigned_engineer_id, r.resolution, r.rejection_note,
          r.created_at, r.updated_at, r.assigned_at, r.resolved_at, r.closed_at, r.rejected_at, r.due_from, r.due_by,
-         r.ticket_item_id, r.ticket_problem_id, r.problem_text,
+         r.ticket_item_id, r.ticket_problem_id, r.problem_text, r.pool_started_at,
          (SELECT ti.name FROM ticket_items ti WHERE ti.id = r.ticket_item_id) AS item_name,
          (SELECT tp.name FROM ticket_problems tp WHERE tp.id = r.ticket_problem_id) AS problem_name,
          ${PERSON('req')} AS requester,
@@ -119,6 +119,34 @@ async function assignEngineer(db, id, engineerId, status) {
       WHERE id = $1::bigint`,
     [id, engineerId, status]
   );
+}
+
+// ---------- pool (030) ----------
+async function poolMembers(db, requestId) {
+  const { rows } = await db.query(
+    `SELECT u.id::text AS id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name FROM request_pool p
+       JOIN users u ON u.id = p.user_id WHERE p.request_id = $1::bigint ORDER BY lower(u.name)`,
+    [requestId]
+  );
+  return rows;
+}
+
+async function isPoolMember(db, requestId, userId) {
+  const { rows } = await db.query('SELECT 1 FROM request_pool WHERE request_id = $1::bigint AND user_id = $2::bigint', [requestId, userId]);
+  return rows.length > 0;
+}
+
+async function setPool(db, requestId, userIds, byUserId) {
+  await db.query('DELETE FROM request_pool WHERE request_id = $1::bigint', [requestId]);
+  await db.query('INSERT INTO request_pool (request_id, user_id) SELECT $1::bigint, unnest($2::bigint[])', [requestId, userIds]);
+  await db.query('UPDATE requests SET pool_started_at = now(), pool_started_by = $2::bigint WHERE id = $1::bigint', [requestId, byUserId]);
+}
+
+// → true when there was a pool.
+async function clearPool(db, requestId) {
+  const { rowCount } = await db.query('DELETE FROM request_pool WHERE request_id = $1::bigint', [requestId]);
+  await db.query('UPDATE requests SET pool_started_at = NULL, pool_started_by = NULL WHERE id = $1::bigint AND pool_started_at IS NOT NULL', [requestId]);
+  return rowCount > 0;
 }
 
 async function setPriority(db, id, priority) {
@@ -225,7 +253,7 @@ async function listMine(db, userId, companyId, { open, limit, offset }) {
   const { rows } = await db.query(
     `SELECT r.id, r.number, r.type, r.status, r.priority, r.title, r.created_at, r.updated_at,
             r.due_from, r.due_by, r.resolved_at, r.closed_at, r.rejected_at,
-            c.name AS category_name, ${PERSON('req')} AS requester,
+            c.name AS category_name, c.occupation_id AS category_occupation_id, ${PERSON('req')} AS requester,
             ${STAFF('eng')} AS assigned_engineer,
             count(*) OVER () AS total
        FROM requests r
@@ -295,6 +323,7 @@ async function listRequests(db, scope, f) {
             ${STAFF('eng')} AS assigned_engineer,
             (SELECT max(e.created_at) FROM request_events e
               WHERE e.request_id = r.id AND e.type IN ('created', 'status', 'assigned')) AS status_since,
+            r.pool_started_at, (SELECT count(*)::int FROM request_pool p WHERE p.request_id = r.id) AS pool_size,
             count(*) OVER () AS total
        FROM requests r
        JOIN users req ON req.id = r.requester_id
@@ -324,6 +353,10 @@ async function queueCounts(db, userId, companyId) {
 }
 
 module.exports = {
+  poolMembers,
+  isPoolMember,
+  setPool,
+  clearPool,
   listRequests,
   queueCounts,
   getByNumber,

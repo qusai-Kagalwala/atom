@@ -11,6 +11,7 @@ const pool = require('./db/pool');
 const timeFrames = require('./modules/requests/timeFrames');
 const email = require('./modules/notifications/email');
 const wifi = require('./modules/wifi/wifi.service');
+const requests = require('./modules/requests/requests.service');
 
 const EVERY_MS = 60_000;
 let timer = null;
@@ -19,11 +20,13 @@ let running = false;
 // One round. publish: how new notifications go out (default: live sockets + push from the web server).
 // → { overdue, emailsSent, emailsFailed, emailsCleaned }
 async function runOnce({ publish } = {}) {
+  // Pools nobody took within 12 hours → the member with the fewest ongoing tickets (before emails go out).
+  const poolsAssigned = await requests.expirePools();
   const overdue = await timeFrames.checkOverdue(publish ? { publish } : {});
   const { sent, failed } = await email.sendQueued();
   const { rowCount } = await pool.query(`DELETE FROM email_outbox WHERE status <> 'queued' AND created_at < now() - interval '90 days'`);
   const wifiExpired = await wifi.expireDue(); // Jamea Internet Access batches past their expiry: passes deleted
-  return { overdue, emailsSent: sent, emailsFailed: failed, emailsCleaned: rowCount, wifiExpired };
+  return { overdue, poolsAssigned, emailsSent: sent, emailsFailed: failed, emailsCleaned: rowCount, wifiExpired };
 }
 
 async function tick() {
