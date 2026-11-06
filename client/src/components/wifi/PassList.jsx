@@ -86,7 +86,7 @@ export default function PassList({ passes, onChanged, showDepartment = false, em
         </button>
       </div>
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
-      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white">
+      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
         {passes.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 font-ui text-sm">
             <span className="min-w-0 flex-1">

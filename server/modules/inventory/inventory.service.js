@@ -7,7 +7,7 @@
 //     the next import preview can warn before overwriting it.
 const pool = require('../../db/pool');
 const { HttpError, notFound } = require('../../utils/httpError');
-const { isAdmin } = require('../../utils/roles');
+const { isAdmin, canEditAssets } = require('../../utils/roles');
 
 const STATUSES = ['IN_STORE', 'IN_USE', 'IN_REPAIR', 'RETIRED'];
 const bad = (message, code) => new HttpError(400, message, code);
@@ -163,7 +163,7 @@ async function toDetail(db, user, a) {
     createdAt: a.created_at,
     history: events.map((e) => ({ id: String(e.id), type: e.type, note: e.note, data: e.data, at: e.created_at, actor: e.actor })),
     sitsHere: await placeOccupants(db, a.place),
-    permissions: { canManage: isAdmin(user) },
+    permissions: { canManage: canEditAssets(user), canChangeStatus: isAdmin(user) },
   };
 }
 

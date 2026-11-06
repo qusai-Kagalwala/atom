@@ -162,6 +162,22 @@ maybe('Jamea Internet Access (Wi-Fi passes) on real PostgreSQL', () => {
     const hod = as(await login('40000001', 'EMPLOYEE', co.avit));
     await hod.post(`/batches/${batchId}/assign`, { departmentId: dept.lib, people: [{ name: 'Person A', count: 3 }] });
     expect((await admin.post(`/batches/${batchId}/allocate`, { items: [{ departmentId: dept.lib, count: 2 }] })).body.code).toBe('below_given');
+
+    // Move unused passes: Library has 8 (3 given, 5 unused).
+    const move = (body) => admin.post(`/batches/${batchId}/move`, { fromDepartmentId: dept.lib, ...body });
+    expect((await move({ toDepartmentId: dept.acc, count: 6 })).body.code).toBe('not_enough');
+    expect((await move({ toDepartmentId: dept.lib, count: 1 })).body.code).toBe('same_department');
+    expect((await move({ toDepartmentId: dept.acc, count: 0 })).body.code).toBe('bad_count');
+    r = await move({ toDepartmentId: dept.acc, count: 4 });
+    expect(r.status).toBe(200);
+    expect(r.body.departments.find((d) => d.id === dept.lib)).toMatchObject({ allocated: 4, given: 3, left: 1 });
+    expect(r.body.departments.find((d) => d.id === dept.acc)).toMatchObject({ allocated: 9, given: 0, left: 9 });
+    r = await move({ toDepartmentId: null, count: 1 });
+    expect(r.body.departments.find((d) => d.id === dept.lib)).toMatchObject({ allocated: 3, given: 3, left: 0 });
+    expect(r.body.batch.counts).toMatchObject({ free: 8 });
+    const titles = (await pool.query(`SELECT title FROM notifications WHERE user_id = $1 ORDER BY id`, [ids.hod])).rows.map((x) => x.title);
+    expect(titles.slice(-2)).toEqual(['4 Jamea Internet Access passes taken back from Wifi Library', '1 Jamea Internet Access pass taken back from Wifi Library']);
+    expect((await hod.post(`/batches/${batchId}/move`, { fromDepartmentId: dept.lib, toDepartmentId: dept.acc, count: 1 })).status).toBe(404);
   });
 
   test('HOD page: own department only; give by ITS / by hand / bulk; take back; share; request more', async () => {

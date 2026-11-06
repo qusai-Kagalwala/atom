@@ -11,6 +11,7 @@
 //   POST   /batches   multipart: file (.csv), name, ssid, expiresAt, commit?, skipErrors?   → preview | saved
 //   GET    /batches/:id                          → { batch, departments }
 //   POST   /batches/:id/allocate  { items:[{ departmentId, count }] }
+//   POST   /batches/:id/move      { fromDepartmentId, toDepartmentId (null = unallocated), count }  unused passes only
 //   POST   /batches/:id/reset                    → { summary }   deletes the passes now
 //   GET    /batches/:id/passes?view=&q=&departmentId=&page=
 //   GET    /requests · POST /requests/:id  { status: done|declined, note? }
@@ -76,6 +77,7 @@ function createWifiRouter() {
   }));
   router.get('/batches/:id', admin, handle(async (req, res) => res.json(await svc.getBatch(req.user, req.params.id))));
   router.post('/batches/:id/allocate', admin, handle(async (req, res) => res.json(await svc.allocate(req.user, req.params.id, req.body?.items))));
+  router.post('/batches/:id/move', admin, handle(async (req, res) => res.json(await svc.movePasses(req.user, req.params.id, req.body || {}))));
   router.post('/batches/:id/reset', admin, handle(async (req, res) => res.json(await svc.resetBatch(req.user, req.params.id))));
   router.get('/batches/:id/passes', admin, handle(async (req, res) => res.json(await svc.listPasses(req.user, req.params.id, req.query))));
   router.get('/requests', admin, handle(async (req, res) => res.json({ requests: await svc.listRequests(req.user) })));

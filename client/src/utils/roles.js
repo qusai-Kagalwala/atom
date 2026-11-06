@@ -38,6 +38,8 @@ const ICONS = {
 
 // Admin of the active company (or the Super Admin inside it).
 export const isAdminRole = (role) => role === 'ADMIN' || role === 'SUPER_ADMIN';
+// Add / edit / move / assign / return assets: the Admin, and AVIT engineers (the server decides; this only shows the buttons).
+export const canEditAssets = (user) => isAdminRole(user?.activeRole) || (user?.activeRole === 'ENGINEER' && user?.company?.code === 'AVIT');
 
 // Nav items for the ACTIVE role, in order. Items limited to some companies are left out elsewhere;
 // the AI assistant shows only while the company's assistant is switched on (Super Admin, step C).

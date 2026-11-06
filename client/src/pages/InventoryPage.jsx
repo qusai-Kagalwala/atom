@@ -9,7 +9,7 @@ import { CategoriesTab, PlacesTab, PlacePicker } from '../components/InventorySe
 import Modal from '../components/Modal';
 import { Pager, Tabs } from '../components/RequestList';
 import useAuth from '../hooks/useAuth';
-import { isAdminRole, roleLabel } from '../utils/roles';
+import { canEditAssets, isAdminRole, roleLabel } from '../utils/roles';
 import { ASSET_STATUS, assetTitle, assetWhere, statusClass, statusLabel } from '../utils/assets';
 
 const selectClass =
@@ -85,7 +85,7 @@ function AddAssetModal({ categories, onClose, onDone }) {
   );
 }
 
-function AssetsTab({ isAdmin }) {
+function AssetsTab({ isAdmin, canEdit }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') || '');
@@ -190,8 +190,9 @@ function AssetsTab({ isAdmin }) {
           {query.isFetching && <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
           {query.isSuccess && `${query.data.total} ${query.data.total === 1 ? 'asset' : 'assets'}`}
         </p>
-        {isAdmin && (
+        {canEdit && (
           <div className="flex flex-wrap gap-2">
+            {isAdmin && (
             <button
               type="button"
               className="btn-secondary"
@@ -215,6 +216,7 @@ function AssetsTab({ isAdmin }) {
               {exporting ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />} Export
               {query.isSuccess && ` (${query.data.total})`}
             </button>
+            )}
             <button type="button" className="btn-secondary" onClick={() => setAdding(true)}>
               <Plus size={16} aria-hidden="true" /> Add asset
             </button>
@@ -281,6 +283,7 @@ const TABS = [
 export default function InventoryPage() {
   const { user } = useAuth();
   const isAdmin = isAdminRole(user.activeRole);
+  const canEdit = canEditAssets(user);
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'assets';
 
@@ -291,7 +294,7 @@ export default function InventoryPage() {
           <p className="font-ui text-xs uppercase tracking-wider text-gold-dark">{user.company?.name} · {isAdmin ? 'Admin' : roleLabel(user.activeRole, user)}</p>
           <h1 className="mt-1 text-3xl">Inventory</h1>
           <p className="mt-1 font-ui text-sm text-ink-2">
-            Every asset of {user.company?.name || 'this company'}, where it is and who has it.{!isAdmin && ' Read only.'}
+            Every asset of {user.company?.name || 'this company'}, where it is and who has it.{!canEdit && ' Read only.'}
           </p>
         </div>
         {isAdmin && (
@@ -306,7 +309,7 @@ export default function InventoryPage() {
         )}
       </div>
       <Tabs tabs={TABS} value={tab} onChange={(v) => setParams(v === 'assets' ? {} : { tab: v })} />
-      {tab === 'assets' && <AssetsTab isAdmin={isAdmin} />}
+      {tab === 'assets' && <AssetsTab isAdmin={isAdmin} canEdit={canEdit} />}
       {tab === 'places' && <PlacesTab isAdmin={isAdmin} />}
       {tab === 'categories' && <CategoriesTab isAdmin={isAdmin} />}
     </section>

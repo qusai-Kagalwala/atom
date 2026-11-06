@@ -12,5 +12,9 @@ const hasCompany = (user) => Boolean(user?.companyId);
 const isAdmin = (user) => hasCompany(user) && ADMIN_ROLES.includes(user.activeRole);
 const isSuperAdmin = (user) => user?.activeRole === 'SUPER_ADMIN';
 const isStaff = (user) => hasCompany(user) && user.activeRole === 'ENGINEER';
+// Who may add / edit / move / assign / return assets (decided 5 Nov 2026): the company's Admin, and in AVIT
+// also its engineers. Changing status (retire), imports, categories and places stay with the Admin.
+const ASSET_EDITOR_COMPANIES = ['AVIT'];
+const canEditAssets = (user) => isAdmin(user) || (isStaff(user) && ASSET_EDITOR_COMPANIES.includes(user.company?.code));
 
-module.exports = { ADMIN_ROLES, STAFF_ROLES, hasCompany, isAdmin, isSuperAdmin, isStaff };
+module.exports = { ADMIN_ROLES, STAFF_ROLES, hasCompany, isAdmin, isSuperAdmin, isStaff, canEditAssets };

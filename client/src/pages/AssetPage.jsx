@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CircleAlert, LoaderCircle, MapPin, Pencil, RotateCcw, Tag, UserRound, UserRoundCheck } from 'lucide-react';
-import { assetAction, getAsset, listAssetCategories, updateAsset } from '../api/inventory';
-import { listUsers } from '../api/users';
+import { assetAction, getAsset, listAssetCategories, searchInventoryPeople, updateAsset } from '../api/inventory';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
 import { PlacePicker } from '../components/InventorySetup';
@@ -58,6 +57,8 @@ function useAction(onDone) {
   return { busy, error, setError, run };
 }
 
+const personId = (u) => (u.itsNumber ? `ITS ${u.itsNumber}` : `Employee ID ${u.employeeId}`);
+
 function PersonPicker({ value, onChange }) {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -65,14 +66,16 @@ function PersonPicker({ value, onChange }) {
     const t = setTimeout(() => setQ(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  const people = useQuery({ queryKey: ['users', 'pick', q], queryFn: () => listUsers({ q, status: 'active', pageSize: 8 }), enabled: q.length >= 2 && !value });
+  // Company Admins and AVIT engineers search here (the Super-Admin-only users list is not used).
+  const people = useQuery({ queryKey: ['inventory', 'people', q], queryFn: () => searchInventoryPeople(q), enabled: q.length >= 2 && !value });
+  const found = (people.data || []).filter((u) => u.isActive).slice(0, 8);
 
   if (value) {
     return (
       <div className="flex items-center gap-2 rounded-btn border border-line bg-cream-dark px-3 py-2 font-ui text-sm">
         <UserRound size={16} className="text-brand" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">
-          {value.name} <span className="text-ink-3">· {loginIdLabel(value)}</span>
+          {value.name} <span className="text-ink-3">· {personId(value)}</span>
         </span>
         <button type="button" onClick={() => onChange(null)} className="text-xs text-brand hover:underline">
           Change
@@ -89,11 +92,11 @@ function PersonPicker({ value, onChange }) {
       {q.length >= 2 && (
         <ul className="mt-1 max-h-56 divide-y divide-line overflow-y-auto rounded-btn border border-line bg-surface">
           {people.isPending && <li className="px-3 py-2 font-ui text-sm text-ink-3">Searching…</li>}
-          {people.isSuccess && !people.data.users.length && <li className="px-3 py-2 font-ui text-sm text-ink-3">Nobody found.</li>}
-          {(people.data?.users || []).map((u) => (
+          {people.isSuccess && !found.length && <li className="px-3 py-2 font-ui text-sm text-ink-3">Nobody found.</li>}
+          {found.map((u) => (
             <li key={u.id}>
               <button type="button" onClick={() => onChange(u)} className="block min-h-tap w-full px-3 py-1.5 text-left font-ui text-sm hover:bg-gold-muted">
-                {u.name} <span className="text-ink-3">· {loginIdLabel(u)}</span>
+                {u.name} <span className="text-ink-3">· {personId(u)}</span>
               </button>
             </li>
           ))}
@@ -294,9 +297,11 @@ export default function AssetPage() {
             <button type="button" className="btn-secondary" onClick={() => open('move')}>
               <MapPin size={16} aria-hidden="true" /> Move
             </button>
-            <button type="button" className="btn-secondary" onClick={() => open('status')}>
-              Change status
-            </button>
+            {a.permissions.canChangeStatus && (
+              <button type="button" className="btn-secondary" onClick={() => open('status')}>
+                Change status
+              </button>
+            )}
             <button type="button" className="btn-secondary" onClick={() => open('edit')}>
               <Pencil size={16} aria-hidden="true" /> Edit
             </button>

@@ -284,14 +284,44 @@ maybe('inventory on real PostgreSQL', () => {
     expect(await tags(admin, '?q=mcr-video')).toEqual(['AJSM-PTZ-C01']);
     expect(await tags(admin, '?q=H2TRA')).toEqual(['AJSM-PTZ-C01']);
     expect(await tags(eng, '?status=IN_REPAIR')).toEqual(['AJSM-PND-001']);
-    expect((await eng.get('/assets/AJSM-TV-005')).body.asset.permissions).toEqual({ canManage: false });
+    expect((await eng.get('/assets/AJSM-TV-005')).body.asset.permissions).toEqual({ canManage: true, canChangeStatus: false }); // AVIT engineer
     expect((await eng.get('/places?q=1615')).body.places.map((p) => p.name)).toEqual(['1615-C']);
 
     for (const p of ['/assets', '/assets/AJSM-TV-005', '/categories', '/places']) expect((await alice.get(p)).status).toBe(404);
-    expect((await eng.post('/assets/AJSM-TV-005/assign', { userId: ids.eng })).status).toBe(404);
+    expect((await eng.post('/assets/AJSM-TV-005/status', { status: 'RETIRED', note: 'x' })).status).toBe(404); // status stays with the Admin
+    expect((await eng.post('/categories', { name: 'New' })).status).toBe(404);
     expect((await eng.import(csv(BASE), { commit: true })).status).toBe(404);
     expect((await request(app).get('/Atom/api/inventory/mine')).status).toBe(401);
     expect((await admin.get('/assets?status=nope')).status).toBe(400);
+  });
+
+  test('AVIT engineers add, edit, move, assign and return assets; other companies\' engineers can\'t', async () => {
+    await admin.import(csv(BASE), { commit: true });
+    const place = (await admin.post('/places', { name: 'AVIT Office', roomNo: '1008' })).body.place;
+    const cat = (await eng.get('/categories')).body.categories[0];
+
+    const add = await eng.post('/assets', { tag: 'AJSM-NEW-001', name: 'Spare mic', categoryId: cat.id, placeId: place.id });
+    expect(add.status).toBe(201);
+    expect(add.body.asset).toMatchObject({ tag: 'AJSM-NEW-001', status: 'IN_STORE' });
+    expect((await eng.patch('/assets/AJSM-NEW-001', { serial: 'SN-42' })).body.asset.serial).toBe('SN-42');
+    const people = (await eng.get('/people?q=Alice')).body.people;
+    expect(people.map((x) => x.name)).toEqual(['Alice Hamid']);
+    let a = (await eng.post('/assets/AJSM-NEW-001/assign', { userId: people[0].id, note: 'For the event' })).body.asset;
+    expect(a).toMatchObject({ status: 'IN_USE', holder: { name: 'Alice Hamid' } });
+    a = (await eng.post('/assets/AJSM-NEW-001/return', { placeId: place.id })).body.asset;
+    expect(a).toMatchObject({ status: 'IN_STORE', holder: null });
+    const shelf = (await admin.post('/places', { name: 'AVIT Shelf', roomNo: '1009' })).body.place;
+    a = (await eng.post('/assets/AJSM-NEW-001/move', { placeId: shelf.id, note: 'shelf' })).body.asset;
+    expect(a.place.name).toBe('AVIT Shelf');
+    expect(a.history[0].actor).toMatchObject({ name: 'Eng One' });
+    expect((await eng.get(`/people/${ids.alice}`)).status).toBe(404); // onboarding view stays with the Admin
+
+    ids.sEng = await addUser('40000009', 'Siyanaat Eng', ['EMPLOYEE', 'ENGINEER']);
+    await staffOf(pool, ids.sEng, 'SIYANAAT', 'Electrician');
+    const sEng = as(await login('40000009', 'ENGINEER'));
+    expect((await sEng.get('/assets')).status).toBe(200);
+    expect((await sEng.post('/assets', { tag: 'S-1', name: 'x', categoryId: cat.id })).status).toBe(404);
+    expect((await sEng.get('/people?q=Alice')).status).toBe(404);
   });
 
   test('places: edit, cubicle upper-cased, can\'t deactivate while assets are there', async () => {

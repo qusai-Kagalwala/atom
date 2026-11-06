@@ -36,6 +36,7 @@ const lifecycle = require('./lifecycle');
 const svc = require('./requests.service');
 const sr = require('./serviceRequests.service');
 const timeFrames = require('./timeFrames');
+const { sendStoredFile } = require('../../utils/sendStoredFile');
 
 const handle = (fn) => async (req, res, next) => {
   const err = validationResult(req).array({ onlyFirstError: true })[0];
@@ -186,15 +187,12 @@ function createRequestsRouter() {
     '/:number/attachments/:attachmentId',
     handle(async (req, res) => {
       const file = await svc.getAttachmentFile(req.user, req.params.number, req.params.attachmentId);
-      res.set({
-        'Content-Type': file.mimeType,
-        'Cache-Control': 'private, max-age=3600',
-        'Content-Disposition': 'inline',
-        'X-Content-Type-Options': 'nosniff',
-      });
-      res.sendFile(file.path, (err) => {
-        if (err && !res.headersSent) res.status(404).json({ message: 'Not found.' });
-      });
+      await sendStoredFile(
+        res,
+        file.path,
+        { 'Content-Type': file.mimeType, 'Cache-Control': 'private, max-age=3600', 'Content-Disposition': 'inline', 'X-Content-Type-Options': 'nosniff' },
+        `photo ${req.params.attachmentId} of ${req.params.number}`
+      );
     })
   );
 

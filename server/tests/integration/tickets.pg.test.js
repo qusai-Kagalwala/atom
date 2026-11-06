@@ -154,6 +154,18 @@ maybe('tickets on real PostgreSQL', () => {
     const onDisk = fs.readdirSync(path.join(ATTACH_DIR, 'requests', t.id));
     expect(onDisk).toHaveLength(2);
     expect(onDisk.every((f) => /^[0-9a-f-]{36}\.webp$/.test(f))).toBe(true);
+    expect(img.headers['cache-control']).toBe('private, max-age=3600');
+    expect(img.headers['content-length']).toBe(String(img.body.length));
+
+    // A file missing on disk: 404, logged, and never cached by the browser.
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    fs.rmSync(path.join(ATTACH_DIR, 'requests', t.id, onDisk[0]));
+    fs.rmSync(path.join(ATTACH_DIR, 'requests', t.id, onDisk[1]));
+    const gone = await alice.file(t.attachments[0].url);
+    expect(gone.status).toBe(404);
+    expect(gone.headers['cache-control']).toBe('no-store');
+    expect(err.mock.calls[0][0]).toMatch(/Could not read photo .* ENOENT/);
+    err.mockRestore();
   });
 
   test('scope: another employee gets 404 for the ticket and its photo; lists are per person', async () => {

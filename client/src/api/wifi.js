@@ -15,6 +15,8 @@ export function uploadBatch(file, fields) {
   return http.post(`${base}/batches`, form, { timeout: 120000 }).then((r) => r.data);
 }
 export const allocate = (id, items) => http.post(`${base}/batches/${id}/allocate`, { items }).then((r) => r.data);
+// Move unused passes from one department to another (toDepartmentId null = back to the unallocated pool).
+export const movePasses = (id, body) => http.post(`${base}/batches/${id}/move`, body).then((r) => r.data);
 export const resetBatch = (id) => http.post(`${base}/batches/${id}/reset`).then((r) => r.data);
 export const listPasses = (id, params) => http.get(`${base}/batches/${id}/passes`, { params }).then((r) => r.data);
 export const listWifiRequests = () => http.get(`${base}/requests`).then((r) => r.data.requests);

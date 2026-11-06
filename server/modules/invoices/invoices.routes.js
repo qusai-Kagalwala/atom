@@ -16,6 +16,7 @@ const { query, validationResult } = require('express-validator');
 const { requireAuth, requireRole, requireCompany } = require('../../middleware/requireAuth');
 const { invoiceFileField } = require('./invoiceFiles');
 const svc = require('./invoices.service');
+const { sendStoredFile } = require('../../utils/sendStoredFile');
 
 const handle = (fn) => async (req, res, next) => {
   const err = validationResult(req).array({ onlyFirstError: true })[0];
@@ -72,17 +73,19 @@ function createInvoicesRouter() {
     '/:number/file',
     handle(async (req, res) => {
       const file = await svc.getFile(req.user, req.params.number);
-      res.set({
-        'Content-Type': file.mimeType,
-        'Cache-Control': 'private, max-age=3600',
-        'Content-Disposition': `inline; filename="${file.downloadName}"`,
-        'X-Content-Type-Options': 'nosniff',
-        // A PDF opened straight from this URL can't run scripts against ATOM.
-        'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
-      });
-      res.sendFile(file.path, (err) => {
-        if (err && !res.headersSent) res.status(404).json({ message: 'Not found.' });
-      });
+      await sendStoredFile(
+        res,
+        file.path,
+        {
+          'Content-Type': file.mimeType,
+          'Cache-Control': 'private, max-age=3600',
+          'Content-Disposition': `inline; filename="${file.downloadName}"`,
+          'X-Content-Type-Options': 'nosniff',
+          // A PDF opened straight from this URL can't run scripts against ATOM.
+          'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+        },
+        `invoice file ${req.params.number}`
+      );
     })
   );
 

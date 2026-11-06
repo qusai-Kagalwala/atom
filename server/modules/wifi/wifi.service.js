@@ -388,6 +388,48 @@ async function allocate(user, batchId, items = []) {
   return getBatch(user, batchId);
 }
 
+// Move unused passes from one department to another, or back to the unallocated pool (toDepartmentId null).
+// Only passes not yet given to anyone move. Both HODs are told (no credentials).
+async function movePasses(user, batchId, body = {}) {
+  const from = String(body.fromDepartmentId ?? '');
+  const to = body.toDepartmentId == null || body.toDepartmentId === '' ? null : String(body.toDepartmentId);
+  const count = Number(body.count);
+  if (!Number.isInteger(count) || count < 1 || count > MAX_ROWS) throw bad('Choose how many passes to move.', 'bad_count');
+  if (from === to) throw bad('Choose a different department to move them to.', 'same_department');
+  const rows = await inTx(async (db) => {
+    const b = await liveBatch(db, user, batchId, { lock: true });
+    const { rows: depts } = await db.query('SELECT id::text AS id, name FROM departments WHERE is_active AND id = ANY($1::bigint[])', [[from, to].filter(Boolean)]);
+    const name = new Map(depts.map((d) => [d.id, d.name]));
+    if (!name.has(from) || (to && !name.has(to))) throw bad('Unknown department.', 'bad_department');
+    const { rowCount } = await db.query(
+      `UPDATE wifi_passes SET department_id = $3::bigint, allocated_at = CASE WHEN $3::bigint IS NULL THEN NULL ELSE now() END
+        WHERE id IN (SELECT id FROM wifi_passes WHERE batch_id = $1::bigint AND department_id = $2::bigint AND assigned_at IS NULL
+                      ORDER BY id DESC LIMIT $4::int FOR UPDATE)`,
+      [b.id, from, to, count]
+    );
+    if (rowCount < count) throw bad(`${name.get(from)} has only ${rowCount} unused ${rowCount === 1 ? 'pass' : 'passes'}.`, 'not_enough');
+    const toName = to ? name.get(to) : 'the unallocated pool';
+    await log(db, { batchId: b.id, kind: 'take_back', actorId: user.id, departmentId: from, count, note: `moved to ${toName}` });
+    if (to) await log(db, { batchId: b.id, kind: 'allocate', actorId: user.id, departmentId: to, count, note: `moved from ${name.get(from)}` });
+    const out = [];
+    const tell = async (dep, title) => {
+      for (const uid of await hodUsers(db, dep)) {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await notifRepo.insertForUser(db, {
+          userId: uid, type: 'wifi', title, body: `Batch "${b.name}" · valid until ${fmtDate(b.expires_at)}`, link: '/wifi', actorId: user.id, companyId: user.companyId,
+        });
+        if (r) out.push(r);
+      }
+    };
+    const n = `${count} Jamea Internet Access ${count === 1 ? 'pass' : 'passes'}`;
+    await tell(from, `${n} taken back from ${name.get(from)}`);
+    if (to) await tell(to, `${n} for ${name.get(to)}`);
+    return out;
+  });
+  notifications.publish(rows, null);
+  return getBatch(user, batchId);
+}
+
 async function hodUsers(db, departmentId) {
   const posts = await hodPosts(db);
   const { rows } = await db.query(
@@ -736,5 +778,5 @@ async function decideRequest(user, id, body = {}) {
 module.exports = {
   me, getSettings, setHodPosts, listBatches, getBatch, uploadBatch, resetBatch, expireDue, allocate, departmentList,
   listPasses, departmentView, lookupIts, assign, unassign, markWhatsapp, emailPasses, requestMore, listRequests, decideRequest,
-  readPassesCsv, parseCsvText, passMessage, passEmail, recipientUntil, RECIPIENT_DAYS, hodDepartments, setDeps,
+  readPassesCsv, parseCsvText, movePasses, passMessage, passEmail, recipientUntil, RECIPIENT_DAYS, hodDepartments, setDeps,
 };

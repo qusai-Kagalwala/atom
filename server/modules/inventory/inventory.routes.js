@@ -9,12 +9,14 @@
 //     GET  /assets/:tag                            → { asset }   (detail + history)
 //     GET  /categories                             → { categories }
 //     GET  /places?q=&page=&pageSize=&includeInactive=1   → { places, total }
-//   Super Admin:
+//   Admin, and AVIT engineers (asset editors, decided 5 Nov 2026; other companies' engineers 404):
 //     POST  /assets                     { tag, categoryId, placeId?, …fields }  → 201 { asset }
 //     PATCH /assets/:tag                { …fields, categoryId? }               → { asset }
 //     POST  /assets/:tag/move           { placeId, note? }                     → { asset }
 //     POST  /assets/:tag/assign         { userId, note? }                      → { asset }
 //     POST  /assets/:tag/return         { placeId?, note? }                    → { asset }
+//     GET   /people?q=  (person search for assigning; see below)
+//   Admin only:
 //     POST  /assets/:tag/status         { status, note (required to retire) }  → { asset }
 //     POST  /categories {name} · PATCH /categories/:id {name} · POST /categories/:id/merge {intoId}
 //     POST  /places {…} · PATCH /places/:id {…, isActive?}
@@ -32,6 +34,7 @@ const express = require('express');
 const multer = require('multer');
 const { query, validationResult } = require('express-validator');
 const { requireAuth, requireRole, requireCompany, requireCompanyCode, requireAdmin } = require('../../middleware/requireAuth');
+const { canEditAssets } = require('../../utils/roles');
 const { HttpError } = require('../../utils/httpError');
 const { MAX_BYTES } = require('../../utils/csv');
 const svc = require('./inventory.service');
@@ -102,6 +105,8 @@ function createInventoryRouter() {
 
   const read = requireRole('ENGINEER', 'ADMIN', 'SUPER_ADMIN');
   const admin = requireAdmin;
+  // Add / edit / move / assign / return: the Admin, and AVIT engineers (others 404).
+  const assetEditor = [requireCompany, (req, res, next) => (canEditAssets(req.user) ? next() : res.status(404).json({ message: 'Not found.' }))];
 
   router.get(
     '/assets',
@@ -137,15 +142,15 @@ function createInventoryRouter() {
     })
   );
 
-  router.post('/assets', admin, handle(async (req, res) => res.status(201).json({ asset: await svc.createAsset(req.user, req.body || {}) })));
-  router.patch('/assets/:tag', admin, handle(async (req, res) => res.json({ asset: await svc.updateAsset(req.user, req.params.tag, req.body || {}) })));
-  router.post('/assets/:tag/move', admin, handle(async (req, res) => res.json({ asset: await svc.moveAsset(req.user, req.params.tag, req.body || {}) })));
-  router.post('/assets/:tag/assign', admin, handle(async (req, res) => res.json({ asset: await svc.assignAsset(req.user, req.params.tag, req.body || {}) })));
-  router.post('/assets/:tag/return', admin, handle(async (req, res) => res.json({ asset: await svc.returnAsset(req.user, req.params.tag, req.body || {}) })));
+  router.post('/assets', assetEditor, handle(async (req, res) => res.status(201).json({ asset: await svc.createAsset(req.user, req.body || {}) })));
+  router.patch('/assets/:tag', assetEditor, handle(async (req, res) => res.json({ asset: await svc.updateAsset(req.user, req.params.tag, req.body || {}) })));
+  router.post('/assets/:tag/move', assetEditor, handle(async (req, res) => res.json({ asset: await svc.moveAsset(req.user, req.params.tag, req.body || {}) })));
+  router.post('/assets/:tag/assign', assetEditor, handle(async (req, res) => res.json({ asset: await svc.assignAsset(req.user, req.params.tag, req.body || {}) })));
+  router.post('/assets/:tag/return', assetEditor, handle(async (req, res) => res.json({ asset: await svc.returnAsset(req.user, req.params.tag, req.body || {}) })));
   router.post('/assets/:tag/status', admin, handle(async (req, res) => res.json({ asset: await svc.setStatus(req.user, req.params.tag, req.body || {}) })));
 
   // Onboarding / offboarding (Phase 10): people, their equipment here, receive many, to recover.
-  router.get('/people', admin, handle(async (req, res) => res.json({ people: await onboarding.searchPeople(req.user, req.query.q) })));
+  router.get('/people', assetEditor, handle(async (req, res) => res.json({ people: await onboarding.searchPeople(req.user, req.query.q) })));
   router.get('/people/:id', admin, handle(async (req, res) => res.json(await onboarding.personEquipment(req.user, req.params.id))));
   router.post('/people/:id/receive', admin, handle(async (req, res) => res.json(await onboarding.receive(req.user, req.params.id, req.body || {}))));
   router.get('/to-recover', admin, handle(async (req, res) => res.json(await onboarding.toRecover(req.user))));

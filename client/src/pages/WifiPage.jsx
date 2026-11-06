@@ -273,7 +273,7 @@ function Requests() {
     <div className="space-y-3">
       {error && <Alert tone="error">{error}</Alert>}
       <p className="font-ui text-sm text-ink-2">Allocate the passes from a batch (Allocate & give), then mark the request done.</p>
-      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-white font-ui text-sm">
+      <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface font-ui text-sm">
         {q.data.map((r) => (
           <li key={r.id} className="space-y-2 px-4 py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -406,7 +406,7 @@ export default function WifiPage() {
       {tab === 'department' && department && (
         <>
           {hods.length > 1 && (
-            <select aria-label="Department" className="min-h-tap rounded-btn border border-line bg-white px-3 font-ui text-sm" value={department.id} onChange={(e) => setDep(e.target.value)}>
+            <select aria-label="Department" className="min-h-tap rounded-btn border border-line bg-surface px-3 font-ui text-sm" value={department.id} onChange={(e) => setDep(e.target.value)}>
               {hods.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}

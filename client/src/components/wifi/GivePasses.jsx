@@ -6,7 +6,7 @@ import { Alert, Field, TextInput } from '../FormControls';
 import { parsePeople } from '../../utils/wifi';
 
 const selectClass =
-  'min-h-tap w-full rounded-btn border border-line bg-white px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
+  'min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const blank = { its: '', name: '', mobile: '', email: '', count: 1 };
 
 // Give passes to one person or to a list. batches: [{ id, name, ssid, left }]; departmentId: null = AVIT
@@ -163,7 +163,7 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
                 setText(e.target.value);
                 setList(null);
               }}
-              className="w-full rounded-btn border border-line bg-white px-3 py-2 font-ui text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
+              className="w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-muted"
               placeholder={'30301234\nAli Asgar, 9820012345, ali@example.com\nFamily group, 9819012345, , 4'}
             />
           </Field>
@@ -173,7 +173,7 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
             </button>
           ) : (
             <>
-              <ul className="max-h-80 divide-y divide-line overflow-y-auto rounded-card border border-line bg-white font-ui text-sm">
+              <ul className="max-h-80 divide-y divide-line overflow-y-auto rounded-card border border-line bg-surface font-ui text-sm">
                 {list.map((x) => (
                   <li key={x.key} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                     <span className={x.missing ? 'text-error' : 'text-ink'}>
