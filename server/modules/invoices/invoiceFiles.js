@@ -65,11 +65,23 @@ async function processInvoiceFile(file) {
   if (!meta.width || !meta.height || meta.width * meta.height > 80_000_000) {
     throw new HttpError(400, 'This image is too large to process.', 'bad_image');
   }
-  const out = await sharp(file.buffer, { failOn: 'error' })
-    .rotate()
-    .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 88 })
-    .toBuffer();
+  // Strict first; an image cut short at the end is decoded leniently; unreadable → 400 (7 Nov 2026).
+  const encode = (failOn) =>
+    sharp(file.buffer, { failOn })
+      .rotate()
+      .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 88 })
+      .toBuffer();
+  let out;
+  try {
+    out = await encode('error');
+  } catch {
+    try {
+      out = await encode('none');
+    } catch {
+      throw new HttpError(400, 'This file could not be read as an image.', 'bad_image');
+    }
+  }
   return { sha256: hash, buffer: out, mimeType: 'image/webp', ext: 'webp' };
 }
 

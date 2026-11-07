@@ -57,16 +57,30 @@ async function processImage(input) {
     throw new HttpError(400, 'One of the photos is too large to process.', 'bad_image');
   }
 
-  const base = () =>
-    sharp(input, { failOn: 'error' })
-      .rotate() // apply EXIF orientation before the EXIF is dropped
-      .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: 'inside', withoutEnlargement: true });
-
-  let out = null;
-  for (const quality of [80, 68, 55, 42]) {
-    // eslint-disable-next-line no-await-in-loop
-    out = await base().webp({ quality }).toBuffer({ resolveWithObject: true });
-    if (out.info.size <= TARGET_BYTES) break;
+  // Strict first. A photo cut short at the end ("premature end of JPEG" — common from phones and
+  // WhatsApp) is decoded leniently instead; only a photo that can't be decoded at all is refused (7 Nov 2026).
+  const encode = async (failOn) => {
+    const base = () =>
+      sharp(input, { failOn })
+        .rotate() // apply EXIF orientation before the EXIF is dropped
+        .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: 'inside', withoutEnlargement: true });
+    let out = null;
+    for (const quality of [80, 68, 55, 42]) {
+      // eslint-disable-next-line no-await-in-loop
+      out = await base().webp({ quality }).toBuffer({ resolveWithObject: true });
+      if (out.info.size <= TARGET_BYTES) break;
+    }
+    return out;
+  };
+  let out;
+  try {
+    out = await encode('error');
+  } catch {
+    try {
+      out = await encode('none');
+    } catch {
+      throw new HttpError(400, 'One of the photos could not be read as an image.', 'bad_image');
+    }
   }
   return { buffer: out.data, width: out.info.width, height: out.info.height };
 }
