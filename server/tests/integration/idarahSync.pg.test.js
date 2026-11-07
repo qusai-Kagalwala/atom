@@ -187,6 +187,18 @@ maybe('Idarah sync + employee import on real PostgreSQL', () => {
     expect(await user('40000001')).toMatchObject({ email: 'one@example.edu', mobile: '9999999999' });
   });
 
+  test('email / mobile set by hand (032) are never overwritten; cleared ones fill again', async () => {
+    await sync(BASE_ROWS);
+    await q(`UPDATE users SET email = 'mine@example.com', email_set_by = 'self' WHERE its_number = '40000001'`);
+    const rows = BASE_ROWS.map((r) => (r.EJamaat_No === '40000001' ? { ...r, T_Email: 'new@example.edu', Mobile: '9888888888' } : r));
+    await sync(rows);
+    expect(await user('40000001')).toMatchObject({ email: 'mine@example.com', mobile: '9888888888' });
+
+    await q(`UPDATE users SET email = NULL, email_set_by = NULL WHERE its_number = '40000001'`);
+    await sync(rows);
+    expect(await user('40000001')).toMatchObject({ email: 'new@example.edu' });
+  });
+
   test('department missing from the view → inactive, kept', async () => {
     await sync(BASE_ROWS);
     await sync(BASE_ROWS.filter((r) => r.Idarah_Id !== '6002'));

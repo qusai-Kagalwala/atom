@@ -7,8 +7,9 @@
 //     a company; granting Staff needs a company and one of its occupations. Someone who already
 //     works for another company must be removed there first. Losing both roles leaves the company.
 //   - Company Admins manage their own Staff through /staff (staff.service.js), with the same rules.
-//   - Name / email / mobile editable for imported (legacy) and manual users only — synced users'
-//     details come from the Idarah view.
+//   - Name editable for imported (legacy) and manual users only — synced users' names come from the
+//     Idarah view. Email and mobile: anyone's (7 Nov 2026); a value set here is kept by the sync
+//     and the person is told (contact.js).
 //   - Super Admin password reset: employee-ID users only; the Super Admin types the new password.
 //   - Every change is logged (status → user_status_log, everything else → user_change_log).
 //   - Role removal, deactivation and password reset drop the user's live (Socket.IO) connections
@@ -20,6 +21,8 @@ const passwordsRepo = require('../auth/passwords.repo');
 const { HttpError, notFound } = require('../../utils/httpError');
 const realtime = require('../../realtime');
 const { locationLabel } = require('../sync/hrPlan');
+const contact = require('./contact');
+const notifications = require('../notifications/notifications.service');
 
 const LOCK_KEY = 727303; // user administration
 const ROLES = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
@@ -94,6 +97,7 @@ function historyText(h) {
       return `Untagged from ${d.unit}`;
     case 'profile_updated':
       if (d.source === 'contacts import') return `Contact details added from the HR sheet: ${(d.fields || []).join(', ')}`;
+      if (d.source === 'themselves') return `Contact details edited by them: ${(d.fields || []).join(', ')}`;
       return `Details edited: ${(d.fields || []).join(', ')}`;
     case 'password_reset':
       if (h.detail?.mustChange) return 'Password reset by a Super Admin (must change at next sign-in)';
@@ -124,6 +128,9 @@ async function getUserDetail(id, db = pool) {
   return {
     ...toSummary({ ...u, roles, company_code: company?.company_code, company_name: company?.company_name, occupation_name: company?.occupation_name }),
     mobile: u.mobile || null,
+    // Who set the email / mobile by hand ('self' | 'admin'), or null when it came from a sync / import.
+    emailSetBy: u.email_set_by || null,
+    mobileSetBy: u.mobile_set_by || null,
     createdAt: u.created_at,
     // Synced users' details come from their source view (Idarah or HR list).
     editable: u.source !== 'idarah' && u.source !== 'hr',
@@ -196,18 +203,27 @@ async function createUser(input, actor) {
 
 // ---------- profile ----------
 async function updateProfile(id, fields, actor) {
-  return inTransaction(async (db) => {
+  const contactFields = contact.cleanContact({ email: fields.email, mobile: fields.mobile });
+  let note = null;
+  const detail = await inTransaction(async (db) => {
     const u = await mustGetUser(db, id);
-    if (u.source === 'idarah') {
-      throw bad('Details of synced users come from the Idarah view and can\'t be edited here.', 'synced_read_only');
+    const nameChanged = 'name' in fields && fields.name !== undefined && (fields.name ?? null) !== (u.name ?? null);
+    if (nameChanged && u.source === 'idarah') {
+      throw bad('Names of synced users come from the Idarah view and can\'t be edited here.', 'synced_read_only');
     }
-    const changed = Object.keys(fields).filter((k) => (fields[k] ?? null) !== (u[k] ?? null));
-    if (changed.length) {
-      await repo.updateProfile(db, id, fields);
-      await repo.logChange(db, id, 'profile_updated', { fields: changed }, actor.id);
+    const changed = [];
+    if (nameChanged) {
+      await repo.updateProfile(db, id, { name: fields.name });
+      changed.push('name');
     }
+    const contactChanged = await contact.saveContact(db, u, contactFields, 'admin', actor.id, { log: false });
+    changed.push(...contactChanged);
+    if (changed.length) await repo.logChange(db, id, 'profile_updated', { fields: changed }, actor.id);
+    if (contactChanged.length && String(id) !== String(actor.id)) note = await contact.tellPerson(db, id, contactChanged, actor.id);
     return getUserDetail(id, db);
   });
+  if (note) notifications.publish([note], null);
+  return detail;
 }
 
 // ---------- roles ----------

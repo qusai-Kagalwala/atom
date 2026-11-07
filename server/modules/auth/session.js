@@ -62,6 +62,9 @@ function toPublicUser(row, activeRole) {
     notify: { inApp: row.notify_in_app !== false, email: row.notify_email !== false },
     displayName: nameLanguage === 'ar' ? nameArabic : name,
     email: row.email || null,
+    mobile: row.mobile || null,
+    // Set by hand (032): 'self' | 'admin', or null when it came from HR / Idarah.
+    contactSetBy: { email: row.email_set_by || null, mobile: row.mobile_set_by || null },
     roles: row.roles,
     activeRole,
     // The company this session works in, and the roles available there (role switcher).

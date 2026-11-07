@@ -65,8 +65,16 @@ function Toggle({ on, label, help, disabled, busy, onClick, badgeClass }) {
   );
 }
 
+// Email / mobile typed in by hand (032), not from HR or the Idarah view.
+function SetByTag({ by }) {
+  if (!by) return null;
+  return <span className="badge ml-2 border border-line bg-surface text-xs text-ink-3">{by === 'self' ? 'added by them' : 'set by Super Admin'}</span>;
+}
+
 function EditDetailsModal({ user, onClose, onSaved }) {
   const [form, setForm] = useState({ name: user.hasName ? user.name : '', email: user.email || '', mobile: user.mobile || '' });
+  // Synced users: only email and mobile (their name comes from the Idarah view / HR list).
+  const nameEditable = user.editable;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -76,7 +84,7 @@ function EditDetailsModal({ user, onClose, onSaved }) {
     setBusy(true);
     setError('');
     try {
-      onSaved(await updateUser(user.id, form));
+      onSaved(await updateUser(user.id, nameEditable ? form : { email: form.email, mobile: form.mobile }));
       onClose();
     } catch (err) {
       setError(errorMessage(err, 'Could not save.'));
@@ -86,7 +94,7 @@ function EditDetailsModal({ user, onClose, onSaved }) {
 
   return (
     <Modal
-      title="Edit details"
+      title={nameEditable ? 'Edit details' : 'Edit contact details'}
       onClose={onClose}
       busy={busy}
       footer={
@@ -102,15 +110,18 @@ function EditDetailsModal({ user, onClose, onSaved }) {
     >
       {error && <Alert tone="error">{error}</Alert>}
       <form id="edit-details" onSubmit={submit} className="mt-3 space-y-4" noValidate>
-        <Field id="ed-name" label="Name" hint={user.employeeId ? `Leave empty to show "Employee ${user.employeeId}".` : undefined}>
-          <TextInput id="ed-name" value={form.name} onChange={set('name')} maxLength={200} />
-        </Field>
+        {nameEditable && (
+          <Field id="ed-name" label="Name" hint={user.employeeId ? `Leave empty to show "Employee ${user.employeeId}".` : undefined}>
+            <TextInput id="ed-name" value={form.name} onChange={set('name')} maxLength={200} />
+          </Field>
+        )}
         <Field id="ed-email" label="Email" hint="Needed for the forgot-password email.">
           <TextInput id="ed-email" type="email" value={form.email} onChange={set('email')} />
         </Field>
-        <Field id="ed-mobile" label="Mobile">
-          <TextInput id="ed-mobile" inputMode="tel" value={form.mobile} onChange={set('mobile')} />
+        <Field id="ed-mobile" label="Mobile" hint="10 digits (or 12 starting with 91).">
+          <TextInput id="ed-mobile" type="tel" inputMode="tel" value={form.mobile} onChange={set('mobile')} />
         </Field>
+        <p className="font-ui text-xs text-ink-3">Kept even when the HR list or Idarah view has something else. {user.name} is told in ATOM.</p>
       </form>
     </Modal>
   );
@@ -381,26 +392,30 @@ export default function UserDetailPage() {
       <Section
         title="Details"
         action={
-          u.editable && (
-            <button type="button" className="btn-secondary" onClick={() => setDialog('edit')}>
-              <Pencil size={16} aria-hidden="true" /> Edit
-            </button>
-          )
+          <button type="button" className="btn-secondary" onClick={() => setDialog('edit')}>
+            <Pencil size={16} aria-hidden="true" /> Edit
+          </button>
         }
       >
         <dl className="grid gap-x-6 gap-y-3 font-ui text-sm sm:grid-cols-2">
           <div>
             <dt className="text-xs uppercase tracking-wider text-ink-3">Email</dt>
-            <dd className="text-ink">{u.email || <span className="text-ink-3">Not on file</span>}</dd>
+            <dd className="break-words text-ink">
+              {u.email || <span className="text-ink-3">Not on file</span>}
+              <SetByTag by={u.emailSetBy} />
+            </dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wider text-ink-3">Mobile</dt>
-            <dd className="tabular-nums text-ink">{u.mobile || <span className="text-ink-3">Not on file</span>}</dd>
+            <dd className="tabular-nums text-ink">
+              {u.mobile || <span className="text-ink-3">Not on file</span>}
+              <SetByTag by={u.mobileSetBy} />
+            </dd>
           </div>
         </dl>
         {!u.editable && (
           <p className="mt-3 font-ui text-xs text-ink-3">
-            {u.source === 'hr' ? 'Name comes from the HR employee list.' : 'Name, email and mobile come from the Idarah view.'}
+            {u.source === 'hr' ? 'Name comes from the HR employee list.' : 'Name comes from the Idarah view.'} Email and mobile can be set here or by them in their Profile; a value set by hand is kept by the sync.
           </p>
         )}
       </Section>

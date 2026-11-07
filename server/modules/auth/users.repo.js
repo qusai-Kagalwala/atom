@@ -28,7 +28,7 @@ async function findItsUser(itsNumber) {
 async function loadSessionUser(userId, companyId = null) {
   const { rows } = await pool.query(
     `SELECT u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic, u.name_language, u.notify_in_app, u.notify_email,
-            u.email, u.is_active, u.session_version, u.must_change_password,
+            u.email, u.mobile, u.email_set_by, u.mobile_set_by, u.is_active, u.session_version, u.must_change_password,
             COALESCE(array_agg(r.role::text ORDER BY r.role) FILTER (WHERE r.role IS NOT NULL), '{}') AS roles,
             uc.service_unit_id AS staff_company_id, sc.code AS staff_company_code, sc.name AS staff_company_name,
             uc.occupation_id, o.name AS occupation_name,

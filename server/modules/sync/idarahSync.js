@@ -159,17 +159,19 @@ async function applyPeople(client, people) {
       continue;
     }
 
-    // Empty values in the view never wipe what ATOM already has.
+    // Empty values in the view never wipe what ATOM already has. An email / mobile the person (or the
+    // Super Admin) set by hand is never overwritten (032).
     const { rowCount } = await client.query(
       `UPDATE users
           SET name        = COALESCE($2::text, name),
               name_arabic = COALESCE($3::text, name_arabic),
-              email       = COALESCE($4::text, email),
-              mobile      = COALESCE($5::text, mobile)
+              email       = CASE WHEN email_set_by IS NULL THEN COALESCE($4::text, email) ELSE email END,
+              mobile      = CASE WHEN mobile_set_by IS NULL THEN COALESCE($5::text, mobile) ELSE mobile END
         WHERE id = $1::bigint
           AND (name, name_arabic, email, mobile) IS DISTINCT FROM
               (COALESCE($2::text, name), COALESCE($3::text, name_arabic),
-               COALESCE($4::text, email), COALESCE($5::text, mobile))`,
+               CASE WHEN email_set_by IS NULL THEN COALESCE($4::text, email) ELSE email END,
+               CASE WHEN mobile_set_by IS NULL THEN COALESCE($5::text, mobile) ELSE mobile END)`,
       [u.id, p.name ?? null, p.nameArabic ?? null, p.email ?? null, p.mobile ?? null]
     );
     if (rowCount) c.updated += 1;

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, KeyRound, LoaderCircle, LogOut } from 'lucide-react';
-import { changePasswordRequest, sessionRequest, setNotifyRequest, signOutEverywhereRequest, updatePreferencesRequest } from '../api/auth';
+import { Check, KeyRound, LoaderCircle, LogOut, Pencil } from 'lucide-react';
+import { changePasswordRequest, sessionRequest, setNotifyRequest, signOutEverywhereRequest, updateContactRequest, updatePreferencesRequest } from '../api/auth';
 import { saveToken } from '../auth/storage';
 import { errorMessage } from '../api/http';
-import { Alert, Field, PasswordInput } from '../components/FormControls';
+import { Alert, Field, PasswordInput, TextInput } from '../components/FormControls';
 import DeviceCard from '../components/DeviceCard';
 import ThemePicker from '../components/ThemePicker';
 import UserName from '../components/UserName';
@@ -18,6 +18,92 @@ function Detail({ label, children }) {
       <dt className="w-40 shrink-0 font-ui text-xs uppercase tracking-wider text-ink-3">{label}</dt>
       <dd className="font-ui text-sm text-ink">{children}</dd>
     </div>
+  );
+}
+
+const notOnFile = <span className="text-ink-3">Not on file</span>;
+
+// My email and mobile (7 Nov 2026): add or correct them; saved straight away, kept by the sync.
+function ContactCard({ user }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ email: '', mobile: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const missing = !user.email || !user.mobile;
+
+  function start() {
+    setForm({ email: user.email || '', mobile: user.mobile || '' });
+    setMsg(null);
+    setEditing(true);
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      const fresh = await updateContactRequest({ email: form.email, mobile: form.mobile });
+      queryClient.setQueryData(['auth', 'me'], fresh);
+      setEditing(false);
+      setMsg({ tone: 'success', text: 'Saved.' });
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card" id="contact">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xl">My contact details</h2>
+        {!editing && (
+          <button type="button" className="btn-secondary" onClick={start}>
+            <Pencil size={16} aria-hidden="true" /> {missing ? 'Add' : 'Edit'}
+          </button>
+        )}
+      </div>
+      <p className="mt-1 font-ui text-sm text-ink-2">
+        Used for emails from ATOM{user.loginType === 'EMPLOYEE_ID' ? ' and to reset your password' : ''}, and so staff can reach you about your requests.
+      </p>
+      {!editing ? (
+        <dl className="mt-2 divide-y divide-line">
+          <Detail label="Email">{user.email || notOnFile}</Detail>
+          <Detail label="Mobile">{user.mobile ? <span className="tabular-nums">{user.mobile}</span> : notOnFile}</Detail>
+        </dl>
+      ) : (
+        <form onSubmit={save} className="mt-3 space-y-4" noValidate>
+          <Field id="ct-email" label="Email">
+            <TextInput id="ct-email" type="email" autoComplete="email" maxLength={254} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+          </Field>
+          <Field id="ct-mobile" label="Mobile" hint="10 digits, e.g. 9820012345.">
+            <TextInput
+              id="ct-mobile"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              maxLength={16}
+              value={form.mobile}
+              onChange={(e) => setForm((f) => ({ ...f, mobile: e.target.value }))}
+            />
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" className="btn-primary" disabled={busy}>
+              {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />} Save
+            </button>
+            <button type="button" className="btn-secondary" disabled={busy} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {msg && (
+        <div className="mt-3">
+          <Alert tone={msg.tone}>{msg.text}</Alert>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -292,7 +378,6 @@ export default function ProfilePage() {
               {isIts ? 'ITS' : 'Employee ID'}
             </span>
           </Detail>
-          <Detail label="Email">{user.email || <span className="text-ink-3">Not on file</span>}</Detail>
           <Detail label="Roles">
             <span className="flex flex-wrap gap-1.5">
               {sortRoles(user.roles).map((role) => (
@@ -305,6 +390,8 @@ export default function ProfilePage() {
           </Detail>
         </dl>
       </section>
+
+      <ContactCard user={user} />
 
       {user.nameArabic && <NameLanguageCard user={user} />}
 

@@ -3,7 +3,7 @@
 const ROLE_ORDER = ['EMPLOYEE', 'ENGINEER', 'ADMIN', 'SUPER_ADMIN'];
 
 const USER_COLUMNS = `u.id, u.login_type, u.its_number, u.employee_id, u.name, u.name_arabic,
-  u.email, u.mobile, u.source, u.is_active, u.must_change_password, u.created_at`;
+  u.email, u.mobile, u.email_set_by, u.mobile_set_by, u.source, u.is_active, u.must_change_password, u.created_at`;
 
 // Active departments of user u: from Idarah posts and from the HR list (Phase 3.1).
 const USER_DEPT_IDS = `(SELECT p.department_id FROM user_posts p WHERE p.user_id = u.id AND p.is_active

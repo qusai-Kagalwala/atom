@@ -11,6 +11,7 @@
 //   POST /forgot-password  { employeeId }                       → { sent, message }
 //   POST /reset-password   { token, newPassword }               → { message }
 //   PATCH /preferences     { nameLanguage: 'en' | 'ar' }        → { user }
+//   PATCH /contact         { email?, mobile? }  ('' clears)     → { user }   your own email / mobile (032)
 //   GET   /theme                                                → { theme: { theme, mode } | null }   Appearance
 //   PUT   /theme           { theme, mode }                      → { theme: { theme, mode } }
 //                          (503 theme_unavailable until migration 025 is applied; allowed values: shared/themes.json)
@@ -27,6 +28,8 @@ const realtime = require('../../realtime');
 const { signSession } = require('./tokens');
 const { getTheme, setTheme } = require('./theme.repo');
 const themes = require('../../../shared/themes.json');
+const { setOwnContact } = require('../users/contact');
+const pool = require('../../db/pool');
 
 const WINDOW_MS = 15 * 60 * 1000;
 
@@ -187,6 +190,18 @@ function createAuthRouter() {
       const fresh = await loadSessionUser(req.user.id, req.user.companyId);
       return res.json({ user: toPublicUser(fresh, req.user.activeRole) });
     } catch (err) {
+      return next(err);
+    }
+  });
+
+  // Your own email and mobile (7 Nov 2026): saved straight away; the sync never overwrites them.
+  router.patch('/contact', requireAuth, async (req, res, next) => {
+    try {
+      await setOwnContact(pool, req.user.id, { email: req.body?.email, mobile: req.body?.mobile });
+      const fresh = await loadSessionUser(req.user.id, req.user.companyId);
+      return res.json({ user: toPublicUser(fresh, req.user.activeRole) });
+    } catch (err) {
+      if (err.expose) return res.status(err.status).json({ message: err.message, code: err.code });
       return next(err);
     }
   });

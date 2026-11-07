@@ -24,6 +24,9 @@ export const switchCompanyRequest = (companyId, role) =>
 export const updatePreferencesRequest = (prefs) =>
   http.patch('/auth/preferences', prefs).then((r) => r.data.user);
 
+// Your own email / mobile (7 Nov 2026). '' clears. → the fresh session user.
+export const updateContactRequest = (contact) => http.patch('/auth/contact', contact).then((r) => r.data.user);
+
 export const meRequest = () => http.get('/auth/me').then((r) => r.data.user);
 // The whole answer: { user, keepSignedIn } (Profile → Signed in).
 export const sessionRequest = () => http.get('/auth/me').then((r) => r.data);
