@@ -81,7 +81,6 @@ export default function WifiBatchPage() {
   const [find, setFind] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [fresh, setFresh] = useState(null);
   const [moving, setMoving] = useState(null);
   const [view, setView] = useState('given');
   const [search, setSearch] = useState('');
@@ -230,19 +229,9 @@ export default function WifiBatchPage() {
         <p className="font-ui text-sm text-ink-2">From the passes not allocated to a department.</p>
         <GivePasses
           batches={[{ id: batch.id, name: batch.name, ssid: batch.ssid, left: c.free }]}
-          onDone={(p) => {
-            setFresh(p);
-            refresh();
-          }}
+          onDone={refresh}
         />
       </section>
-
-      {fresh && (
-        <section className="card space-y-3 border-primary">
-          <h2 className="text-xl">Just given — share them now</h2>
-          <PassList passes={fresh} onChanged={refresh} />
-        </section>
-      )}
 
       <section className="card space-y-3">
         <h2 className="text-xl">Passes given</h2>

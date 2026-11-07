@@ -10,7 +10,9 @@ const selectClass =
 const blank = { its: '', name: '', mobile: '', email: '', count: 1 };
 
 // Give passes to one person or to a list. batches: [{ id, name, ssid, left }]; departmentId: null = AVIT
-// Admin giving from the unallocated pool. onDone(passes) shows the new passes to share.
+// Admin giving from the unallocated pool. onDone(passes) after giving; they are shared from the given list.
+// Passes are given ONLY when the Give button is tapped (7 Nov 2026): Enter in the ITS box runs Find,
+// Enter elsewhere does nothing, and changing the ITS number clears the details of the last lookup.
 export default function GivePasses({ batches, departmentId = null, onDone }) {
   const [batchId, setBatchId] = useState(batches[0]?.id || '');
   const [mode, setMode] = useState('one');
@@ -21,12 +23,30 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
   const [list, setList] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [done, setDone] = useState('');
   const batch = batches.find((b) => b.id === batchId) || batches[0];
   const set = (k) => (e) => setP((x) => ({ ...x, [k]: e.target.value }));
+  // A new ITS number: forget the last person's details, so they can't be given a pass by mistake.
+  const setIts = (e) => {
+    const its = e.target.value;
+    // Only details filled in by a lookup are cleared; anything typed by hand stays.
+    setP((x) => (found && x.its !== its ? { ...blank, its, count: x.count } : { ...x, its }));
+    setFound(null);
+    setDone('');
+  };
+  const canFind = /^\d{8}$/.test(p.its.trim()) && !looking;
+  // No pass on Enter: in the ITS box Enter means Find; in the other boxes it does nothing.
+  const noSubmit = (onEnter) => (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (onEnter) onEnter();
+  };
 
   async function find() {
+    if (!canFind) return;
     setLooking(true);
     setError('');
+    setDone('');
     setFound(null);
     try {
       const r = await lookupIts(p.its.trim());
@@ -68,10 +88,13 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
   }
 
   async function give(people) {
+    if (busy) return;
     setBusy(true);
     setError('');
+    setDone('');
     try {
       const passes = await assignPasses(batch.id, { departmentId, people });
+      setDone(`${passes.length} pass${passes.length === 1 ? '' : 'es'} given. Share ${passes.length === 1 ? 'it' : 'them'} from the list below.`);
       onDone(passes);
       setP(blank);
       setFound(null);
@@ -111,43 +134,38 @@ export default function GivePasses({ batches, departmentId = null, onDone }) {
       </div>
 
       {error && <Alert tone="error">{error}</Alert>}
+      {done && <Alert tone="success">{done}</Alert>}
 
       {mode === 'one' ? (
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            give([{ ...p, count: Number(p.count) || 1 }]);
-          }}
-        >
+        <div className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
             <Field id="give-its" label="ITS number (optional)" hint={found || 'Fills in the name, mobile and email.'}>
-              <TextInput id="give-its" inputMode="numeric" maxLength={8} value={p.its} onChange={set('its')} placeholder="8 digits" />
+              <TextInput id="give-its" inputMode="numeric" enterKeyHint="search" maxLength={8} value={p.its} onChange={setIts} onKeyDown={noSubmit(find)} placeholder="8 digits" />
             </Field>
-            <button type="button" className="btn-secondary mb-6" disabled={!/^\d{8}$/.test(p.its.trim()) || looking} onClick={find}>
+            <button type="button" className="btn-secondary mb-6" disabled={!canFind} onClick={find}>
               {looking ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />} Find
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field id="give-name" label="Name">
-              <TextInput id="give-name" value={p.name} onChange={set('name')} maxLength={120} />
+              <TextInput id="give-name" value={p.name} onChange={set('name')} onKeyDown={noSubmit()} maxLength={120} />
             </Field>
             <Field id="give-mobile" label="Mobile (for WhatsApp)">
-              <TextInput id="give-mobile" inputMode="tel" value={p.mobile} onChange={set('mobile')} maxLength={20} />
+              <TextInput id="give-mobile" inputMode="tel" value={p.mobile} onChange={set('mobile')} onKeyDown={noSubmit()} maxLength={20} />
             </Field>
             <Field id="give-email" label="Email">
-              <TextInput id="give-email" type="email" value={p.email} onChange={set('email')} maxLength={120} />
+              <TextInput id="give-email" type="email" value={p.email} onChange={set('email')} onKeyDown={noSubmit()} maxLength={120} />
             </Field>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <Field id="give-count" label="How many passes" hint="More than one for a group (e.g. a family).">
-              <TextInput id="give-count" type="number" min="1" max="500" className="w-28" value={p.count} onChange={set('count')} />
+              <TextInput id="give-count" type="number" min="1" max="500" className="w-28" value={p.count} onChange={set('count')} onKeyDown={noSubmit()} />
             </Field>
-            <button type="submit" className="btn-primary mb-6" disabled={busy || p.name.trim().length < 2}>
+            <button type="button" className="btn-primary mb-6" disabled={busy || p.name.trim().length < 2} onClick={() => give([{ ...p, count: Number(p.count) || 1 }])}>
               {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Send size={18} aria-hidden="true" />} Give {need} pass{need === 1 ? '' : 'es'}
             </button>
           </div>
-        </form>
+        </div>
       ) : (
         <div className="space-y-3">
           <Field

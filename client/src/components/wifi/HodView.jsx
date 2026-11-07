@@ -16,7 +16,6 @@ export default function HodView({ department }) {
   const queryClient = useQueryClient();
   const key = ['wifi', 'department', department.id];
   const q = useQuery({ queryKey: key, queryFn: () => departmentView(department.id) });
-  const [fresh, setFresh] = useState(null);
   const [req, setReq] = useState({ count: '', reason: '' });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -62,19 +61,9 @@ export default function HodView({ department }) {
         <GivePasses
           batches={available}
           departmentId={department.id}
-          onDone={(p) => {
-            setFresh(p);
-            refresh();
-          }}
+          onDone={refresh}
         />
       </section>
-
-      {fresh && (
-        <section className="card space-y-3 border-primary">
-          <h2 className="text-xl">Just given — share them now</h2>
-          <PassList passes={fresh} onChanged={refresh} />
-        </section>
-      )}
 
       <section className="card space-y-3">
         <h2 className="text-xl">Given passes</h2>
