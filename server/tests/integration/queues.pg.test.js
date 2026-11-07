@@ -128,6 +128,11 @@ maybe('queues and All tickets on real PostgreSQL', () => {
     await eng1.act('T-1002', 'resolve', { note: 'Fixed the switch port' });
     expect(numbers(await eng1.get('/queue/work?group=resolved'))).toEqual(['T-1002']);
     expect(numbers(await admin.get('/queue/assign?view=to_close'))).toEqual(['T-1002']);
+
+    // Closing keeps it in the engineer's Resolved list.
+    await admin.act('T-1002', 'close');
+    expect(numbers(await eng1.get('/queue/work?group=resolved'))).toEqual(['T-1002']);
+    expect(numbers(await eng1.get('/queue/work'))).toEqual(['T-1001']);
   });
 
   test('counts for sidebar badges follow the active role', async () => {

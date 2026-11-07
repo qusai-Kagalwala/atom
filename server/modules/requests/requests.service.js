@@ -788,7 +788,8 @@ async function listWorkQueue(user, { group = 'active', limit, offset }) {
   if (!WORK_GROUPS.includes(group)) throw bad('Unknown queue.', 'bad_group');
   const scope = recordScopeSql(user, 'r', 1);
   const { rows, total } = await repo.listRequests(pool, scope, {
-    statuses: STATUS_GROUPS[group],
+    // "Resolved" keeps what they resolved after the Admin closes it (7 Nov 2026): resolved + closed.
+    statuses: group === 'resolved' ? ['RESOLVED', 'CLOSED'] : STATUS_GROUPS[group],
     assignedTo: user.id,
     sort: group === 'resolved' ? 'updated' : 'priority',
     limit,

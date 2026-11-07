@@ -4,7 +4,8 @@
 // load is never cached by the browser. Never logs file contents.
 const fs = require('fs/promises');
 
-async function sendStoredFile(res, filePath, headers, label = 'file') {
+// convert(buffer) → { data, type }: optional, e.g. WebP → JPEG for phones that can't show WebP.
+async function sendStoredFile(res, filePath, headers, label = 'file', convert = null) {
   let data;
   try {
     data = await fs.readFile(filePath);
@@ -13,7 +14,17 @@ async function sendStoredFile(res, filePath, headers, label = 'file') {
     res.set('Cache-Control', 'no-store');
     return res.status(404).json({ message: 'Not found.' });
   }
-  res.set({ ...headers, 'Content-Length': String(data.length) });
+  let type = headers['Content-Type'];
+  if (convert) {
+    try {
+      ({ data, type } = await convert(data));
+    } catch (err) {
+      console.error(`[ATOM] Could not convert ${label}: ${err.message}`);
+      res.set('Cache-Control', 'no-store');
+      return res.status(500).json({ message: 'Could not prepare the photo.' });
+    }
+  }
+  res.set({ ...headers, 'Content-Type': type, 'Content-Length': String(data.length) });
   return res.end(data);
 }
 

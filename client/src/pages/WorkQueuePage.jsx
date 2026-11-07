@@ -23,7 +23,7 @@ const EMPTY = {
   to_start: 'Nothing waiting for you to start.',
   in_progress: 'Nothing in progress.',
   waiting: 'Nothing waiting on the requester or equipment.',
-  resolved: 'Nothing resolved and waiting to be closed.',
+  resolved: 'Nothing resolved by you yet.',
 };
 
 // Pool (Phase 2): take a ticket offered to several people — the first to take it gets it.

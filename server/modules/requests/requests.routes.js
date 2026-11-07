@@ -40,6 +40,7 @@ const lifecycle = require('./lifecycle');
 const svc = require('./requests.service');
 const sr = require('./serviceRequests.service');
 const timeFrames = require('./timeFrames');
+const sharp = require('sharp');
 const { sendStoredFile } = require('../../utils/sendStoredFile');
 const { feature, elevateIf, elevate, has, TICKET_FEATURES } = require('../../middleware/features');
 const { isAdmin } = require('../../utils/roles');
@@ -250,11 +251,14 @@ function createRequestsRouter() {
     anyTicketFeature,
     handle(async (req, res) => {
       const file = await svc.getAttachmentFile(req.user, req.params.number, req.params.attachmentId);
+      // ?format=jpeg: for phones whose browser can't show WebP (older iPhones) — converted on the fly.
+      const jpeg = req.query.format === 'jpeg' && file.mimeType === 'image/webp';
       await sendStoredFile(
         res,
         file.path,
         { 'Content-Type': file.mimeType, 'Cache-Control': 'private, max-age=3600', 'Content-Disposition': 'inline', 'X-Content-Type-Options': 'nosniff' },
-        `photo ${req.params.attachmentId} of ${req.params.number}`
+        `photo ${req.params.attachmentId} of ${req.params.number}`,
+        jpeg ? async (buf) => ({ data: await sharp(buf).jpeg({ quality: 85 }).toBuffer(), type: 'image/jpeg' }) : null
       );
     })
   );

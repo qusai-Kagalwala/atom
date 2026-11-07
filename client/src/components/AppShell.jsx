@@ -68,7 +68,13 @@ function NavGroup({ sectionKey, group, counts, onNavigate, open, onToggle }) {
   const { pathname } = useLocation();
   const key = `${sectionKey}.${group.key}`;
   const here = group.items.some((i) => (i.path === '/' ? pathname === '/' : pathname === i.path || pathname.startsWith(`${i.path}/`)));
-  const isOpen = here || (open[key] ?? group.key === 'tickets');
+  // Opens by itself when you arrive on one of its pages; after that a tap always folds / opens it.
+  const isOpen = open[key] ?? (here || group.key === 'tickets');
+  useEffect(() => {
+    if (here && open[key] === false) onToggle(key, true);
+    // only when the page changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
   const total = group.items.reduce((n, i) => n + (counts[i.key] > 0 ? counts[i.key] : 0), 0);
   const id = `nav-${sectionKey}-${group.key}`;
   return (
@@ -78,9 +84,9 @@ function NavGroup({ sectionKey, group, counts, onNavigate, open, onToggle }) {
         onClick={() => onToggle(key, !isOpen)}
         aria-expanded={isOpen}
         aria-controls={id}
-        className="flex min-h-[36px] items-center gap-2 rounded-btn px-3 font-ui text-xs font-medium text-white/70 hover:bg-white/5 hover:text-white"
+        className="flex min-h-tap touch-manipulation select-none items-center gap-2 rounded-btn px-3 font-ui text-xs font-medium text-white/70 hover:bg-white/5 hover:text-white"
       >
-        <ChevronDown size={14} aria-hidden="true" className={`shrink-0 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+        <ChevronDown size={14} aria-hidden="true" className={`shrink-0 transition-transform duration-150 ${isOpen ? '' : '-rotate-90'}`} />
         <span>{group.label}</span>
         {!isOpen && total > 0 && (
           <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-gold-on" aria-label={`${total} waiting`}>
@@ -89,7 +95,7 @@ function NavGroup({ sectionKey, group, counts, onNavigate, open, onToggle }) {
         )}
       </button>
       {isOpen && (
-        <div id={id} className="anim-drop flex flex-col gap-1 border-l border-white/10 pl-2 ml-3">
+        <div id={id} className="ml-3 flex flex-col gap-1 border-l border-white/10 pl-2">
           <NavItems items={group.items} counts={counts} onNavigate={onNavigate} />
         </div>
       )}

@@ -155,6 +155,12 @@ maybe('tickets on real PostgreSQL', () => {
     expect(onDisk).toHaveLength(2);
     expect(onDisk.every((f) => /^[0-9a-f-]{36}\.webp$/.test(f))).toBe(true);
     expect(img.headers['cache-control']).toBe('private, max-age=3600');
+
+    // Phones that can't show WebP ask for JPEG.
+    const jpg = await alice.file(`${t.attachments[0].url}?format=jpeg`);
+    expect(jpg.status).toBe(200);
+    expect(jpg.headers['content-type']).toBe('image/jpeg');
+    expect(await sharp(jpg.body).metadata()).toMatchObject({ format: 'jpeg', width: 1600 });
     expect(img.headers['content-length']).toBe(String(img.body.length));
 
     // A file missing on disk: 404, logged, and never cached by the browser.
