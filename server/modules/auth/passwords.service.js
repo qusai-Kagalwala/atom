@@ -10,6 +10,7 @@ const safeCompare = require('../../utils/safeCompare');
 const repo = require('./passwords.repo');
 const { signSession } = require('./tokens');
 const emailLayout = require('../../services/emailLayout');
+const emailTemplates = require('../../services/emailTemplates');
 const emailDesign = require('../../services/emailDesign');
 const realtime = require('../../realtime');
 
@@ -83,17 +84,20 @@ async function changePassword(user, currentPassword, newPassword, { keepSocketId
 }
 
 // Footer line: only the companies that are open (Super Admin switch). Never fails the email.
-function resetEmail(link, design = emailDesign.DEFAULTS) {
+// Wording from Settings → Email design → Password reset (7 Nov 2026).
+function resetEmail(link, design = emailDesign.DEFAULTS, name = '') {
   const minutes = config.passwordResetMinutes;
+  const t = emailTemplates.apply(design.templates, 'reset', { name: name || null, minutes });
   const mail = emailLayout.render({
     tag: 'Password reset',
     tone: 'gold',
     title: 'Reset your ATOM password',
-    paragraphs: [`We received a request to reset your ATOM password. Open the link below within ${minutes} minutes to choose a new one.`],
+    greeting: t.greeting,
+    paragraphs: [t.intro],
     button: { label: 'Reset password', url: link },
-    note: 'If you did not ask for this, you can ignore this email — your password will not change.',
+    note: t.closing,
   }, design);
-  return { subject: 'Reset your ATOM password', ...mail };
+  return { subject: t.subject, ...mail };
 }
 
 // Public. Unknown, inactive and no-email IDs all get the same "contact a Super Admin" answer.
@@ -110,7 +114,7 @@ async function requestReset(employeeId) {
 
   const link = `${config.appUrl}/reset-password?token=${encodeURIComponent(token)}`;
   try {
-    await sendMail({ to: employee.email, ...resetEmail(link, await emailDesign.current()) });
+    await sendMail({ to: employee.email, ...resetEmail(link, await emailDesign.current(), employee.name) });
   } catch (err) {
     console.error(`Reset email failed for user ${employee.id}: ${err.message}`);
     await repo.expireResetTokens(employee.id);

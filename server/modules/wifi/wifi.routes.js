@@ -5,7 +5,8 @@
 //   GET    /departments/:id                      → { batches, passes, requests }
 //   POST   /departments/:id/requests  { count, reason }
 //   POST   /batches/:id/assign  { departmentId?, people:[{ its?, name, mobile?, email?, count? }] }  (no departmentId = Admin direct)
-//   POST   /passes/:id/unassign · POST /passes/:id/whatsapp · POST /passes/email { passIds }
+//   POST   /passes/:id/unassign · POST /passes/:id/whatsapp · POST /passes/email { passIds }  (one email per address)
+//   POST   /groups/:id/unassign                  passes given together: taken back together only (035)
 //   AVIT Admin:
 //   GET    /batches                              → { batches }
 //   POST   /batches   multipart: file (.csv), name, ssid, expiresAt, commit?, skipErrors?   → preview | saved
@@ -16,6 +17,7 @@
 //   GET    /batches/:id/passes?view=&q=&departmentId=&page=
 //   GET    /requests · POST /requests/:id  { status: done|declined, note? }
 //   Super Admin: GET /settings · PATCH /settings { hodPosts: [] }
+//                PUT /settings/hods { person, departmentIds, kind: grant|revoke } · DELETE /settings/hods/:userId/:departmentId
 const express = require('express');
 const multer = require('multer');
 const { requireAuth, requireCompany, requireCompanyCode, requireRole } = require('../../middleware/requireAuth');
@@ -69,6 +71,7 @@ function createWifiRouter() {
   router.post('/batches/:id/assign', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.assign(req.user, req.params.id, req.body || {}))));
   router.post('/passes/email', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.emailPasses(req.user, req.body?.passIds))));
   router.post('/passes/:id/unassign', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.unassign(req.user, req.params.id))));
+  router.post('/groups/:id/unassign', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.unassignGroup(req.user, req.params.id))));
   router.post('/passes/:id/whatsapp', elevateIf('wifi'), handle(async (req, res) => res.json(await svc.markWhatsapp(req.user, req.params.id))));
 
   // AVIT Admin
@@ -87,6 +90,9 @@ function createWifiRouter() {
 
   router.get('/settings', requireRole('SUPER_ADMIN'), handle(async (req, res) => res.json(await svc.getSettings())));
   router.patch('/settings', requireRole('SUPER_ADMIN'), handle(async (req, res) => res.json(await svc.setHodPosts(req.user, req.body?.hodPosts))));
+  router.put('/settings/hods', requireRole('SUPER_ADMIN'), handle(async (req, res) => res.json(await svc.setHodAccess(req.user, req.body || {}))));
+  router.delete('/settings/hods/:userId/:departmentId', requireRole('SUPER_ADMIN'), handle(async (req, res) =>
+    res.json(await svc.clearHodAccess(req.user, req.params.userId, req.params.departmentId))));
   return router;
 }
 

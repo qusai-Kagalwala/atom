@@ -332,7 +332,7 @@ async function decideItems(user, numberParam, body = {}) {
 }
 
 // ---------- deliver an approved item (assigned engineer or Super Admin) ----------
-// body: { note?, assetTags?: [] }  Physical items: hand over in-store assets, or explain in the note.
+// body: { note?, assetTags?: [] }  Physical items: hand over in-store assets (any number up to 50), or explain in the note.
 async function deliverItem(user, numberParam, itemId, body = {}) {
   const note = clean(body.note);
   if (note.length > 1000) throw bad('Keep the note under 1000 characters.', 'note_too_long');
@@ -352,7 +352,7 @@ async function deliverItem(user, numberParam, itemId, body = {}) {
     const item = found[0];
     if (!item) throw notFound();
     if (item.status !== 'APPROVED') throw new HttpError(409, `“${item.name}” is ${item.status === 'DELIVERED' ? 'already delivered' : 'not approved'}.`, 'wrong_item_status');
-    if (tags.length > item.quantity) throw bad(`Only ${item.quantity} requested.`, 'too_many_assets');
+    // Any number of assets (up to MAX_ASSETS), whatever quantity was asked for (7 Nov 2026).
     if (item.kind === 'physical' && !tags.length && note.length < 3) {
       throw bad('Choose the asset(s) handed over, or explain in the note (e.g. bought new, not in inventory yet).', 'assets_or_note');
     }

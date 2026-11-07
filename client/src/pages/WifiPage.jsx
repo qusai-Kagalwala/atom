@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, FileUp, LoaderCircle, RotateCcw, Upload, Wifi, X } from 'lucide-react';
+import { Check, FileUp, LoaderCircle, RotateCcw, Undo2, Upload, UserMinus, UserPlus, Wifi, X } from 'lucide-react';
 import {
-  decideWifiRequest, getWifiMe, getWifiSettings, listBatches, listWifiRequests, resetBatch, saveWifiSettings, uploadBatch,
+  clearHodAccess, decideWifiRequest, getWifiMe, getWifiSettings, listBatches, listWifiRequests, resetBatch, saveWifiSettings, setHodAccess, uploadBatch,
 } from '../api/wifi';
 import { errorMessage } from '../api/http';
 import { Alert, Field, TextInput } from '../components/FormControls';
@@ -309,50 +309,158 @@ function Requests() {
   );
 }
 
-function Settings() {
-  const q = useQuery({ queryKey: ['wifi', 'settings'], queryFn: getWifiSettings });
-  const [text, setText] = useState(null);
+// Super Admin: grant HOD access to someone for one or more departments.
+function GrantHod({ departments, onSaved }) {
+  const [person, setPerson] = useState('');
+  const [picked, setPicked] = useState([]);
+  const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
-  const queryClient = useQueryClient();
+  const shown = departments.filter((d) => d.name.toLowerCase().includes(filter.trim().toLowerCase()));
+  const toggle = (id) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
   async function save() {
     setBusy(true);
     setMsg(null);
     try {
-      queryClient.setQueryData(['wifi', 'settings'], await saveWifiSettings(text.split(',').map((s) => s.trim()).filter(Boolean)));
-      setText(null);
-      setMsg({ tone: 'success', text: 'Saved.' });
+      onSaved(await setHodAccess({ person: person.trim(), departmentIds: picked, kind: 'grant' }));
+      setMsg({ tone: 'success', text: `HOD access given for ${picked.length} department${picked.length === 1 ? '' : 's'}.` });
+      setPerson('');
+      setPicked([]);
     } catch (err) {
       setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
     } finally {
       setBusy(false);
     }
   }
+
+  return (
+    <section className="card space-y-3">
+      <h2 className="text-xl">Give HOD access</h2>
+      <p className="font-ui text-sm text-ink-2">Make someone the HOD of one or more departments, whatever their Idarah post says.</p>
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      <Field id="hod-person" label="ITS number or Employee ID">
+        <TextInput id="hod-person" value={person} maxLength={20} onChange={(e) => setPerson(e.target.value)} className="max-w-xs" />
+      </Field>
+      <div className="space-y-2">
+        <p className="font-ui text-sm font-medium text-ink">
+          Departments {picked.length > 0 && <span className="text-brand">({picked.length} chosen)</span>}
+        </p>
+        <TextInput id="hod-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search departments" aria-label="Search departments" className="max-w-xs" />
+        <ul className="max-h-64 divide-y divide-line overflow-y-auto rounded-btn border border-line">
+          {shown.map((d) => (
+            <li key={d.id}>
+              <label className="flex min-h-tap cursor-pointer items-center gap-3 px-3 py-1.5 font-ui text-sm text-ink">
+                <input type="checkbox" className="h-5 w-5 accent-brand" checked={picked.includes(d.id)} onChange={() => toggle(d.id)} />
+                <span className="min-w-0 flex-1">{d.name}</span>
+              </label>
+            </li>
+          ))}
+          {!shown.length && <li className="px-3 py-2 font-ui text-sm text-ink-3">No department matches.</li>}
+        </ul>
+      </div>
+      <button type="button" className="btn-primary" disabled={busy || !person.trim() || !picked.length} onClick={save}>
+        {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <UserPlus size={18} aria-hidden="true" />} Give HOD access
+      </button>
+    </section>
+  );
+}
+
+function Settings() {
+  const q = useQuery({ queryKey: ['wifi', 'settings'], queryFn: getWifiSettings });
+  const [text, setText] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState(null);
+  const [filter, setFilter] = useState('');
+  const queryClient = useQueryClient();
+  const setData = (d) => queryClient.setQueryData(['wifi', 'settings'], d);
+
+  async function save() {
+    setBusy('posts');
+    setMsg(null);
+    try {
+      setData(await saveWifiSettings(text.split(',').map((s) => s.trim()).filter(Boolean)));
+      setText(null);
+      setMsg({ tone: 'success', text: 'Saved.' });
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  // Revoke: a granted HOD is simply removed; a Masool (by post) gets a revoke. Restore: clear the revoke.
+  async function change(key, fn, done) {
+    setBusy(key);
+    setMsg(null);
+    try {
+      setData(await fn());
+      setMsg({ tone: 'success', text: done });
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
+    } finally {
+      setBusy('');
+    }
+  }
+  const revoke = (d, h) =>
+    change(`${d.id}-${h.userId}`, () => (h.source === 'granted' ? clearHodAccess(h.userId, d.id) : setHodAccess({ person: h.its || h.employeeId, departmentIds: [d.id], kind: 'revoke' })), `${h.name} is no longer HOD of ${d.name}.`);
+  const restore = (d, h) => change(`${d.id}-${h.userId}`, () => clearHodAccess(h.userId, d.id), `${h.name} is HOD of ${d.name} again (from the Idarah post).`);
+
   if (q.isPending) return <LoaderCircle size={18} className="animate-spin text-ink-3" aria-label="Loading" />;
+  if (q.isError) return <Alert tone="error">{errorMessage(q.error, 'Could not load.')}</Alert>;
   const value = text ?? q.data.hodPosts.join(', ');
-  const withHod = q.data.departments.filter((d) => d.hods);
+  const withHod = q.data.departments.filter((d) => d.hodList.length);
+  const term = filter.trim().toLowerCase();
+  const shown = q.data.departments.filter(
+    (d) => !term || d.name.toLowerCase().includes(term) || d.hodList.some((h) => h.name.toLowerCase().includes(term) || h.its === term)
+  );
   return (
     <div className="space-y-4">
       <section className="card space-y-3">
         <h2 className="text-xl">Who is a department’s HOD</h2>
         <p className="font-ui text-sm text-ink-2">Idarah posts (or post categories) that make someone the HOD, comma separated. Only HODs get the Jamea Internet Access page.</p>
-        {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         <div className="flex flex-wrap gap-2">
           <TextInput id="hod-posts" value={value} onChange={(e) => setText(e.target.value)} className="max-w-md" aria-label="HOD posts" />
-          <button type="button" className="btn-primary" disabled={busy || text == null} onClick={save}>
+          <button type="button" className="btn-primary" disabled={busy === 'posts' || text == null} onClick={save}>
             Save
           </button>
         </div>
       </section>
-      <section className="card space-y-2">
+
+      <GrantHod departments={q.data.departments} onSaved={setData} />
+
+      <section className="card space-y-3">
         <h2 className="text-xl">
-          HODs found ({withHod.length} of {q.data.departments.length} departments)
+          HODs ({withHod.length} of {q.data.departments.length} departments)
         </h2>
-        <ul className="max-h-96 divide-y divide-line overflow-y-auto font-ui text-sm">
-          {q.data.departments.map((d) => (
-            <li key={d.id} className="flex flex-wrap justify-between gap-2 py-1.5">
-              <span>{d.name}</span>
-              <span className={d.hods ? 'text-ink' : 'text-ink-3'}>{d.hods || 'No HOD found'}</span>
+        {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+        <TextInput id="hod-list-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search department, name or ITS" aria-label="Search HODs" className="max-w-xs" />
+        <ul className="max-h-[32rem] divide-y divide-line overflow-y-auto font-ui text-sm">
+          {shown.map((d) => (
+            <li key={d.id} className="space-y-1.5 py-2.5">
+              <p className="font-medium text-ink">{d.name}</p>
+              {!d.hodList.length && <p className="text-ink-3">No HOD</p>}
+              {d.hodList.map((h) => (
+                <div key={h.userId} className="flex flex-wrap items-center justify-between gap-2 pl-3">
+                  <span className="min-w-0">
+                    {h.name} <span className="text-xs text-ink-3">· {h.source === 'post' ? 'Idarah post' : 'given by Super Admin'}{h.its ? ` · ITS ${h.its}` : ''}</span>
+                  </span>
+                  <button type="button" className="btn-secondary px-2.5" disabled={busy === `${d.id}-${h.userId}`} onClick={() => revoke(d, h)}>
+                    <UserMinus size={16} aria-hidden="true" /> Revoke
+                  </button>
+                </div>
+              ))}
+              {d.revoked.map((h) => (
+                <div key={h.userId} className="flex flex-wrap items-center justify-between gap-2 pl-3 text-ink-3">
+                  <span className="min-w-0 line-through decoration-ink-3/60">{h.name}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs">access revoked</span>
+                    <button type="button" className="btn-secondary px-2.5" disabled={busy === `${d.id}-${h.userId}`} onClick={() => restore(d, h)}>
+                      <Undo2 size={16} aria-hidden="true" /> Restore
+                    </button>
+                  </span>
+                </div>
+              ))}
             </li>
           ))}
         </ul>

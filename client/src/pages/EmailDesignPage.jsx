@@ -66,6 +66,7 @@ function Editor({ data, companies }) {
   const [company, setCompany] = useState(companies[0] || '');
   const [width, setWidth] = useState('desktop');
   const [html, setHtml] = useState('');
+  const [subject, setSubject] = useState('');
   const [previewError, setPreviewError] = useState('');
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);
@@ -95,7 +96,9 @@ function Editor({ data, companies }) {
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       try {
-        setHtml(await previewEmailDesign({ design: draft, sample, company }, { signal: ctrl.signal }));
+        const res = await previewEmailDesign({ design: draft, sample, company }, { signal: ctrl.signal });
+        setHtml(res.html);
+        setSubject(res.subject || '');
         setPreviewError('');
       } catch (err) {
         if (!ctrl.signal.aborted) setPreviewError(errorMessage(err, 'Could not draw the preview.'));
@@ -123,7 +126,7 @@ function Editor({ data, companies }) {
     const d = await saveEmailDesign(draft);
     setDraft(d);
     setSaved(d);
-    setMsg({ tone: 'success', text: 'Saved. Emails sent from now on use this design.' });
+    setMsg({ tone: 'success', text: 'Saved. Emails sent from now on use this design and text.' });
     queryClient.invalidateQueries({ queryKey: ['settings', 'email-design'] });
   });
   const reset = () => run('reset', async () => {
@@ -138,6 +141,23 @@ function Editor({ data, companies }) {
     const r = await testEmailDesign({ design: draft, sample, company });
     setMsg({ tone: 'success', text: `Test email sent to ${r.to}.` });
   });
+
+  // Email text (7 Nov 2026): the template being edited is the sample being previewed.
+  const tpl = draft.templates?.[sample] || {};
+  const setTpl = (field, value) => setDraft((d) => ({ ...d, templates: { ...d.templates, [sample]: { ...d.templates[sample], [field]: value } } }));
+  const placeholders = data.templates?.placeholders?.[sample] || [];
+  const area = (field, label, rows, max, hint) => (
+    <Field id={`tpl-${field}`} label={label} hint={hint}>
+      <textarea
+        id={`tpl-${field}`}
+        rows={rows}
+        maxLength={max}
+        value={tpl[field] ?? ''}
+        onChange={(e) => setTpl(field, e.target.value)}
+        className="block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted"
+      />
+    </Field>
+  );
 
   const text = (k, label, { hint, max, placeholder } = {}) => (
     <Field id={`ed-${k}`} label={label} hint={hint}>
@@ -212,6 +232,33 @@ function Editor({ data, companies }) {
           {text('subtitle', 'Subtitle', { max: 60, hint: 'Leave empty to hide it.' })}
           <Toggle label="Show the ATOM logo" checked={draft.showLogo} onChange={(v) => set({ showLogo: v })} />
           <Toggle label="Show the company name (AVIT, Siyanaat, Tanzeem)" checked={draft.showCompany} onChange={(v) => set({ showCompany: v })} />
+        </Section>
+
+        <Section title="Email text" hint="The words of each email. The details (ticket number, Wi-Fi username…) and the button are added automatically.">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Which email">
+            {SAMPLES.map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={sample === v}
+                onClick={() => setSample(v)}
+                className={`min-h-tap rounded-btn border px-3 font-ui text-sm ${sample === v ? 'border-brand bg-primary-muted text-brand' : 'border-line bg-surface text-ink-2 hover:border-brand'}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          <Field id="tpl-subject" label="Subject">
+            <TextInput id="tpl-subject" value={tpl.subject ?? ''} maxLength={150} onChange={(e) => setTpl('subject', e.target.value)} />
+          </Field>
+          {area('greeting', 'Greeting', 3, 300, 'Up to 4 lines, e.g. "Salaam-e-Jameel" on one line and {name} on the next. A line whose placeholder is empty is left out.')}
+          {area('intro', 'Intro', 4, 1000, sample === 'ticket' || sample === 'request' ? 'Shown before the update itself (which is written by ATOM).' : undefined)}
+          {area('closing', 'Closing', 3, 600)}
+          {placeholders.length > 0 && (
+            <p className="font-ui text-xs text-ink-3">
+              You can use: {placeholders.map((p) => <code key={p} className="mr-1.5 rounded bg-cream-dark px-1 py-0.5 text-ink-2">{`{${p}}`}</code>)}
+            </p>
+          )}
         </Section>
 
         <Section title="Message">
@@ -290,6 +337,12 @@ function Editor({ data, companies }) {
             </div>
           </div>
           {previewError && <Alert tone="error">{previewError}</Alert>}
+          {subject && (
+            <p className="break-words font-ui text-sm text-ink-2">
+              <span className="text-ink-3">Subject: </span>
+              {subject}
+            </p>
+          )}
           <div className="overflow-hidden rounded-btn border border-line bg-cream">
             {html ? (
               <iframe

@@ -28,7 +28,7 @@ async function setEmployeePassword(userId, newPassword, db = pool, { mustChange 
 
 async function findEmployeeForReset(employeeId) {
   const { rows } = await pool.query(
-    `SELECT id, is_active, email
+    `SELECT id, is_active, email, name
        FROM users
       WHERE login_type = 'EMPLOYEE_ID' AND employee_id = $1::text`,
     [employeeId]

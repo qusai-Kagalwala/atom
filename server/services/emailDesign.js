@@ -4,6 +4,7 @@
 // checked here before it is saved or previewed; the layout escapes all text again when rendering.
 const defaultPool = require('../db/pool');
 const { HttpError } = require('../utils/httpError');
+const emailTemplates = require('./emailTemplates');
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -29,6 +30,8 @@ const DEFAULTS = Object.freeze({
   noReply: 'This is an automatic message from ATOM. Please do not reply to this email.',
   showWatermark: true,
   watermark: 'ATOM · Ticketing & Operations Manager',
+  // Wording per email (7 Nov 2026): subject, greeting, intro, closing — see services/emailTemplates.js.
+  templates: emailTemplates.copyDefaults(),
 });
 
 // [field, min, max] for text fields.
@@ -113,6 +116,9 @@ function validate(input, { strict = true } = {}) {
     if (typeof v !== 'boolean') throw new DesignError('Bad value.', k);
     out[k] = v;
   }
+  out.templates = emailTemplates.validate(input.templates, (message, field) => {
+    throw new DesignError(message, field);
+  });
   return out;
 }
 
@@ -140,6 +146,8 @@ function resolve(design = DEFAULTS) {
   };
 }
 
+const fresh = () => ({ ...DEFAULTS, colors: { ...DEFAULTS.colors }, templates: emailTemplates.copyDefaults() });
+
 // ---------- storage (30 s cache per server process) ----------
 let cache = null;
 let cachedAt = 0;
@@ -149,10 +157,10 @@ async function current(db = defaultPool) {
   if (cache && Date.now() - cachedAt < TTL) return cache;
   try {
     const { rows } = await db.query('SELECT design FROM email_design WHERE id = 1');
-    cache = rows[0] ? validate(rows[0].design) : { ...DEFAULTS, colors: { ...DEFAULTS.colors } };
+    cache = rows[0] ? validate(rows[0].design) : fresh();
   } catch {
     // Table missing (migration not run yet) or a stored value no longer valid: fall back to the default.
-    cache = { ...DEFAULTS, colors: { ...DEFAULTS.colors } };
+    cache = fresh();
   }
   cachedAt = Date.now();
   return cache;

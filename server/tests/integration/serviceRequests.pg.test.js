@@ -99,7 +99,7 @@ maybe('service requests on real PostgreSQL', () => {
     const { rows: cats } = await pool.query('SELECT id, name FROM catalogue_items');
     for (const r of cats) cat[r.name] = String(r.id);
     const hc = (await pool.query(`INSERT INTO asset_categories (name, service_unit_id) VALUES ('Headset', $1) RETURNING id`, [avit])).rows[0].id;
-    for (const [tag, status, holder] of [['HS-01', 'IN_STORE', null], ['HS-02', 'IN_STORE', null], ['HS-03', 'IN_USE', ids.bob]]) {
+    for (const [tag, status, holder] of [['HS-01', 'IN_STORE', null], ['HS-02', 'IN_STORE', null], ['HS-03', 'IN_USE', ids.bob], ['HS-04', 'IN_STORE', null]]) {
       await pool.query(
         `INSERT INTO assets (asset_tag, name, category_id, service_unit_id, status, holder_user_id, source) VALUES ($1, 'Jabra headset', $2, $3, $4, $5, 'snipeit')`,
         [tag, hc, avit, status, holder]
@@ -209,17 +209,18 @@ maybe('service requests on real PostgreSQL', () => {
     expect((await eng1.get('/R-1001')).body.request.permissions).toMatchObject({ canDeliverItems: true, actions: expect.not.arrayContaining(['resolve']) });
     expect((await eng1.post('/R-1001/actions/resolve', { note: 'all done' })).status).toBe(409);
 
-    // Physical: assets or an explanation; only in-store assets; not more than asked; rejected item can't be delivered.
+    // Physical: assets or an explanation; only in-store assets; any number up to 50 (7 Nov 2026); rejected item can't be delivered.
     expect((await eng1.post(`/R-1001/items/${headset.id}/deliver`, {})).status).toBe(400);
     expect((await eng1.post(`/R-1001/items/${headset.id}/deliver`, { assetTags: ['HS-03'] })).status).toBe(409);
-    expect((await eng1.post(`/R-1001/items/${headset.id}/deliver`, { assetTags: ['HS-01', 'HS-02', 'HS-03'] })).status).toBe(400);
+    const fiftyOne = Array.from({ length: 51 }, (_, i) => `X-${i}`);
+    expect((await eng1.post(`/R-1001/items/${headset.id}/deliver`, { assetTags: fiftyOne })).body.code).toBe('too_many_assets');
     expect((await eng1.post(`/R-1001/items/${other.id}/deliver`, { note: 'x' })).status).toBe(409);
     expect((await eng1.post(`/R-1001/items/${o365.id}/deliver`, { assetTags: ['HS-01'] })).status).toBe(400);
 
-    let r = (await eng1.post(`/R-1001/items/${headset.id}/deliver`, { assetTags: ['hs-01', 'HS-02'], note: 'Both handed over at desk' })).body.request;
+    let r = (await eng1.post(`/R-1001/items/${headset.id}/deliver`, { assetTags: ['hs-01', 'HS-02', 'HS-04'], note: 'Two asked, three handed over at desk' })).body.request;
     expect(r.status).toBe('IN_PROGRESS');
-    expect(r.items[1]).toMatchObject({ status: 'DELIVERED', deliveredBy: 'Eng One', assets: [{ tag: 'HS-01' }, { tag: 'HS-02' }] });
-    expect((await alice.mine()).body.assets.map((a) => a.tag)).toEqual(['HS-01', 'HS-02']);
+    expect(r.items[1]).toMatchObject({ status: 'DELIVERED', deliveredBy: 'Eng One', assets: [{ tag: 'HS-01' }, { tag: 'HS-02' }, { tag: 'HS-04' }] });
+    expect((await alice.mine()).body.assets.map((a) => a.tag)).toEqual(['HS-01', 'HS-02', 'HS-04']);
     const ev = (await pool.query(`SELECT e.note, e.data FROM asset_events e JOIN assets a ON a.id = e.asset_id WHERE a.asset_tag = 'HS-01'`)).rows[0];
     expect(ev).toMatchObject({ note: 'Delivered for R-1001', data: { request: 'R-1001', to: { id: ids.alice } } });
     expect((await pool.query(`SELECT edited_in_atom_at IS NOT NULL AS edited FROM assets WHERE asset_tag = 'HS-01'`)).rows[0].edited).toBe(true);

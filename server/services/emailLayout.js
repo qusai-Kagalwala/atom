@@ -31,7 +31,7 @@ const fill = (s, company, d) => String(s || '').replace(/\{company\}/gi, company
  *     tag         small label above the title, e.g. 'Resolved' (optional)
  *     tone        info | gold | success | warning | danger (tag colour)
  *     title       main heading (required)
- *     greeting    first line, e.g. 'Assalamu Alaikum Huzefa,' (optional)
+ *     greeting    first line(s), e.g. 'Assalamu Alaikum Huzefa,' — line breaks kept (optional)
  *     paragraphs  [string]
  *     details     [[label, value, { mono }]] — shown in a box; empty values skipped
  *     button      { label?, url } — http(s) only; label defaults to the design's button text
@@ -143,7 +143,7 @@ function render(content = {}, design = emailDesign.DEFAULTS) {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:${c.card};border:1px solid ${c.line};border-radius:14px;overflow:hidden;${minimal ? `border-top:4px solid ${c.primary};` : ''}">
       ${header}
       ${titleBlock}
-      ${greeting ? `<tr><td style="padding:${banner ? 26 : 14}px 32px 0 32px;font-family:${SANS};font-size:15px;line-height:23px;color:${c.ink};">${esc(greeting)}</td></tr>` : ''}
+      ${greeting ? `<tr><td style="padding:${banner ? 26 : 14}px 32px 0 32px;font-family:${SANS};font-size:15px;line-height:23px;color:${c.ink};">${para(greeting)}</td></tr>` : ''}
       ${paras.map((p, i) => `<tr><td style="padding:${banner && !greeting && i === 0 ? 26 : 12}px 32px 4px 32px;font-family:${SANS};font-size:15px;line-height:23px;color:${c.ink2};">${para(p)}</td></tr>`).join('')}
       ${detailHtml}
       ${buttonHtml}

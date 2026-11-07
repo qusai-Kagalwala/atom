@@ -15,6 +15,9 @@ const areaClass =
 
 // Engineer / Super Admin: deliver one approved item. Physical items: pick in-store assets
 // (they are assigned to the requester), or explain in the note.
+// Any number of assets per delivery (7 Nov 2026), whatever quantity was asked for.
+const MAX_ASSETS = 50;
+
 function DeliverModal({ ticket, item, onClose, onDone }) {
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -32,7 +35,7 @@ function DeliverModal({ ticket, item, onClose, onDone }) {
     queryFn: () => listAssets({ status: 'IN_STORE', categoryId: item.assetCategoryId || undefined, q: debounced || undefined, pageSize: 20 }),
     enabled: physical,
   });
-  const toggle = (tag) => setPicked((p) => (p.includes(tag) ? p.filter((x) => x !== tag) : p.length < item.quantity ? [...p, tag] : p));
+  const toggle = (tag) => setPicked((p) => (p.includes(tag) ? p.filter((x) => x !== tag) : p.length < MAX_ASSETS ? [...p, tag] : p));
 
   async function save() {
     setBusy(true);
@@ -75,8 +78,8 @@ function DeliverModal({ ticket, item, onClose, onDone }) {
         {physical && (
           <div className="space-y-2">
             <p className="font-ui text-sm text-ink-2">
-              Pick the asset{item.quantity > 1 ? 's' : ''} handed over (up to {item.quantity}). They are assigned to {ticket.requester.name} and show in their
-              My assets. Not in inventory? Leave this empty and explain in the note.
+              Pick every asset handed over — as many as needed{item.quantity > 1 ? ` (${item.quantity} asked for)` : ''}. They are assigned to {ticket.requester.name}{' '}
+              and show in their My assets. Not in inventory? Leave this empty and explain in the note.
             </p>
             <label className="relative block">
               <span className="sr-only">Search in-store assets</span>

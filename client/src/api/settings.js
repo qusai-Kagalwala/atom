@@ -14,5 +14,6 @@ export const setPushEnabled = (enabled) => http.patch('/settings/push', { enable
 export const getEmailDesign = () => http.get('/settings/email-design').then((r) => r.data);
 export const saveEmailDesign = (design) => http.put('/settings/email-design', { design }).then((r) => r.data.design);
 export const resetEmailDesign = () => http.post('/settings/email-design/reset').then((r) => r.data.design);
-export const previewEmailDesign = (body, config) => http.post('/settings/email-design/preview', body, config).then((r) => r.data.html);
+// → { html, subject } of the sample with the draft design (nothing saved).
+export const previewEmailDesign = (body, config) => http.post('/settings/email-design/preview', body, config).then((r) => r.data);
 export const testEmailDesign = (body) => http.post('/settings/email-design/test', body).then((r) => r.data);

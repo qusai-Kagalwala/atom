@@ -83,7 +83,7 @@ maybe('Jamea Internet Access (Wi-Fi passes) on real PostgreSQL', () => {
   });
 
   beforeEach(async () => {
-    await pool.query(`TRUNCATE wifi_log, wifi_requests, wifi_passes, wifi_batches, email_outbox, notifications, user_change_log, user_posts,
+    await pool.query(`TRUNCATE wifi_hod_access, wifi_log, wifi_requests, wifi_passes, wifi_batches, email_outbox, notifications, user_change_log, user_posts,
                       user_status_log, user_roles, password_reset_tokens, users RESTART IDENTITY CASCADE`);
     await pool.query(`INSERT INTO wifi_settings (id, hod_posts) VALUES (1, ARRAY['Masool']) ON CONFLICT (id) DO UPDATE SET hod_posts = ARRAY['Masool']`);
     await pool.query('UPDATE service_units SET is_open = TRUE');
@@ -221,7 +221,7 @@ maybe('Jamea Internet Access (Wi-Fi passes) on real PostgreSQL', () => {
     expect((await hod.post(`/passes/${p.id}/whatsapp`)).body).toEqual({ ok: true });
     const mail = await hod.post('/passes/email', { passIds: [p.id, r.body.passes[2].id] });
     expect(mail.body.sent).toBe(1);
-    expect(mail.body.results[1]).toMatchObject({ ok: false, error: 'No email address.' });
+    expect(mail.body.results.find((x) => x.id === r.body.passes[2].id)).toMatchObject({ ok: false, error: 'No email address.' });
     expect(mailer.sendMail).toHaveBeenCalledTimes(1);
     const sent = mailer.sendMail.mock.calls[0][0];
     expect(sent.text).toContain(`Password: ${p.password}`);
@@ -235,9 +235,16 @@ maybe('Jamea Internet Access (Wi-Fi passes) on real PostgreSQL', () => {
     // Another department's HOD can't touch it.
     const acc = as(await login('40000004', 'EMPLOYEE', co.avit));
     expect((await acc.post(`/passes/${p.id}/whatsapp`)).status).toBe(404);
-    // Take back.
-    expect((await hod.post(`/passes/${r.body.passes[3].id}/unassign`)).body).toEqual({ ok: true });
-    expect((await hod.get(`/departments/${dept.lib}`)).body.batches[0].left).toBe(3);
+    // Take back: given together (one Give of 4) → all together only (035).
+    expect(r.body.passes.every((x) => x.group && x.group === r.body.passes[0].group)).toBe(true);
+    expect((await hod.post(`/passes/${r.body.passes[3].id}/unassign`)).body.code).toBe('in_group');
+    expect((await acc.post(`/groups/${p.group}/unassign`)).status).toBe(404);
+    expect((await hod.post(`/groups/${p.group}/unassign`)).body).toEqual({ ok: true, count: 4 });
+    expect((await hod.get(`/departments/${dept.lib}`)).body.batches[0].left).toBe(6);
+    // One pass to one person: no group, taken back on its own.
+    const one = (await hod.post(`/batches/${batchId}/assign`, { departmentId: dept.lib, people: [{ name: 'Single Person' }] })).body.passes[0];
+    expect(one.group).toBeNull();
+    expect((await hod.post(`/passes/${one.id}/unassign`)).body).toEqual({ ok: true });
 
     // Request more → Admin notified → done.
     r = await hod.post(`/departments/${dept.lib}/requests`, { count: 50, reason: 'Urs visitors on Friday' });
@@ -287,10 +294,104 @@ maybe('Jamea Internet Access (Wi-Fi passes) on real PostgreSQL', () => {
     expect(list.find((x) => x.endedReason === 'expired').counts).toMatchObject({ total: 3, given: 0 });
   });
 
+  test('emails: one per address, Excel when 2+; allocation emails each HOD an Excel; wording from Email design', async () => {
+    const ExcelJS = require('exceljs');
+    const readXlsx = async (buf) => {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      const rows = [];
+      wb.worksheets[0].eachRow((row) => rows.push(row.values.slice(1)));
+      return rows;
+    };
+    await pool.query(`UPDATE users SET email = 'hod@example.edu' WHERE id = $1`, [ids.hod]);
+    const admin = as(await login('40000010', 'ADMIN'));
+    const batchId = await newBatch(admin, 12);
+    await admin.post(`/batches/${batchId}/allocate`, { items: [{ departmentId: dept.lib, count: 5 }] });
+
+    // The HOD gets one email with the 5 passes in an Excel file; the notification has no passwords.
+    expect(mailer.sendMail).toHaveBeenCalledTimes(1);
+    const toHod = mailer.sendMail.mock.calls[0][0];
+    expect(toHod).toMatchObject({ to: 'hod@example.edu', subject: '5 Jamea Internet Access passes for Wifi Library' });
+    expect(toHod.attachments[0].filename).toMatch(/\.xlsx$/);
+    const hodRows = await readXlsx(toHod.attachments[0].content);
+    expect(hodRows[0]).toEqual(['No.', 'Username', 'Password', 'Wi-Fi network', 'Valid until']);
+    expect(hodRows).toHaveLength(6);
+    expect(hodRows[1].slice(1, 3)).toEqual(['user1', 'pw-1']);
+    expect(`${toHod.text}`).not.toContain('pw-1'); // passwords only in the attachment
+
+    // Admin gives 3 to one person and 1 each to two others → 3 emails: one with an Excel of 3.
+    mailer.sendMail.mockClear();
+    const given = (await admin.post(`/batches/${batchId}/assign`, {
+      people: [{ name: 'Event Organiser', email: 'org@example.com', count: 3 }, { name: 'Guest A', email: 'a@example.com' }, { name: 'Guest B', email: 'b@example.com' }],
+    })).body.passes;
+    const mail = await admin.post('/passes/email', { passIds: given.map((x) => x.id) });
+    expect(mail.body).toMatchObject({ sent: 5, emails: 3 });
+    const calls = mailer.sendMail.mock.calls.map((c) => c[0]);
+    const org = calls.find((c) => c.to === 'org@example.com');
+    expect(org.subject).toBe('Your Jamea Internet Access — Aljamea-tus-Saifiyah');
+    expect(org.text).toContain('Your 3 Jamea Internet Access passes');
+    const orgRows = await readXlsx(org.attachments[0].content);
+    expect(orgRows.map((x) => x[1]).slice(1)).toEqual(['Event Organiser', 'Event Organiser', 'Event Organiser']);
+    const a = calls.find((c) => c.to === 'a@example.com');
+    expect(a.attachments).toBeUndefined();
+    expect(a.text).toMatch(/Password: pw-\d+/);
+
+    // Wording edited in Email design: greeting on two lines, name on the second; empty name drops the line.
+    const design = require('../../services/emailDesign');
+    await design.save({ id: ids.admin }, {
+      templates: { wifi: { subject: 'Internet access for {name}', greeting: 'Salaam-e-Jameel\n{name}', intro: 'Your access to {ssid}.', closing: 'Shukran' } },
+    });
+    mailer.sendMail.mockClear();
+    await admin.post('/passes/email', { passIds: [given[3].id] });
+    const edited = mailer.sendMail.mock.calls[0][0];
+    expect(edited.subject).toBe('Internet access for Guest A');
+    expect(edited.text).toContain('Salaam-e-Jameel\nGuest A');
+    expect(edited.text).toContain('Your access to Jamea-Net.');
+    expect(edited.text).not.toContain('Assalamu Alaikum');
+    expect(edited.html).toContain('Salaam-e-Jameel<br>Guest A');
+    await design.reset({ id: ids.admin });
+  });
+
+  test('HOD access: Super Admin grants for several departments and revokes (even a Masool); undo', async () => {
+    ids.boss = await addUser('40000020', 'Super Boss', ['EMPLOYEE', 'SUPER_ADMIN']);
+    const auth = await login('40000020', 'SUPER_ADMIN', co.avit);
+    const hods = (b) => request(app).put('/Atom/api/wifi/settings/hods').set('Authorization', `Bearer ${auth}`).send(b);
+    const undo = (u, d) => request(app).delete(`/Atom/api/wifi/settings/hods/${u}/${d}`).set('Authorization', `Bearer ${auth}`);
+
+    // Clerk made HOD of both departments.
+    let r = await hods({ person: '40000002', departmentIds: [dept.lib, dept.acc], kind: 'grant' });
+    expect(r.status).toBe(200);
+    const lib = () => r.body.departments.find((d) => d.id === dept.lib);
+    expect(lib().hodList.map((h) => [h.name, h.source])).toEqual([['Library Clerk', 'granted'], ['Library Masool', 'post']]);
+    const clerk = as(await login('40000002', 'EMPLOYEE', co.avit));
+    expect((await clerk.get('/me')).body.hodDepartments.map((d) => d.name).sort()).toEqual(['Wifi Accounts', 'Wifi Library']);
+
+    // Masool's access revoked for the Library: page gone, shown under revoked.
+    r = await hods({ person: '40000001', departmentIds: [dept.lib], kind: 'revoke' });
+    expect(lib().hodList.map((h) => h.name)).toEqual(['Library Clerk']);
+    expect(lib().revoked).toEqual([expect.objectContaining({ name: 'Library Masool', byPost: true })]);
+    const masool = as(await login('40000001', 'EMPLOYEE', co.avit));
+    expect((await masool.get('/me')).body.hodDepartments).toEqual([]);
+    expect((await masool.get(`/departments/${dept.lib}`)).status).toBe(404);
+
+    // Undo the revoke → back by post.
+    r = await undo(ids.hod, dept.lib);
+    expect(lib().hodList.map((h) => h.name)).toEqual(['Library Clerk', 'Library Masool']);
+    expect((await undo(ids.hod, dept.lib)).status).toBe(404);
+
+    // Checks; only the Super Admin.
+    expect((await hods({ person: '99999999', departmentIds: [dept.lib], kind: 'grant' })).body.code).toBe('no_user');
+    expect((await hods({ person: '40000002', departmentIds: [], kind: 'grant' })).body.code).toBe('no_department');
+    expect((await hods({ person: '40000002', departmentIds: [dept.lib], kind: 'maybe' })).body.code).toBe('invalid');
+    const adminAuth = await login('40000010', 'ADMIN');
+    expect((await request(app).put('/Atom/api/wifi/settings/hods').set('Authorization', `Bearer ${adminAuth}`)
+      .send({ person: '40000002', departmentIds: [dept.lib], kind: 'grant' })).status).toBe(404);
+  });
+
   test('Super Admin sets which posts count as HOD', async () => {
-    const sa = await addUser('30328701', 'Test Super Admin', ['EMPLOYEE', 'SUPER_ADMIN']);
+    const sa = await addUser('90009990', 'Test Super Admin', ['EMPLOYEE', 'SUPER_ADMIN']);
     void sa;
-    const s = as(await login('30328701', 'SUPER_ADMIN', co.avit));
+    const s = as(await login('90009990', 'SUPER_ADMIN', co.avit));
     const admin = as(await login('40000010', 'ADMIN'));
     expect((await admin.get('/settings')).status).toBe(404);
     const pr = await s.patch('/settings', { hodPosts: ['Head of Department'] });

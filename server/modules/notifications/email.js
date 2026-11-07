@@ -8,6 +8,7 @@ const { config } = require('../../config/env');
 const mailer = require('../../services/mailer');
 const layout = require('../../services/emailLayout');
 const emailDesign = require('../../services/emailDesign');
+const emailTemplates = require('../../services/emailTemplates');
 
 const MAX_TRIES = 3;
 const BATCH = 20;
@@ -54,25 +55,32 @@ const KIND = {
 const FINAL = ['RESOLVED', 'CLOSED', 'REJECTED'];
 const refOf = (t) => (t?.number ? `${t.type === 'SERVICE_REQUEST' ? 'R' : 'T'}-${t.number}` : null);
 
-// → { text, html } for one notification row. ticket may be null (onboarding / offboarding).
-// company: the sending company's name (defaults to the ticket's).
-function render(row, ticket, design = emailDesign.DEFAULTS, company = ticket?.service_unit_name || '') {
+// → { subject, text, html } for one notification row. ticket may be null (onboarding / offboarding).
+// company: the sending company's name (defaults to the ticket's). name: the recipient's name (greeting).
+// Subject, greeting, intro and closing come from Settings → Email design (Ticket / Service request).
+function render(row, ticket, design = emailDesign.DEFAULTS, company = ticket?.service_unit_name || '', name = '') {
   const kind = String(row.type || '').split('.').pop();
   let [tag, tone] = KIND[kind] || ['Update', 'gold'];
   if (kind === 'resolve' && ticket?.type === 'SERVICE_REQUEST') tag = 'Delivered';
   const due = ticket?.due_by && !FINAL.includes(ticket.status) ? when(ticket.due_by) : null;
-  return layout.render({
+  const t = emailTemplates.apply(design.templates, ticket?.type === 'SERVICE_REQUEST' ? 'request' : 'ticket', {
+    name: name || null, company, number: refOf(ticket), title: row.title,
+  });
+  const mail = layout.render({
     company,
     tag,
     tone,
     title: row.title,
-    paragraphs: row.body ? [row.body] : [],
+    greeting: t.greeting,
+    paragraphs: [t.intro, row.body],
+    note: t.closing,
     details: [
       [ticket?.type === 'SERVICE_REQUEST' ? 'Request' : 'Ticket', refOf(ticket)],
       ['Expected by', due],
     ],
     button: row.link ? { url: `${config.appUrl}${row.link}` } : null,
   }, design);
+  return { subject: t.subject || `ATOM: ${row.title}`.slice(0, 200), ...mail };
 }
 
 // Plain-text version (kept for tests and mail apps without HTML).
@@ -85,10 +93,11 @@ async function queueForRows(db, rows, ticket) {
   if (!s[0]?.email_enabled) return 0;
   const ids = [...new Set(rows.map((r) => String(r.user_id)))];
   const { rows: people } = await db.query(
-    `SELECT id::text AS id, email FROM users WHERE id = ANY($1::bigint[]) AND is_active AND notify_email AND email IS NOT NULL AND email LIKE '%@%'`, // 031: email off = none
+    `SELECT id::text AS id, email, name FROM users WHERE id = ANY($1::bigint[]) AND is_active AND notify_email AND email IS NOT NULL AND email LIKE '%@%'`, // 031: email off = none
     [ids]
   );
   const emailOf = new Map(people.map((p) => [p.id, p.email.trim()]));
+  const nameOf = new Map(people.map((p) => [p.id, p.name || '']));
   if (!emailOf.size) return 0;
   // The sending company's name: the ticket's, else the notification's company (onboarding / offboarding).
   const unitIds = [...new Set(rows.map((r) => r.service_unit_id).filter((x) => x != null).map(String))];
@@ -101,11 +110,11 @@ async function queueForRows(db, rows, ticket) {
   for (const r of rows) {
     const to = emailOf.get(String(r.user_id));
     if (!to) continue;
-    const mail = render(r, ticket, design, ticket?.service_unit_name || unitName.get(String(r.service_unit_id)) || '');
+    const mail = render(r, ticket, design, ticket?.service_unit_name || unitName.get(String(r.service_unit_id)) || '', nameOf.get(String(r.user_id)));
     await db.query(
       `INSERT INTO email_outbox (user_id, to_email, subject, body_text, body_html, request_id)
        VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::text, $6::bigint)`,
-      [r.user_id, to, `ATOM: ${r.title}`.slice(0, 200), mail.text, mail.html, r.request_id ?? null]
+      [r.user_id, to, mail.subject.slice(0, 200), mail.text, mail.html, r.request_id ?? null]
     );
     n += 1;
   }

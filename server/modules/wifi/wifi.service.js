@@ -13,6 +13,9 @@ const notifications = require('../notifications/notifications.service');
 const mailer = require('../../services/mailer');
 const emailLayout = require('../../services/emailLayout');
 const emailDesign = require('../../services/emailDesign');
+const emailTemplates = require('../../services/emailTemplates');
+const crypto = require('crypto');
+const ExcelJS = require('exceljs');
 const ejamaat = require('../../services/ejamaatClient');
 const { config } = require('../../config/env');
 
@@ -26,7 +29,7 @@ const isAdmin = (user) => user.activeRole === 'ADMIN' || user.activeRole === 'SU
 const MAX_ROWS = 10000;
 const MAX_PER_PERSON = 500;
 const MAX_PEOPLE = 2000;
-const MAX_EMAILS_PER_CALL = 25;
+const MAX_EMAIL_PASSES_PER_CALL = 500; // passes per call; one email per address
 
 async function inTx(fn) {
   const client = await deps.pool.connect();
@@ -54,13 +57,21 @@ async function hodPosts(db = deps.pool) {
   return (rows[0]?.hod_posts || ['Masool']).map((p) => p.toLowerCase());
 }
 const HOD_MATCH = `(lower(btrim(p.post)) = ANY($POSTS::text[]) OR lower(btrim(p.post_category)) = ANY($POSTS::text[]))`;
+// Who is HOD of which department (035, 7 Nov 2026): an active Idarah post that matches (Masool), or a
+// Super Admin grant — minus any Super Admin revoke. → rows (user_id, department_id). $POSTS = the posts param.
+const HODS = (postsParam) => `(
+  (SELECT p.user_id, p.department_id FROM user_posts p WHERE p.is_active AND ${HOD_MATCH.replace(/\$POSTS/g, postsParam)}
+   UNION
+   SELECT a.user_id, a.department_id FROM wifi_hod_access a WHERE a.kind = 'grant')
+  EXCEPT
+  SELECT r.user_id, r.department_id FROM wifi_hod_access r WHERE r.kind = 'revoke')`;
 
-// Departments where this person is HOD (active post, active department).
+// Departments where this person is HOD (active department).
 async function hodDepartments(user, db = deps.pool) {
   const posts = await hodPosts(db);
   const { rows } = await db.query(
-    `SELECT DISTINCT d.id::text AS id, d.name FROM user_posts p JOIN departments d ON d.id = p.department_id
-      WHERE p.user_id = $1::bigint AND p.is_active AND d.is_active AND ${HOD_MATCH.replace(/\$POSTS/g, '$2')}
+    `SELECT DISTINCT d.id::text AS id, d.name FROM ${HODS('$2')} h JOIN departments d ON d.id = h.department_id
+      WHERE h.user_id = $1::bigint AND d.is_active
       ORDER BY d.name`,
     [user.id, posts]
   );
@@ -80,11 +91,75 @@ async function me(user) {
 }
 
 // ---------- settings (Super Admin) ----------
+// Every department with its HODs (and where each comes from) and the people whose access was revoked.
 async function getSettings() {
   const posts = await hodPosts();
   const { rows } = await deps.pool.query('SELECT hod_posts FROM wifi_settings WHERE id = 1');
-  const hods = await departmentList(null);
-  return { hodPosts: rows[0]?.hod_posts || ['Masool'], departments: hods.map((d) => ({ id: d.id, name: d.name, hods: d.hods })), matching: posts };
+  const { rows: depts } = await deps.pool.query('SELECT id::text AS id, name FROM departments WHERE is_active ORDER BY lower(name)');
+  const { rows: people } = await deps.pool.query(
+    `WITH post AS (SELECT DISTINCT p.user_id, p.department_id FROM user_posts p WHERE p.is_active AND ${HOD_MATCH.replace(/\$POSTS/g, '$1')}),
+          acc AS (SELECT user_id, department_id, kind FROM wifi_hod_access)
+     SELECT x.department_id::text AS department_id, u.id::text AS user_id, COALESCE(u.name, 'Employee ' || u.employee_id) AS name,
+            u.its_number, u.employee_id, (post.user_id IS NOT NULL) AS by_post, acc.kind
+       FROM (SELECT user_id, department_id FROM post UNION SELECT user_id, department_id FROM acc) x
+       JOIN users u ON u.id = x.user_id
+       LEFT JOIN post ON post.user_id = x.user_id AND post.department_id = x.department_id
+       LEFT JOIN acc ON acc.user_id = x.user_id AND acc.department_id = x.department_id
+      WHERE u.is_active
+      ORDER BY lower(COALESCE(u.name, ''))`,
+    [posts]
+  );
+  const byDept = new Map(depts.map((d) => [d.id, { id: d.id, name: d.name, hodList: [], revoked: [] }]));
+  for (const r of people) {
+    const d = byDept.get(r.department_id);
+    if (!d) continue;
+    const person = { userId: r.user_id, name: r.name, its: r.its_number || null, employeeId: r.employee_id || null };
+    if (r.kind === 'revoke') d.revoked.push({ ...person, byPost: r.by_post });
+    else d.hodList.push({ ...person, source: r.by_post ? 'post' : 'granted' });
+  }
+  const departments = [...byDept.values()].map((d) => ({ ...d, hods: d.hodList.map((h) => h.name).join(', ') || null }));
+  return { hodPosts: rows[0]?.hod_posts || ['Masool'], departments, matching: posts };
+}
+
+// Super Admin: make someone HOD of one or more departments, or take HOD access away (even from a Masool).
+//   body: { person: ITS number | Employee ID, departmentIds: [], kind: 'grant' | 'revoke' }
+async function setHodAccess(user, body = {}) {
+  const ref = clean(body.person);
+  const kind = body.kind;
+  if (!['grant', 'revoke'].includes(kind)) throw bad('Grant or revoke?', 'invalid');
+  const deptIds = [...new Set((Array.isArray(body.departmentIds) ? body.departmentIds : []).map(String))];
+  if (!deptIds.length || deptIds.length > 200 || !deptIds.every(isId)) throw bad('Choose at least one department.', 'no_department');
+  if (!ref) throw bad('Enter an ITS number or Employee ID.', 'no_person');
+  const { rows: u } = await deps.pool.query(
+    `SELECT id::text AS id, COALESCE(name, 'Employee ' || employee_id) AS name FROM users
+      WHERE is_active AND (its_number = $1::text OR upper(employee_id) = upper($1::text)) LIMIT 2`,
+    [ref]
+  );
+  if (u.length !== 1) throw bad('No active ATOM user with that ITS number or Employee ID.', 'no_user');
+  const { rows: d } = await deps.pool.query('SELECT id::text AS id, name FROM departments WHERE is_active AND id = ANY($1::bigint[])', [deptIds]);
+  if (d.length !== deptIds.length) throw bad('Unknown department.', 'bad_department');
+  await inTx(async (db) => {
+    for (const dep of d) {
+      // eslint-disable-next-line no-await-in-loop
+      await db.query(
+        `INSERT INTO wifi_hod_access (user_id, department_id, kind, set_by) VALUES ($1::bigint, $2::bigint, $3::text, $4::bigint)
+         ON CONFLICT (user_id, department_id) DO UPDATE SET kind = EXCLUDED.kind, set_by = EXCLUDED.set_by, set_at = now()`,
+        [u[0].id, dep.id, kind, user.id]
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await log(db, { kind: 'settings', actorId: user.id, departmentId: dep.id, note: `HOD ${kind}: user ${u[0].id}` });
+    }
+  });
+  return getSettings();
+}
+
+// Super Admin: undo a grant or a revoke (back to what the Idarah post says).
+async function clearHodAccess(user, userId, departmentId) {
+  if (!isId(userId) || !isId(departmentId)) throw notFound();
+  const { rowCount } = await deps.pool.query('DELETE FROM wifi_hod_access WHERE user_id = $1::bigint AND department_id = $2::bigint', [userId, departmentId]);
+  if (!rowCount) throw notFound();
+  await log(deps.pool, { kind: 'settings', actorId: user.id, departmentId, note: `HOD access cleared: user ${userId}` });
+  return getSettings();
 }
 async function setHodPosts(user, list) {
   if (!Array.isArray(list)) throw bad('Give a list of post names.', 'invalid');
@@ -105,8 +180,8 @@ async function departmentList(batchId, db = deps.pool) {
   const { rows } = await db.query(
     `SELECT d.id::text AS id, d.name,
             COALESCE((SELECT string_agg(DISTINCT COALESCE(u.name, 'Employee ' || u.employee_id), ', ')
-                        FROM user_posts p JOIN users u ON u.id = p.user_id
-                       WHERE p.department_id = d.id AND p.is_active AND u.is_active AND ${HOD_MATCH.replace(/\$POSTS/g, '$1')}), '') AS hods,
+                        FROM ${HODS('$1')} h JOIN users u ON u.id = h.user_id
+                       WHERE h.department_id = d.id AND u.is_active), '') AS hods,
             COALESCE(x.allocated, 0)::int AS allocated, COALESCE(x.given, 0)::int AS given
        FROM departments d
        LEFT JOIN (SELECT department_id, count(*) AS allocated, count(*) FILTER (WHERE assigned_at IS NOT NULL) AS given
@@ -345,16 +420,17 @@ async function allocate(user, batchId, items = []) {
       if (target === n) continue;
       if (target > n) {
         // eslint-disable-next-line no-await-in-loop
-        const { rowCount } = await db.query(
+        const { rowCount, rows: moved } = await db.query(
           `UPDATE wifi_passes SET department_id = $2::bigint, allocated_at = now()
             WHERE id IN (SELECT id FROM wifi_passes WHERE batch_id = $1::bigint AND department_id IS NULL AND assigned_at IS NULL
-                          ORDER BY id LIMIT $3::int)`,
+                          ORDER BY id LIMIT $3::int)
+            RETURNING id`,
           [b.id, dep, target - n]
         );
         if (rowCount < target - n) throw bad(`Not enough passes left in this batch for ${deptName.get(dep)}.`, 'not_enough');
         // eslint-disable-next-line no-await-in-loop
         await log(db, { batchId: b.id, kind: 'allocate', actorId: user.id, departmentId: dep, count: target - n });
-        out.push({ departmentId: dep, name: deptName.get(dep), added: target - n, batch: b });
+        out.push({ departmentId: dep, name: deptName.get(dep), added: target - n, batch: b, passIds: moved.map((m) => m.id) });
       } else {
         if (target < given) throw bad(`${deptName.get(dep)} has already given out ${given} — it can't go below that.`, 'below_given');
         // eslint-disable-next-line no-await-in-loop
@@ -382,9 +458,12 @@ async function allocate(user, batchId, items = []) {
         if (r) rows.push(r);
       }
     }
-    return rows;
+    return { rows, out };
   });
-  notifications.publish(changes, null);
+  notifications.publish(changes.rows, null);
+  // One email per HOD with the department's new passes in an Excel file (7 Nov 2026). Best effort,
+  // after the change is saved: a mail problem never undoes the allocation.
+  await emailHodsAllocation(user, changes.out).catch((err) => console.error('[ATOM] Wi-Fi HOD email failed:', err.message));
   return getBatch(user, batchId);
 }
 
@@ -433,8 +512,8 @@ async function movePasses(user, batchId, body = {}) {
 async function hodUsers(db, departmentId) {
   const posts = await hodPosts(db);
   const { rows } = await db.query(
-    `SELECT DISTINCT u.id FROM user_posts p JOIN users u ON u.id = p.user_id
-      WHERE p.department_id = $1::bigint AND p.is_active AND u.is_active AND ${HOD_MATCH.replace(/\$POSTS/g, '$2')}`,
+    `SELECT DISTINCT u.id FROM ${HODS('$2')} h JOIN users u ON u.id = h.user_id
+      WHERE h.department_id = $1::bigint AND u.is_active`,
     [departmentId, posts]
   );
   return rows.map((r) => String(r.id));
@@ -463,6 +542,7 @@ function toPass(p) {
     expiresAt: p.expires_at,
     validUntil: p.assigned_at ? recipientUntil(p) : null, // what the person is told (10 days)
     batchName: p.batch_name,
+    group: p.give_group || null, // given together with others: taken back together only
   };
 }
 const PASS_SELECT = `
@@ -568,6 +648,8 @@ async function assign(user, batchId, { departmentId = null, people = [] } = {}) 
   if (people.length > MAX_PEOPLE) throw bad(`Up to ${MAX_PEOPLE} people at a time.`, 'too_many');
   const list = people.map((p, i) => readPerson(p, people.length > 1 ? i + 1 : null));
   const need = list.reduce((s, p) => s + p.count, 0);
+  // 2+ passes given in one go form a group, taken back together only (035, 7 Nov 2026).
+  const group = need > 1 ? crypto.randomUUID() : null;
   const ids = await inTx(async (db) => {
     const b = await liveBatch(db, user, batchId, { lock: true });
     const pool = adminDirect ? 'department_id IS NULL' : 'department_id = $2::bigint';
@@ -587,9 +669,9 @@ async function assign(user, batchId, { departmentId = null, people = [] } = {}) 
       await db.query(
         `UPDATE wifi_passes SET assigned_at = now(), assigned_by = $2::bigint, assigned_via = $3::text,
                 recipient_its = $4::text, recipient_name = $5::text, recipient_mobile = $6::text, recipient_email = $7::text,
-                shared_whatsapp_at = NULL, shared_email_at = NULL
+                shared_whatsapp_at = NULL, shared_email_at = NULL, give_group = $8::uuid
           WHERE id = ANY($1::bigint[])`,
-        [mine, user.id, adminDirect ? 'admin' : 'department', p.its, p.name, p.mobile, p.email]
+        [mine, user.id, adminDirect ? 'admin' : 'department', p.its, p.name, p.mobile, p.email, group]
       );
       out.push(...mine);
     }
@@ -617,13 +699,34 @@ async function ownPass(user, passId, db = deps.pool) {
 async function unassign(user, passId) {
   const p = await ownPass(user, passId);
   if (!p.assigned_at) throw bad('This pass is not given to anyone.', 'not_assigned');
-  await deps.pool.query(
-    `UPDATE wifi_passes SET assigned_at = NULL, assigned_by = NULL, assigned_via = NULL, recipient_its = NULL, recipient_name = NULL,
-            recipient_mobile = NULL, recipient_email = NULL, shared_whatsapp_at = NULL, shared_email_at = NULL WHERE id = $1::bigint`,
-    [p.id]
-  );
+  if (p.give_group) throw new HttpError(409, 'This pass was given together with others — take them all back together.', 'in_group');
+  await deps.pool.query(`UPDATE wifi_passes SET ${CLEAR_GIVEN} WHERE id = $1::bigint`, [p.id]);
   await log(deps.pool, { batchId: p.batch_id, kind: 'unassign', actorId: user.id, departmentId: p.department_id, count: 1 });
   return { ok: true };
+}
+
+const CLEAR_GIVEN = `assigned_at = NULL, assigned_by = NULL, assigned_via = NULL, recipient_its = NULL, recipient_name = NULL,
+  recipient_mobile = NULL, recipient_email = NULL, shared_whatsapp_at = NULL, shared_email_at = NULL, give_group = NULL`;
+
+// Take back every pass given together in one go (035). Same rights as for one pass.
+async function unassignGroup(user, groupId) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(groupId || ''))) throw notFound();
+  return inTx(async (db) => {
+    const { rows } = await db.query(
+      `SELECT p.id, p.batch_id, p.department_id FROM wifi_passes p JOIN wifi_batches b ON b.id = p.batch_id
+        WHERE p.give_group = $1::uuid AND b.service_unit_id = $2::bigint AND b.ended_at IS NULL FOR UPDATE OF p`,
+      [groupId, user.companyId]
+    );
+    if (!rows.length) throw notFound();
+    const dept = rows[0].department_id;
+    if (!isAdmin(user)) {
+      if (!dept) throw notFound();
+      await assertHod(user, dept, db);
+    }
+    await db.query(`UPDATE wifi_passes SET ${CLEAR_GIVEN} WHERE give_group = $1::uuid`, [groupId]);
+    await log(db, { batchId: rows[0].batch_id, kind: 'unassign', actorId: user.id, departmentId: dept, count: rows.length, note: 'given together' });
+    return { ok: true, count: rows.length };
+  });
 }
 
 async function markWhatsapp(user, passId) {
@@ -658,34 +761,77 @@ function passMessage(p) {
   ].join('\n');
 }
 
-// Styled email for one pass. The password appears only in this email, never in logs or the queue.
-function passEmail(p, company = '', design = emailDesign.DEFAULTS) {
-  return emailLayout.render({
+// Styled email for one person: one pass, or several (then the passes are in the attached Excel file).
+// The wording comes from Settings → Email design → Jamea Internet Access (7 Nov 2026).
+// Passwords appear only in this email / its attachment, never in logs or the queue.
+function passEmail(p, company = '', design = emailDesign.DEFAULTS, count = 1) {
+  const validUntil = fmtDate(recipientUntil(p));
+  const t = emailTemplates.apply(design.templates, 'wifi', { name: p.recipient_name, company, ssid: p.ssid, validUntil, count });
+  const many = count > 1;
+  const mail = emailLayout.render({
     company,
     tag: 'Jamea Internet Access',
     tone: 'info',
-    title: 'Your Jamea Internet Access',
-    greeting: `Assalamu Alaikum${p.recipient_name ? ` ${p.recipient_name}` : ''},`,
-    paragraphs: ['Here are your Jamea Internet Access details for Aljamea-tus-Saifiyah.'],
-    details: [
-      ['Wi-Fi network', p.ssid, { mono: true }],
-      ['Username', p.username, { mono: true }],
-      ['Password', p.password, { mono: true }],
-      ['Valid until', fmtDate(recipientUntil(p))],
-    ],
-    note: 'Connect to the network above, then sign in with this username and password. Please do not share it.',
-    preheader: `Wi-Fi network ${p.ssid} · valid until ${fmtDate(recipientUntil(p))}`,
+    title: many ? `Your ${count} Jamea Internet Access passes` : 'Your Jamea Internet Access',
+    greeting: t.greeting,
+    paragraphs: [t.intro, many ? `All ${count} passes — username and password for each — are in the attached Excel file.` : null],
+    details: many
+      ? [['Wi-Fi network', p.ssid, { mono: true }], ['Passes', String(count)], ['Valid until', validUntil]]
+      : [
+        ['Wi-Fi network', p.ssid, { mono: true }],
+        ['Username', p.username, { mono: true }],
+        ['Password', p.password, { mono: true }],
+        ['Valid until', validUntil],
+      ],
+    note: t.closing,
+    preheader: `Wi-Fi network ${p.ssid} · valid until ${validUntil}`,
   }, design);
+  return { subject: t.subject, ...mail };
 }
 
+// Excel file of passes (one row each). rows: pass rows from PASS_SELECT.
+async function passesWorkbook(rows, { forRecipients = true } = {}) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Passes');
+  ws.columns = [
+    { header: 'No.', key: 'n', width: 6 },
+    ...(forRecipients ? [{ header: 'Name', key: 'name', width: 28 }, { header: 'ITS', key: 'its', width: 12 }] : []),
+    { header: 'Username', key: 'username', width: 22 },
+    { header: 'Password', key: 'password', width: 20 },
+    { header: 'Wi-Fi network', key: 'ssid', width: 18 },
+    { header: 'Valid until', key: 'until', width: 24 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  rows.forEach((p, i) => {
+    ws.addRow({
+      n: i + 1,
+      name: p.recipient_name || '',
+      its: p.recipient_its || '',
+      username: p.username,
+      password: p.password,
+      ssid: p.ssid,
+      until: fmtDate(forRecipients ? recipientUntil(p) : p.expires_at),
+    });
+  });
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const fileDate = () => new Date().toISOString().slice(0, 10);
+
 // Email passes straight through SMTP (never through the email queue, which keeps bodies for 90 days).
+// Passes for the same email address go in ONE email; 2+ passes come as an Excel file (7 Nov 2026).
+// Different people each get their own email.
 async function emailPasses(user, passIds = []) {
   if (!Array.isArray(passIds) || !passIds.length) throw bad('Choose passes to email.', 'invalid');
-  if (passIds.length > MAX_EMAILS_PER_CALL) throw bad(`Up to ${MAX_EMAILS_PER_CALL} emails at a time.`, 'too_many');
+  if (passIds.length > MAX_EMAIL_PASSES_PER_CALL) throw bad(`Up to ${MAX_EMAIL_PASSES_PER_CALL} passes at a time.`, 'too_many');
   if (!config.smtp.host) throw new HttpError(503, 'Email is not set up on the server (SMTP).', 'smtp_missing');
   const design = await emailDesign.current(deps.pool);
+  const company = user.company?.name || '';
   const results = [];
-  for (const id of passIds) {
+  const groups = new Map(); // email → passes
+  for (const id of [...new Set(passIds.map(String))]) {
     let p;
     try {
       // eslint-disable-next-line no-await-in-loop
@@ -698,20 +844,90 @@ async function emailPasses(user, passIds = []) {
       results.push({ id: String(p.id), ok: false, error: 'No email address.' });
       continue;
     }
+    const key = p.recipient_email.trim().toLowerCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+  let emails = 0;
+  for (const [to, list] of groups) {
+    const ids = list.map((p) => String(p.id));
     try {
+      const mail = passEmail(list[0], company, design, list.length);
+      if (list.length > 1) {
+        // eslint-disable-next-line no-await-in-loop
+        mail.attachments = [{ filename: `Jamea-Internet-Access-${fileDate()}.xlsx`, content: await passesWorkbook(list), contentType: XLSX }];
+      }
       // eslint-disable-next-line no-await-in-loop
-      await deps.mailer.sendMail({ to: p.recipient_email, subject: 'Your Jamea Internet Access — Aljamea-tus-Saifiyah', ...passEmail(p, user.company?.name || '', design) });
+      await deps.mailer.sendMail({ to, ...mail });
       // eslint-disable-next-line no-await-in-loop
-      await deps.pool.query('UPDATE wifi_passes SET shared_email_at = now() WHERE id = $1::bigint', [p.id]);
-      results.push({ id: String(p.id), ok: true });
+      await deps.pool.query('UPDATE wifi_passes SET shared_email_at = now() WHERE id = ANY($1::bigint[])', [ids]);
+      ids.forEach((id) => results.push({ id, ok: true }));
+      emails += 1;
     } catch (err) {
-      results.push({ id: String(p.id), ok: false, error: 'Could not send.' });
+      ids.forEach((id) => results.push({ id, ok: false, error: 'Could not send.' }));
       console.error('[ATOM] Wi-Fi pass email failed:', err.message); // never the body
     }
   }
   const sent = results.filter((r) => r.ok).length;
-  if (sent) await log(deps.pool, { kind: 'share_email', actorId: user.id, count: sent });
-  return { results, sent };
+  if (sent) await log(deps.pool, { kind: 'share_email', actorId: user.id, count: sent, note: `${emails} email${emails === 1 ? '' : 's'}` });
+  return { results, sent, emails };
+}
+
+// After an allocation: each HOD of the department gets one email with the new passes in an Excel file.
+// In ATOM the HOD still sees every pass on its own, to give out by ITS and share by email / WhatsApp.
+async function emailHodsAllocation(user, allocated) {
+  if (!config.smtp.host || !allocated.length) return 0;
+  const design = await emailDesign.current(deps.pool);
+  const company = user.company?.name || '';
+  let n = 0;
+  for (const a of allocated) {
+    // eslint-disable-next-line no-await-in-loop
+    const hodIds = await hodUsers(deps.pool, a.departmentId);
+    if (!hodIds.length) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const { rows: hods } = await deps.pool.query(
+      `SELECT name, email FROM users WHERE id = ANY($1::bigint[]) AND is_active AND email LIKE '%@%'`,
+      [hodIds]
+    );
+    if (!hods.length) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const { rows: passes } = await deps.pool.query(`${PASS_SELECT} WHERE p.id = ANY($1::bigint[]) ORDER BY p.id`, [a.passIds]);
+    if (!passes.length) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const file = await passesWorkbook(passes, { forRecipients: false });
+    const until = fmtDate(a.batch.expires_at);
+    for (const h of hods) {
+      const t = emailTemplates.apply(design.templates, 'wifi', { name: h.name, company, ssid: a.batch.ssid, validUntil: until, count: passes.length });
+      const mail = emailLayout.render({
+        company,
+        tag: 'Jamea Internet Access',
+        tone: 'info',
+        title: `${passes.length} Jamea Internet Access passes for ${a.name}`,
+        greeting: t.greeting,
+        paragraphs: [
+          `${passes.length} passes have been allocated to ${a.name}. Their usernames and passwords are in the attached Excel file.`,
+          'Give them out from the Jamea Internet Access page in ATOM — by ITS number — and share each one by email or WhatsApp from there.',
+        ],
+        details: [['Wi-Fi network', a.batch.ssid, { mono: true }], ['Passes', String(passes.length)], ['Batch valid until', until]],
+        button: { url: `${config.appUrl}/wifi`, label: 'Open Jamea Internet Access' },
+        preheader: `${passes.length} passes for ${a.name}`,
+      }, design);
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await deps.mailer.sendMail({
+          to: h.email.trim(),
+          subject: `${passes.length} Jamea Internet Access passes for ${a.name}`,
+          ...mail,
+          attachments: [{ filename: `Jamea-Internet-Access-${a.name.replace(/[^\w-]+/g, '-')}-${fileDate()}.xlsx`, content: file, contentType: XLSX }],
+        });
+        n += 1;
+      } catch (err) {
+        console.error('[ATOM] Wi-Fi HOD email failed:', err.message); // never the body
+      }
+    }
+  }
+  if (n) await log(deps.pool, { kind: 'share_email', actorId: user.id, count: n, note: 'HOD allocation emails' });
+  return n;
 }
 
 // ---------- requests ----------
@@ -776,7 +992,8 @@ async function decideRequest(user, id, body = {}) {
 }
 
 module.exports = {
+  setHodAccess, clearHodAccess, unassignGroup,
   me, getSettings, setHodPosts, listBatches, getBatch, uploadBatch, resetBatch, expireDue, allocate, departmentList,
   listPasses, departmentView, lookupIts, assign, unassign, markWhatsapp, emailPasses, requestMore, listRequests, decideRequest,
-  readPassesCsv, parseCsvText, movePasses, passMessage, passEmail, recipientUntil, RECIPIENT_DAYS, hodDepartments, setDeps,
+  readPassesCsv, parseCsvText, movePasses, passMessage, passEmail, passesWorkbook, recipientUntil, RECIPIENT_DAYS, hodDepartments, setDeps,
 };
