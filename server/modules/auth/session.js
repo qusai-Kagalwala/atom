@@ -59,7 +59,8 @@ function toPublicUser(row, activeRole) {
     nameArabic,
     nameLanguage,
     // How I get notified (031). Both on by default.
-    notify: { inApp: row.notify_in_app !== false, email: row.notify_email !== false },
+    // keepDays (034): 7 | 15 | 30, or null = never cleared.
+    notify: { inApp: row.notify_in_app !== false, email: row.notify_email !== false, keepDays: row.notify_keep_days ?? null },
     displayName: nameLanguage === 'ar' ? nameArabic : name,
     email: row.email || null,
     mobile: row.mobile || null,

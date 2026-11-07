@@ -231,16 +231,16 @@ async function countAttachments(db, requestId) {
 
 async function insertAttachment(db, a) {
   await db.query(
-    `INSERT INTO request_attachments (request_id, event_id, uploaded_by, stored_name, original_name, mime_type, size_bytes, width, height)
-     VALUES ($1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::text, $7::int, $8::int, $9::int)`,
-    [a.requestId, a.eventId ?? null, a.uploadedBy, a.storedName, a.originalName, a.mimeType, a.sizeBytes, a.width, a.height]
+    `INSERT INTO request_attachments (request_id, event_id, uploaded_by, stored_name, original_name, mime_type, size_bytes, width, height, data)
+     VALUES ($1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::text, $7::int, $8::int, $9::int, $10::bytea)`,
+    [a.requestId, a.eventId ?? null, a.uploadedBy, a.storedName, a.originalName, a.mimeType, a.sizeBytes, a.width, a.height, a.data]
   );
 }
 
 async function getAttachment(db, requestId, attachmentId) {
   if (!/^\d{1,18}$/.test(String(attachmentId))) return null;
   const { rows } = await db.query(
-    `SELECT a.id, a.stored_name, a.mime_type, COALESCE(e.is_internal, FALSE) AS is_internal
+    `SELECT a.id, a.stored_name, a.mime_type, a.data, COALESCE(e.is_internal, FALSE) AS is_internal
        FROM request_attachments a LEFT JOIN request_events e ON e.id = a.event_id
       WHERE a.request_id = $1::bigint AND a.id = $2::bigint`,
     [requestId, attachmentId]

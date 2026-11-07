@@ -255,7 +255,7 @@ function createRequestsRouter() {
       const jpeg = req.query.format === 'jpeg' && file.mimeType === 'image/webp';
       await sendStoredFile(
         res,
-        file.path,
+        file,
         { 'Content-Type': file.mimeType, 'Cache-Control': 'private, max-age=3600', 'Content-Disposition': 'inline', 'X-Content-Type-Options': 'nosniff' },
         `photo ${req.params.attachmentId} of ${req.params.number}`,
         jpeg ? async (buf) => ({ data: await sharp(buf).jpeg({ quality: 85 }).toBuffer(), type: 'image/jpeg' }) : null

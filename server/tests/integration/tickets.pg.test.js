@@ -151,9 +151,11 @@ maybe('tickets on real PostgreSQL', () => {
     expect(meta.exif).toBeUndefined();
     expect(img.body.includes(Buffer.from('SecretCam'))).toBe(false);
 
-    const onDisk = fs.readdirSync(path.join(ATTACH_DIR, 'requests', t.id));
-    expect(onDisk).toHaveLength(2);
-    expect(onDisk.every((f) => /^[0-9a-f-]{36}\.webp$/.test(f))).toBe(true);
+    // Kept in PostgreSQL (033): nothing written to disk.
+    expect(fs.existsSync(path.join(ATTACH_DIR, 'requests', t.id))).toBe(false);
+    const stored = await q('SELECT stored_name, octet_length(data) AS n, size_bytes FROM request_attachments WHERE request_id = $1 ORDER BY id', [t.id]);
+    expect(stored).toHaveLength(2);
+    expect(stored.every((r) => /^[0-9a-f-]{36}\.webp$/.test(r.stored_name) && r.n === r.size_bytes)).toBe(true);
     expect(img.headers['cache-control']).toBe('private, max-age=3600');
 
     // Phones that can't show WebP ask for JPEG.
@@ -163,11 +165,29 @@ maybe('tickets on real PostgreSQL', () => {
     expect(await sharp(jpg.body).metadata()).toMatchObject({ format: 'jpeg', width: 1600 });
     expect(img.headers['content-length']).toBe(String(img.body.length));
 
-    // A file missing on disk: 404, logged, and never cached by the browser.
+    // A photo from before 033 (data NULL) is read from disk until the import copies it in.
+    const old = await q('SELECT id, stored_name, data FROM request_attachments WHERE request_id = $1 ORDER BY id', [t.id]);
+    await q('UPDATE request_attachments SET data = NULL WHERE request_id = $1', [t.id]);
+    fs.mkdirSync(path.join(ATTACH_DIR, 'requests', t.id), { recursive: true });
+    fs.writeFileSync(path.join(ATTACH_DIR, 'requests', t.id, old[0].stored_name), old[0].data);
+    const fromDisk = await alice.file(t.attachments[0].url);
+    expect(fromDisk.status).toBe(200);
+    expect(Buffer.compare(fromDisk.body, old[0].data)).toBe(0);
+
+    const { runFilesImport } = require('../../modules/sync/filesImport');
+    const dry = await runFilesImport();
+    expect(dry.kinds[0]).toMatchObject({ key: 'photos', waiting: 2, ready: 1, copied: 0 });
+    expect(dry.kinds[0].problems).toEqual([{ id: String(old[1].id), reason: 'file not found' }]);
+    expect((await q('SELECT count(*)::int AS n FROM request_attachments WHERE data IS NOT NULL'))[0].n).toBe(0);
+    const done = await runFilesImport({ commit: true });
+    expect(done.kinds[0]).toMatchObject({ copied: 1 });
+    fs.rmSync(path.join(ATTACH_DIR, 'requests', t.id), { recursive: true });
+    expect((await alice.file(t.attachments[0].url)).status).toBe(200); // now from the database
+    expect((await runFilesImport({ commit: true })).kinds[0]).toMatchObject({ waiting: 1, copied: 0 }); // re-run: nothing new
+
+    // Not in the database and missing on disk: 404, logged, and never cached by the browser.
     const err = jest.spyOn(console, 'error').mockImplementation(() => {});
-    fs.rmSync(path.join(ATTACH_DIR, 'requests', t.id, onDisk[0]));
-    fs.rmSync(path.join(ATTACH_DIR, 'requests', t.id, onDisk[1]));
-    const gone = await alice.file(t.attachments[0].url);
+    const gone = await alice.file(t.attachments[1].url);
     expect(gone.status).toBe(404);
     expect(gone.headers['cache-control']).toBe('no-store');
     expect(err.mock.calls[0][0]).toMatch(/Could not read photo .* ENOENT/);

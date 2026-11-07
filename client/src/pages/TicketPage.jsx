@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Lock, LoaderCircle, MapPin, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Bot, Lock, LoaderCircle, MapPin, MessageSquare, Send, Users } from 'lucide-react';
 import { addComment, cancelPool, changeTicketStatus, eligibleEngineers, getTicket, listCategories, takeTicket, ticketAction, triageTicket } from '../api/requests';
 import PoolDialog from '../components/PoolDialog';
 import statusesData from '@shared/statuses.json';
@@ -35,13 +35,12 @@ const textareaClass =
   'block w-full rounded-btn border border-line bg-surface px-3 py-2 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted';
 const buttonClass = { primary: 'btn-primary', secondary: 'btn-secondary', danger: 'btn-danger' };
 
-// Pool (Phase 2): members take it; whoever assigns sends it to a pool or takes it back out.
+// Pool (Phase 2): members take it; whoever assigns sees who it was offered to and can take it back out.
+// Sending to a pool is part of Assign (7 Nov 2026), not a card of its own.
 function PoolCard({ ticket, onDone }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [open, setOpen] = useState(false);
   const p = ticket.pool;
-  const engineers = useQuery({ queryKey: ['requests', ticket.number, 'engineers'], queryFn: () => eligibleEngineers(ticket.number), enabled: ticket.permissions.canPool && open });
   const at = p ? formatDateTime(p.autoAssignAt) : '';
   async function run(kind, fn, message) {
     setBusy(kind);
@@ -66,39 +65,17 @@ function PoolCard({ ticket, onDone }) {
       </section>
     );
   }
-  if (!ticket.permissions.canPool) return null;
+  if (!ticket.permissions.canPool || !p) return null;
   return (
     <section className="card space-y-3">
-      <h2 className="text-xl">Pool</h2>
-      {p ? (
-        <>
-          <p className="font-ui text-sm text-ink-2">
-            Offered to {p.members?.map((m) => m.name).join(', ') || `${p.size} people`}. If nobody takes it, it goes to the one with the fewest ongoing tickets at {at}.
-          </p>
-          {error && <Alert tone="error">{error}</Alert>}
-          <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => run('cancel', () => cancelPool(ticket.number), `${ticket.number} taken out of the pool.`)}>
-            {busy === 'cancel' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />} Take it out of the pool
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="font-ui text-sm text-ink-2">Send it to a whole occupation, everyone available, or chosen people — the first to take it gets it.</p>
-          <button type="button" className="btn-secondary" onClick={() => setOpen(true)}>
-            Send to a pool
-          </button>
-        </>
-      )}
-      {open && engineers.isSuccess && (
-        <PoolDialog
-          ticket={ticket}
-          staff={engineers.data}
-          onClose={() => setOpen(false)}
-          onDone={(fresh, message) => {
-            setOpen(false);
-            onDone(fresh, message);
-          }}
-        />
-      )}
+      <h2 className="text-xl">In a pool</h2>
+      <p className="font-ui text-sm text-ink-2">
+        Offered to {p.members?.map((m) => m.name).join(', ') || `${p.size} people`}. If nobody takes it, it goes to the one with the fewest ongoing tickets at {at}.
+      </p>
+      {error && <Alert tone="error">{error}</Alert>}
+      <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => run('cancel', () => cancelPool(ticket.number), `${ticket.number} taken out of the pool.`)}>
+        {busy === 'cancel' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />} Take it out of the pool
+      </button>
     </section>
   );
 }
@@ -180,11 +157,14 @@ function ActionModal({ ticket, action, onClose, onDone }) {
   const [engineerId, setEngineerId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [pooling, setPooling] = useState(false);
   const engineers = useQuery({
     queryKey: ['requests', ticket.number, 'engineers'],
     queryFn: () => eligibleEngineers(ticket.number),
     enabled: action === 'assign',
   });
+  // Assign (7 Nov 2026): one person at the top, or "Send to a pool" underneath in the same box.
+  const canPoolHere = action === 'assign' && ticket.permissions.canPool && !ticket.pool && !ticket.assignedEngineer;
 
   const needsNote = cfg.note === 'required';
   const ready = (action !== 'assign' || engineerId) && (!needsNote || note.trim().length >= 3);
@@ -205,6 +185,20 @@ function ActionModal({ ticket, action, onClose, onDone }) {
   }
 
   const currentId = ticket.assignedEngineer?.id;
+
+  if (pooling && engineers.isSuccess) {
+    return (
+      <PoolDialog
+        ticket={ticket}
+        staff={engineers.data}
+        onClose={() => setPooling(false)}
+        onDone={(fresh, message) => {
+          onDone(fresh, message);
+          onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <Modal
@@ -252,6 +246,18 @@ function ActionModal({ ticket, action, onClose, onDone }) {
           >
             <textarea id="action-note" rows={3} maxLength={5000} value={note} onChange={(e) => setNote(e.target.value)} className={textareaClass} />
           </Field>
+        )}
+        {canPoolHere && engineers.isSuccess && engineers.data.length > 1 && (
+          <div className="border-t border-line pt-4">
+            <p className="font-ui text-sm font-medium text-ink">Or send to a pool</p>
+            <p className="mt-0.5 font-ui text-xs text-ink-3">
+              Offer it to an occupation, everyone available or chosen people — the first to take it gets it. After 12 hours it goes to the one with the fewest
+              ongoing tickets.
+            </p>
+            <button type="button" className="btn-secondary mt-2" disabled={busy} onClick={() => setPooling(true)}>
+              <Users size={16} aria-hidden="true" /> Send to a pool
+            </button>
+          </div>
         )}
         {!cfg.note && action !== 'assign' && (
           <p className="font-ui text-sm text-ink-2">

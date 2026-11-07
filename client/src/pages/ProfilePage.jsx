@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, KeyRound, LoaderCircle, LogOut, Pencil } from 'lucide-react';
-import { changePasswordRequest, sessionRequest, setNotifyRequest, signOutEverywhereRequest, updateContactRequest, updatePreferencesRequest } from '../api/auth';
+import { changePasswordRequest, sessionRequest, setNotifyKeepRequest, setNotifyRequest, signOutEverywhereRequest, updateContactRequest, updatePreferencesRequest } from '../api/auth';
 import { saveToken } from '../auth/storage';
 import { errorMessage } from '../api/http';
 import { Alert, Field, PasswordInput, TextInput } from '../components/FormControls';
@@ -111,6 +111,7 @@ function ContactCard({ user }) {
 function NotifyCard({ user }) {
   const queryClient = useQueryClient();
   const [prefs, setPrefs] = useState(user.notify || { inApp: true, email: true });
+  const [keep, setKeep] = useState(user.notify?.keepDays ? String(user.notify.keepDays) : '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -123,8 +124,24 @@ function NotifyCard({ user }) {
     setBusy(true);
     setMsg(null);
     try {
-      setPrefs(await setNotifyRequest(next));
+      const saved = await setNotifyRequest(next);
+      setPrefs((p) => ({ ...p, ...saved }));
       setMsg({ tone: 'success', text: 'Saved.' });
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+    } catch (err) {
+      setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeKeep(value) {
+    setKeep(value);
+    setBusy(true);
+    setMsg(null);
+    try {
+      await setNotifyKeepRequest(value ? Number(value) : null);
+      setMsg({ tone: 'success', text: value ? 'Saved. Older notifications will be cleared.' : 'Saved. Notifications are kept.' });
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     } catch (err) {
       setMsg({ tone: 'error', text: errorMessage(err, 'Could not save.') });
@@ -150,6 +167,22 @@ function NotifyCard({ user }) {
       <div className="mt-3 divide-y divide-line">
         {row('inApp', 'In app', 'The bell count, pop-ups and phone notifications. Off: they still go to your Notifications list, already read.')}
         {row('email', 'Email', user.email ? `Sent to ${user.email}.` : 'No email address is on file for you, so nothing can be sent yet.')}
+      </div>
+      <div className="mt-3 border-t border-line pt-3">
+        <Field id="notify-keep" label="Clear old notifications" hint="Notifications older than this are deleted from your list automatically.">
+          <select
+            id="notify-keep"
+            className="block min-h-tap w-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink sm:w-64"
+            value={keep}
+            disabled={busy}
+            onChange={(e) => changeKeep(e.target.value)}
+          >
+            <option value="">Never — keep them all</option>
+            <option value="7">After 1 week</option>
+            <option value="15">After 15 days</option>
+            <option value="30">After 1 month</option>
+          </select>
+        </Field>
       </div>
       {msg && (
         <div className="mt-2">

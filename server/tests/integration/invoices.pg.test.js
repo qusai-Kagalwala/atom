@@ -154,8 +154,10 @@ maybe('invoices on real PostgreSQL', () => {
       fileUrl: '/invoices/INV-1001/file',
     });
 
-    const [{ stored_name: stored, id }] = (await pool.query('SELECT id, stored_name FROM invoices')).rows;
-    expect(fs.readFileSync(path.join(tmpDir, 'invoices', String(id), stored)).equals(PDF)).toBe(true);
+    // Stored as-is in the database (033), not on disk.
+    const [{ data }] = (await pool.query('SELECT data FROM invoices')).rows;
+    expect(data.equals(PDF)).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'invoices'))).toBe(false);
 
     const file = await admin.file('INV-1001');
     expect(file.status).toBe(200);
@@ -196,7 +198,8 @@ maybe('invoices on real PostgreSQL', () => {
     expect(dup.body.message).toBe('This invoice already exists (INV-1001). Link it instead?');
     expect(dup.body.duplicate.supplier).toBeUndefined(); // eng1 can't see it yet: no details leaked
     expect((await pool.query('SELECT count(*)::int AS n FROM invoices')).rows[0].n).toBe(1);
-    expect(fs.readdirSync(path.join(tmpDir, 'invoices'))).toEqual(['1']); // no stray file
+    expect(fs.existsSync(path.join(tmpDir, 'invoices'))).toBe(false); // kept in the database (033), nothing on disk
+    expect((await pool.query('SELECT octet_length(data) AS n, size_bytes FROM invoices')).rows[0]).toEqual({ n: PDF.length, size_bytes: PDF.length });
 
     const linked = await eng1.upload(PDF, 'same-bill.pdf', 'application/pdf', { requestNumbers: 'T-1001', linkExisting: 'true' });
     expect(linked.status).toBe(200);

@@ -83,7 +83,7 @@ function createInvoicesRouter() {
       const file = await svc.getFile(req.user, req.params.number);
       await sendStoredFile(
         res,
-        file.path,
+        file,
         {
           'Content-Type': file.mimeType,
           'Cache-Control': 'private, max-age=3600',

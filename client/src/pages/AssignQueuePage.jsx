@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, LoaderCircle, Users, X } from 'lucide-react';
+import { Check, LoaderCircle, X } from 'lucide-react';
 import { cancelPool, listAssignQueue, listEngineers, queueCounts, ticketAction } from '../api/requests';
 import PoolDialog from '../components/PoolDialog';
 import StaffOptions from '../components/StaffOptions';
@@ -16,7 +16,9 @@ const TABS = [
   ['to_close', 'Resolved — ready to close'],
 ];
 
-// One row's quick-assign control.
+const POOL = '__pool';
+
+// One row's quick-assign control (7 Nov 2026): one box — a person, or "Send to a pool" at the bottom.
 function QuickAssign({ ticket, engineers, onDone, onPool }) {
   const [engineerId, setEngineerId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -43,23 +45,27 @@ function QuickAssign({ ticket, engineers, onDone, onPool }) {
       <select
         id={`eng-${ticket.id}`}
         value={engineerId}
-        onChange={(e) => setEngineerId(e.target.value)}
+        onChange={(e) => {
+          if (e.target.value === POOL) {
+            setEngineerId('');
+            onPool(ticket);
+          } else setEngineerId(e.target.value);
+        }}
         disabled={busy || !engineers.length}
         className="min-h-tap w-full min-w-0 basis-full rounded-btn border border-line bg-surface px-3 font-ui text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-primary-muted sm:w-auto sm:flex-1 sm:basis-auto sm:max-w-xs"
       >
         <option value="">{engineers.length ? 'Choose who does it' : 'No staff yet (Staff & occupations)'}</option>
         <StaffOptions staff={engineers} blockLeave />
+        {!ticket.pool && engineers.length > 1 && (
+          <optgroup label="Or several people">
+            <option value={POOL}>Send to a pool — first to take it gets it…</option>
+          </optgroup>
+        )}
       </select>
       <button type="button" className="btn-primary" disabled={!engineerId || busy} onClick={assign}>
         {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />} Assign
       </button>
-      {ticket.pool ? (
-        <PoolBadge ticket={ticket} onDone={onDone} />
-      ) : (
-        <button type="button" className="btn-secondary" disabled={busy || !engineers.length} onClick={() => onPool(ticket)} title="Send to several people — the first to take it gets it">
-          <Users size={18} aria-hidden="true" /> Pool
-        </button>
-      )}
+      {ticket.pool && <PoolBadge ticket={ticket} onDone={onDone} />}
       <Link to={`/tickets/${ticket.number}`} state={{ from: '/assign' }} className="inline-flex min-h-tap items-center px-2 font-ui text-sm text-brand hover:underline">
         Open
       </Link>

@@ -213,15 +213,10 @@ async function savePhotos(db, request, uploads, uploaderId, eventId) {
     const left = Math.max(0, files.MAX_FILES_PER_TICKET - already);
     throw bad(left ? `You can add ${left} more photo${left === 1 ? '' : 's'} to this ticket.` : 'This ticket already has 5 photos.', 'too_many_files');
   }
-  const stored = await files.storeImages(request.id, uploads);
-  try {
-    for (const s of stored) {
-      // eslint-disable-next-line no-await-in-loop
-      await repo.insertAttachment(db, { requestId: request.id, eventId, uploadedBy: uploaderId, ...s });
-    }
-  } catch (err) {
-    await files.removeStored(request.id, stored);
-    throw err;
+  const stored = await files.prepareImages(uploads);
+  for (const s of stored) {
+    // eslint-disable-next-line no-await-in-loop
+    await repo.insertAttachment(db, { requestId: request.id, eventId, uploadedBy: uploaderId, ...s });
   }
   return stored;
 }
@@ -247,100 +242,93 @@ async function createTicket(user, input, uploads) {
   if (location && location.length > 200) throw bad('Keep the location under 200 characters.', 'bad_location');
   if (!(isAdmin ? ALL_PRIORITIES : REQUESTER_PRIORITIES).has(priority)) throw bad('Choose how urgent it is.', 'bad_priority');
 
-  // Files are written inside the transaction; if anything after that fails, delete them again.
-  const written = { requestId: null, files: [] };
-  let created;
-  try {
-    created = await inTransaction(async (db, afterCommit) => {
-      // Raised in the active company (the session checked it is active).
-      const serviceUnitId = user.companyId;
-      if (!serviceUnitId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
+  // Photos are saved in the same transaction (033): a rollback leaves nothing behind.
+  const written = { files: [] };
+  const created = await inTransaction(async (db, afterCommit) => {
+    // Raised in the active company (the session checked it is active).
+    const serviceUnitId = user.companyId;
+    if (!serviceUnitId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
 
-      const category = await repo.getCategory(db, input.categoryId);
-      if (!category || !category.is_active || String(category.service_unit_id) !== String(serviceUnitId)) {
-        throw bad('Choose a category.', 'bad_category');
-      }
+    const category = await repo.getCategory(db, input.categoryId);
+    if (!category || !category.is_active || String(category.service_unit_id) !== String(serviceUnitId)) {
+      throw bad('Choose a category.', 'bad_category');
+    }
 
-      // Item and problem from the list (they must belong to this category and be active).
-      const choice = await problems.resolveChoice(db, serviceUnitId, category.id, { itemId: input.itemId, problemId: input.problemId });
-      if (choice.item) {
-        const what = choice.problem ? choice.problem.name : problemText;
-        if (!title) title = `${choice.item.name}${what ? ` – ${what}` : ''}`.slice(0, 120);
-        if (title.length < 3) title = `${category.name} – ${title}`.slice(0, 120);
-        if (!description) description = [category.name, choice.item.name, what].filter(Boolean).join(' › ');
-      }
+    // Item and problem from the list (they must belong to this category and be active).
+    const choice = await problems.resolveChoice(db, serviceUnitId, category.id, { itemId: input.itemId, problemId: input.problemId });
+    if (choice.item) {
+      const what = choice.problem ? choice.problem.name : problemText;
+      if (!title) title = `${choice.item.name}${what ? ` – ${what}` : ''}`.slice(0, 120);
+      if (title.length < 3) title = `${category.name} – ${title}`.slice(0, 120);
+      if (!description) description = [category.name, choice.item.name, what].filter(Boolean).join(' › ');
+    }
 
-      // Raise for someone else: Admin only (Decisions §9).
-      let requesterId = user.id;
-      if (input.requesterId && String(input.requesterId) !== String(user.id)) {
-        if (!isAdmin) throw notFound();
-        const person = await repo.getActiveUser(db, input.requesterId);
-        if (!person) throw bad('Choose an active person to raise this for.', 'bad_requester');
-        requesterId = String(person.id);
-      }
+    // Raise for someone else: Admin only (Decisions §9).
+    let requesterId = user.id;
+    if (input.requesterId && String(input.requesterId) !== String(user.id)) {
+      if (!isAdmin) throw notFound();
+      const person = await repo.getActiveUser(db, input.requesterId);
+      if (!person) throw bad('Choose an active person to raise this for.', 'bad_requester');
+      requesterId = String(person.id);
+    }
 
-      const row = await repo.insertRequest(db, {
-        priority,
-        title,
-        description,
-        location,
-        categoryId: category.id,
-        serviceUnitId,
-        requesterId,
-        raisedById: user.id,
-        itemId: choice.item?.id ?? null,
-        problemId: choice.problem?.id ?? null,
-        problemText: choice.problem ? null : problemText,
-      });
+    const row = await repo.insertRequest(db, {
+      priority,
+      title,
+      description,
+      location,
+      categoryId: category.id,
+      serviceUnitId,
+      requesterId,
+      raisedById: user.id,
+      itemId: choice.item?.id ?? null,
+      problemId: choice.problem?.id ?? null,
+      problemText: choice.problem ? null : problemText,
+    });
+    await repo.insertEvent(db, {
+      requestId: row.id,
+      type: 'created',
+      actorId: user.id,
+      toStatus: 'OPEN',
+      data: requesterId !== String(user.id) ? { raisedFor: requesterId } : null,
+    });
+    const due = await timeFrames.setDue(db, row.id);
+    written.files = await savePhotos(db, row, uploads, user.id, null);
+    // Raised from the AI assistant: link the chat (only the requester's own open chat).
+    if (input.assistantSessionId && String(requesterId) === String(user.id)) {
+      await assistant.linkTicket(db, user, input.assistantSessionId, row.id, serviceUnitId);
+    }
+
+    // Auto-assign (company switch on + an occupation linked to the category).
+    const staff = await problems.pickAutoAssignee(db, serviceUnitId, category.id);
+    const ticket = {
+      ...row, type: 'TICKET', status: 'OPEN', title, requester_id: requesterId, raised_by_id: user.id,
+      assigned_engineer_id: null, due_by: due?.due_by, service_unit_name: user.company?.name,
+    };
+    let sent = await notifications.recordTicketEvent(db, ticket, {
+      kind: 'created',
+      actorId: user.id,
+      raisedFor: requesterId !== String(user.id),
+      autoAssignedTo: staff ? `${staff.occupation}: ${staff.name}` : null,
+    });
+    if (staff) {
+      await repo.assignEngineer(db, row.id, staff.id, 'ASSIGNED');
       await repo.insertEvent(db, {
         requestId: row.id,
-        type: 'created',
-        actorId: user.id,
-        toStatus: 'OPEN',
-        data: requesterId !== String(user.id) ? { raisedFor: requesterId } : null,
+        type: 'assigned',
+        actorId: null,
+        fromStatus: 'OPEN',
+        toStatus: 'ASSIGNED',
+        data: { engineerId: staff.id, engineerName: staff.name, occupation: staff.occupation, auto: true },
       });
-      written.requestId = row.id;
-      const due = await timeFrames.setDue(db, row.id);
-      written.files = await savePhotos(db, row, uploads, user.id, null);
-      // Raised from the AI assistant: link the chat (only the requester's own open chat).
-      if (input.assistantSessionId && String(requesterId) === String(user.id)) {
-        await assistant.linkTicket(db, user, input.assistantSessionId, row.id, serviceUnitId);
-      }
-
-      // Auto-assign (company switch on + an occupation linked to the category).
-      const staff = await problems.pickAutoAssignee(db, serviceUnitId, category.id);
-      const ticket = {
-        ...row, type: 'TICKET', status: 'OPEN', title, requester_id: requesterId, raised_by_id: user.id,
-        assigned_engineer_id: null, due_by: due?.due_by, service_unit_name: user.company?.name,
-      };
-      let sent = await notifications.recordTicketEvent(db, ticket, {
-        kind: 'created',
-        actorId: user.id,
-        raisedFor: requesterId !== String(user.id),
-        autoAssignedTo: staff ? `${staff.occupation}: ${staff.name}` : null,
-      });
-      if (staff) {
-        await repo.assignEngineer(db, row.id, staff.id, 'ASSIGNED');
-        await repo.insertEvent(db, {
-          requestId: row.id,
-          type: 'assigned',
-          actorId: null,
-          fromStatus: 'OPEN',
-          toStatus: 'ASSIGNED',
-          data: { engineerId: staff.id, engineerName: staff.name, occupation: staff.occupation, auto: true },
-        });
-        const assign = { kind: 'assign', actorId: null, engineerId: staff.id, engineerName: staff.name, occupation: staff.occupation };
-        sent = [...sent, ...(await notifications.recordTicketEvent(db, { ...ticket, status: 'ASSIGNED' }, assign))];
-        afterCommit(() => notifications.publish(sent, ticket, [staff.id]));
-      } else {
-        afterCommit(() => notifications.publish(sent, ticket));
-      }
-      return row;
-    });
-  } catch (err) {
-    if (written.files.length) await files.removeStored(written.requestId, written.files);
-    throw err;
-  }
+      const assign = { kind: 'assign', actorId: null, engineerId: staff.id, engineerName: staff.name, occupation: staff.occupation };
+      sent = [...sent, ...(await notifications.recordTicketEvent(db, { ...ticket, status: 'ASSIGNED' }, assign))];
+      afterCommit(() => notifications.publish(sent, ticket, [staff.id]));
+    } else {
+      afterCommit(() => notifications.publish(sent, ticket));
+    }
+    return row;
+  });
   return getTicket(user, created.number);
 }
 
@@ -691,56 +679,50 @@ async function comment(user, numberParam, body, uploads) {
   if (!text && !uploads?.length) throw bad('Write a comment or add a photo.', 'empty_comment');
   if (text.length > 5000) throw bad('Keep the comment under 5000 characters.', 'note_too_long');
 
-  const written = { requestId: null, files: [] };
-  try {
-    return await inTransaction(async (db, afterCommit) => {
-      const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
-      if (!lifecycle.canComment(user, r)) {
-        throw new HttpError(409, 'This ticket is closed — comments are no longer possible.', 'wrong_status');
-      }
-      if (internal && !lifecycle.canSeeInternal(user, r)) throw bad('You can\'t add internal notes here.', 'no_internal');
+  const written = { files: [] };
+  return inTransaction(async (db, afterCommit) => {
+    const r = await loadInScope(db, { user }, numberParam, { forUpdate: true });
+    if (!lifecycle.canComment(user, r)) {
+      throw new HttpError(409, 'This ticket is closed — comments are no longer possible.', 'wrong_status');
+    }
+    if (internal && !lifecycle.canSeeInternal(user, r)) throw bad('You can\'t add internal notes here.', 'no_internal');
 
-      const ev = await repo.insertEvent(db, {
-        requestId: r.id,
-        type: 'comment',
-        actorId: user.id,
-        note: text || null,
-        internal,
-      });
-      written.requestId = r.id;
-      written.files = await savePhotos(db, r, uploads, user.id, ev.id);
-
-      // The requester answered "Waiting for you" → back to In progress (decision 5).
-      const isRequesterSide = String(user.id) === String(r.requester_id) || String(user.id) === String(r.raised_by_id);
-      const requesterReplied = r.status === 'WAITING_FOR_USER' && isRequesterSide && !internal;
-      if (requesterReplied) {
-        await repo.updateStatus(db, r.id, { status: 'IN_PROGRESS' });
-        await repo.insertEvent(db, {
-          requestId: r.id,
-          type: 'status',
-          actorId: user.id,
-          fromStatus: 'WAITING_FOR_USER',
-          toStatus: 'IN_PROGRESS',
-          data: { action: 'requester_replied' },
-        });
-      } else {
-        await repo.touch(db, r.id);
-      }
-      const sent = await notifications.recordTicketEvent(db, r, {
-        kind: 'comment',
-        actorId: user.id,
-        note: text,
-        internal,
-        hasPhotos: written.files.length > 0,
-        requesterReplied,
-      });
-      afterCommit(() => notifications.publish(sent, r));
-      return toDetail(db, user, await repo.getByNumber(db, r.number));
+    const ev = await repo.insertEvent(db, {
+      requestId: r.id,
+      type: 'comment',
+      actorId: user.id,
+      note: text || null,
+      internal,
     });
-  } catch (err) {
-    if (written.files.length) await files.removeStored(written.requestId, written.files);
-    throw err;
-  }
+    written.files = await savePhotos(db, r, uploads, user.id, ev.id);
+
+    // The requester answered "Waiting for you" → back to In progress (decision 5).
+    const isRequesterSide = String(user.id) === String(r.requester_id) || String(user.id) === String(r.raised_by_id);
+    const requesterReplied = r.status === 'WAITING_FOR_USER' && isRequesterSide && !internal;
+    if (requesterReplied) {
+      await repo.updateStatus(db, r.id, { status: 'IN_PROGRESS' });
+      await repo.insertEvent(db, {
+        requestId: r.id,
+        type: 'status',
+        actorId: user.id,
+        fromStatus: 'WAITING_FOR_USER',
+        toStatus: 'IN_PROGRESS',
+        data: { action: 'requester_replied' },
+      });
+    } else {
+      await repo.touch(db, r.id);
+    }
+    const sent = await notifications.recordTicketEvent(db, r, {
+      kind: 'comment',
+      actorId: user.id,
+      note: text,
+      internal,
+      hasPhotos: written.files.length > 0,
+      requesterReplied,
+    });
+    afterCommit(() => notifications.publish(sent, r));
+    return toDetail(db, user, await repo.getByNumber(db, r.number));
+  });
 }
 
 // ---------- attachments ----------
@@ -748,7 +730,8 @@ async function getAttachmentFile(user, numberParam, attachmentId) {
   const r = await loadInScope(pool, { user }, numberParam);
   const a = await repo.getAttachment(pool, r.id, attachmentId);
   if (!a || (a.is_internal && !lifecycle.canSeeInternal(user, r))) throw notFound();
-  return { path: files.filePath(r.id, a.stored_name), mimeType: a.mime_type };
+  // In the database (033); uploaded before that and not yet imported → still on disk.
+  return { data: a.data || null, path: a.data ? null : files.filePath(r.id, a.stored_name), mimeType: a.mime_type };
 }
 
 // ---------- queues & "All tickets" (Phase 7) ----------

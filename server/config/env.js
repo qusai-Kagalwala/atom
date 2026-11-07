@@ -88,7 +88,8 @@ const config = {
     tabs: String(env.OCCUPANCY_SHEET_TABS || 'ADMIN BLDG').split(',').map((t) => t.trim()).filter(Boolean),
     timeoutMs: Number(env.OCCUPANCY_TIMEOUT_MS) || 20_000,
   },
-  // Photos and invoices. Must be OUTSIDE the web root in production (e.g. D:\ATOM-data\attachments).
+  // Photos and invoices are kept in PostgreSQL since 033 (7 Nov 2026). This folder is only read for files
+  // uploaded before that and not yet copied in (sync/import-files-to-db.js). Outside the web root.
   // Dev default: <project>/attachments (git-ignored).
   attachmentDir: path.resolve(env.ATTACHMENT_DIR || path.join(__dirname, '..', '..', 'attachments')),
   attachmentDirIsDefault: !env.ATTACHMENT_DIR,
@@ -117,10 +118,6 @@ function assertStartupConfig(cfg) {
     } else if (!/^https:\/\//i.test(soapUrl)) {
       problems.push('EJAMAAT_SOAP_URL must use https.');
     }
-  }
-
-  if (cfg.isProduction && cfg.attachmentDirIsDefault) {
-    problems.push('ATTACHMENT_DIR must be set in production (a folder outside the web root).');
   }
 
   if (problems.length) {

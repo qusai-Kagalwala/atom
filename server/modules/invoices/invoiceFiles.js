@@ -3,9 +3,9 @@
 //   - PDFs are stored exactly as uploaded (checked to really be a PDF).
 //   - Images are re-encoded to WebP, max 3000 px, high quality (text must stay readable);
 //     re-encoding drops all metadata (EXIF incl. GPS).
-//   - Stored under ATTACHMENT_DIR/invoices/<invoiceId>/<uuid>.<pdf|webp>, never in the web root.
+//   - Stored in PostgreSQL (invoices.data, migration 033, 7 Nov 2026). Files uploaded before that are read
+//     from ATTACHMENT_DIR/invoices/<invoiceId>/<uuid>.<pdf|webp> until the one-time import copies them in.
 const crypto = require('crypto');
-const fs = require('fs/promises');
 const path = require('path');
 const multer = require('multer');
 const sharp = require('sharp');
@@ -80,17 +80,7 @@ function dirFor(invoiceId) {
 
 const newStoredName = (ext) => `${crypto.randomUUID()}.${ext}`;
 
-async function writeFile(invoiceId, storedName, buffer) {
-  const dir = dirFor(invoiceId);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, storedName), buffer, { flag: 'wx' });
-}
-
-async function removeFile(invoiceId, storedName) {
-  await fs.rm(filePath(invoiceId, storedName), { force: true }).catch(() => {});
-}
-
-// Absolute path of a stored file, refusing anything that escapes the folder.
+// Where a file uploaded before 033 lives on disk, refusing anything that escapes the folder.
 function filePath(invoiceId, storedName) {
   if (!/^[0-9a-f-]{36}\.(pdf|webp)$/.test(storedName)) throw new Error('Bad stored name');
   return path.join(dirFor(invoiceId), storedName);
@@ -100,8 +90,6 @@ module.exports = {
   invoiceFileField,
   processInvoiceFile,
   newStoredName,
-  writeFile,
-  removeFile,
   filePath,
   sha256,
   MAX_BYTES,

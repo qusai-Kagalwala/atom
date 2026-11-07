@@ -114,7 +114,7 @@ maybe('Session length and notification choices on real PostgreSQL', () => {
   test('How I get notified: email off = no email; in-app off = kept as history, already read, no count', async () => {
     const admin = as((await loginRes('90000952', { role: 'ADMIN' })).body.token);
     const alice = as((await loginRes('90000953')).body.token);
-    expect((await admin.get('/auth/me')).body.user.notify).toEqual({ inApp: true, email: true });
+    expect((await admin.get('/auth/me')).body.user.notify).toEqual({ inApp: true, email: true, keepDays: null });
     expect((await admin.patch('/auth/notify', { inApp: false, email: false })).body.code).toBe('need_one');
     expect((await admin.patch('/auth/notify', { inApp: 'no', email: true })).status).toBe(400);
 
@@ -124,7 +124,7 @@ maybe('Session length and notification choices on real PostgreSQL', () => {
     expect((await admin.get('/notifications/unread-count')).body.unread).toBe(1);
 
     await admin.patch('/auth/notify', { inApp: false, email: true });
-    expect((await admin.get('/auth/me')).body.user.notify).toEqual({ inApp: false, email: true });
+    expect((await admin.get('/auth/me')).body.user.notify).toEqual({ inApp: false, email: true, keepDays: null });
     await alice.post('/requests', { title: 'Scanner', description: 'x', categoryId: cat });
     expect((await pool.query('SELECT to_email FROM email_outbox')).rows.map((x) => x.to_email)).toEqual(['admin@example.org']);
     expect((await admin.get('/notifications/unread-count')).body.unread).toBe(1); // the new one arrived read

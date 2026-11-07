@@ -11,6 +11,7 @@
 //   POST /forgot-password  { employeeId }                       → { sent, message }
 //   POST /reset-password   { token, newPassword }               → { message }
 //   PATCH /preferences     { nameLanguage: 'en' | 'ar' }        → { user }
+//   PATCH /notify-keep     { keepDays: 7 | 15 | 30 | null }    → { keepDays }   auto-clear old notifications (034)
 //   PATCH /contact         { email?, mobile? }  ('' clears)     → { user }   your own email / mobile (032)
 //   GET   /theme                                                → { theme: { theme, mode } | null }   Appearance
 //   PUT   /theme           { theme, mode }                      → { theme: { theme, mode } }
@@ -23,7 +24,7 @@ const { login, AuthError } = require('./auth.service');
 const { changePassword, requestReset, resetPassword, PasswordError } = require('./passwords.service');
 const { requireAuth } = require('../../middleware/requireAuth');
 const { ROLE_KEYS, pickActiveRole, rolesIn, toPublicUser } = require('./session');
-const { loadSessionUser, listCompanies, setNameLanguage, setNotifyPrefs, bumpSessionVersion } = require('./users.repo');
+const { loadSessionUser, listCompanies, setNameLanguage, setNotifyPrefs, setNotifyKeep, bumpSessionVersion } = require('./users.repo');
 const realtime = require('../../realtime');
 const { signSession } = require('./tokens');
 const { getTheme, setTheme } = require('./theme.repo');
@@ -113,6 +114,18 @@ function createAuthRouter() {
     try {
       await setNotifyPrefs(req.user.id, { inApp: req.body.inApp, email: req.body.email });
       return res.json({ notify: { inApp: req.body.inApp, email: req.body.email } });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // How long my notifications are kept (034): 7 | 15 | 30 days, or null = never cleared.
+  router.patch('/notify-keep', requireAuth, async (req, res, next) => {
+    const days = req.body?.keepDays ?? null;
+    if (days !== null && ![7, 15, 30].includes(days)) return res.status(400).json({ message: 'Choose 1 week, 15 days, 1 month or never.', code: 'bad_keep' });
+    try {
+      await setNotifyKeep(req.user.id, days);
+      return res.json({ keepDays: days });
     } catch (err) {
       return next(err);
     }

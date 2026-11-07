@@ -58,13 +58,19 @@ async function findBySha(db, sha, companyId) {
 async function insertInvoice(db, inv) {
   const { rows } = await db.query(
     `INSERT INTO invoices (service_unit_id, file_sha256, stored_name, mime_type, size_bytes, original_name,
-                           supplier, reference, invoice_date, note, uploaded_by_id)
-     VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::int, $6::text, $7::text, $8::text, $9::date, $10::text, $11::bigint)
+                           supplier, reference, invoice_date, note, uploaded_by_id, data)
+     VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::int, $6::text, $7::text, $8::text, $9::date, $10::text, $11::bigint, $12::bytea)
      RETURNING id, number`,
     [inv.serviceUnitId, inv.sha256, inv.storedName, inv.mimeType, inv.sizeBytes, inv.originalName,
-      inv.supplier, inv.reference, inv.invoiceDate, inv.note, inv.uploadedById]
+      inv.supplier, inv.reference, inv.invoiceDate, inv.note, inv.uploadedById, inv.data]
   );
   return rows[0];
+}
+
+// The file's bytes (033). null when it was uploaded before and not yet imported (read from disk then).
+async function getData(db, id) {
+  const { rows } = await db.query('SELECT data FROM invoices WHERE id = $1::bigint', [id]);
+  return rows[0]?.data ?? null;
 }
 
 async function updateLabels(db, id, l) {
@@ -193,6 +199,7 @@ async function linkedNumbers(db, ids) {
 }
 
 module.exports = {
+  getData,
   scopeClause,
   getByNumber,
   isVisible,

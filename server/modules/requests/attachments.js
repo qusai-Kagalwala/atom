@@ -1,9 +1,9 @@
 // Ticket photos (ATOM_Decisions.md §10): JPG / PNG / WebP only, ≤ 10 MB each before compression,
 // ≤ 5 per ticket. Re-encoded with sharp to WebP, max 1600 px on the long side, ~300 KB.
 // Re-encoding drops ALL metadata (EXIF incl. GPS, camera, ICC) — sharp keeps none unless asked.
-// Stored under ATTACHMENT_DIR/requests/<requestId>/<uuid>.webp, never inside the web root.
+// Stored in PostgreSQL (request_attachments.data, migration 033, 7 Nov 2026). Photos uploaded before that
+// are read from ATTACHMENT_DIR/requests/<requestId>/<uuid>.webp until the one-time import copies them in.
 const crypto = require('crypto');
-const fs = require('fs/promises');
 const path = require('path');
 const multer = require('multer');
 const sharp = require('sharp');
@@ -17,7 +17,7 @@ const TARGET_BYTES = 300 * 1024;
 const ACCEPTED_FORMATS = new Set(['jpeg', 'png', 'webp']);
 const ACCEPTED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-// Multer: in memory (files are re-encoded before anything touches the disk).
+// Multer: in memory (files are re-encoded, then saved in the database).
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_BYTES, files: MAX_FILES_PER_TICKET, fields: 20, fieldSize: 20 * 1024 },
@@ -76,43 +76,30 @@ function dirFor(requestId) {
   return path.join(config.attachmentDir, 'requests', String(requestId));
 }
 
-// Writes processed files; returns rows ready for request_attachments. Caller deletes on rollback.
-async function storeImages(requestId, files) {
-  const dir = dirFor(requestId);
-  await fs.mkdir(dir, { recursive: true });
-  const stored = [];
-  try {
-    for (const f of files) {
-      // eslint-disable-next-line no-await-in-loop
-      const img = await processImage(f.buffer);
-      const storedName = `${crypto.randomUUID()}.webp`;
-      // eslint-disable-next-line no-await-in-loop
-      await fs.writeFile(path.join(dir, storedName), img.buffer, { flag: 'wx' });
-      stored.push({
-        storedName,
-        originalName: String(f.originalname || '').slice(0, 200) || null,
-        mimeType: 'image/webp',
-        sizeBytes: img.buffer.length,
-        width: img.width,
-        height: img.height,
-      });
-    }
-    return stored;
-  } catch (err) {
-    await removeStored(requestId, stored);
-    throw err;
+// Re-encodes the uploads; returns rows ready for request_attachments (data = the WebP bytes). Nothing is
+// written anywhere: the caller inserts them in its transaction, so a rollback leaves nothing behind.
+async function prepareImages(files) {
+  const out = [];
+  for (const f of files) {
+    // eslint-disable-next-line no-await-in-loop
+    const img = await processImage(f.buffer);
+    out.push({
+      storedName: `${crypto.randomUUID()}.webp`, // a name for the row; nothing is written under it
+      originalName: String(f.originalname || '').slice(0, 200) || null,
+      mimeType: 'image/webp',
+      sizeBytes: img.buffer.length,
+      width: img.width,
+      height: img.height,
+      data: img.buffer,
+    });
   }
+  return out;
 }
 
-async function removeStored(requestId, stored) {
-  const dir = dirFor(requestId);
-  await Promise.all(stored.map((s) => fs.rm(path.join(dir, s.storedName), { force: true }).catch(() => {})));
-}
-
-// Absolute path of a stored file, refusing anything that escapes the folder.
+// Where a photo uploaded before 033 lives on disk, refusing anything that escapes the folder.
 function filePath(requestId, storedName) {
   if (!/^[0-9a-f-]{36}\.(webp|jpg|png)$/.test(storedName)) throw new Error('Bad stored name');
   return path.join(dirFor(requestId), storedName);
 }
 
-module.exports = { photosField, processImage, storeImages, removeStored, filePath, MAX_FILES_PER_TICKET };
+module.exports = { photosField, processImage, prepareImages, filePath, MAX_FILES_PER_TICKET };

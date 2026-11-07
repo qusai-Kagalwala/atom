@@ -3,6 +3,7 @@
 //   - email sender (queued notification emails; 3 tries)
 //   - email log clean-up (sent / failed emails older than 90 days)
 //   - Jamea Internet Access batches past their expiry: usernames / passwords deleted (Nov 2026)
+//   - old notifications deleted for people who chose 1 week / 15 days / 1 month (034, 7 Nov 2026)
 // Two ways they run, both safe together (every row is claimed once — UPDATE … RETURNING / SKIP LOCKED):
 //   1. inside the web server, every minute (start() below) — only while iisnode keeps the process alive;
 //   2. sync/run-jobs.js from Windows Task Scheduler every 5 minutes — keeps going when the site is idle.
@@ -26,7 +27,18 @@ async function runOnce({ publish } = {}) {
   const { sent, failed } = await email.sendQueued();
   const { rowCount } = await pool.query(`DELETE FROM email_outbox WHERE status <> 'queued' AND created_at < now() - interval '90 days'`);
   const wifiExpired = await wifi.expireDue(); // Jamea Internet Access batches past their expiry: passes deleted
-  return { overdue, poolsAssigned, emailsSent: sent, emailsFailed: failed, emailsCleaned: rowCount, wifiExpired };
+  const notificationsCleared = await clearOldNotifications();
+  return { overdue, poolsAssigned, emailsSent: sent, emailsFailed: failed, emailsCleaned: rowCount, wifiExpired, notificationsCleared };
+}
+
+// Each person's choice (034): notifications older than notify_keep_days are deleted. Never = NULL = kept.
+async function clearOldNotifications() {
+  const { rowCount } = await pool.query(
+    `DELETE FROM notifications n USING users u
+      WHERE n.user_id = u.id AND u.notify_keep_days IS NOT NULL
+        AND n.created_at < now() - make_interval(days => u.notify_keep_days)`
+  );
+  return rowCount;
 }
 
 async function tick() {
@@ -53,4 +65,4 @@ function stop() {
   timer = null;
 }
 
-module.exports = { start, stop, tick, runOnce };
+module.exports = { start, stop, tick, runOnce, clearOldNotifications };

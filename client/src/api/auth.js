@@ -8,6 +8,8 @@ export const loginRequest = (identifier, password, keep = false) =>
 
 export const signOutEverywhereRequest = () => http.post('/auth/sign-out-everywhere').then((r) => r.data);
 // How I get notified: { inApp, email } — at least one on.
+// Auto-clear old notifications (034): 7 | 15 | 30 days, or null = never.
+export const setNotifyKeepRequest = (keepDays) => http.patch('/auth/notify-keep', { keepDays }).then((r) => r.data.keepDays);
 export const setNotifyRequest = (prefs) => http.patch('/auth/notify', prefs).then((r) => r.data.notify);
 
 export const switchRoleRequest = (role) => http.post('/auth/switch-role', { role }).then((r) => r.data);

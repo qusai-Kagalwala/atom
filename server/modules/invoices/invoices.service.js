@@ -218,58 +218,50 @@ async function upload(user, input, file) {
   const linkExisting = input?.linkExisting === true || input?.linkExisting === 'true';
   const processed = await files.processInvoiceFile(file);
 
-  const written = { id: null, storedName: null };
-  try {
-    return await inTransaction(async (db, afterCommit) => {
-      // Same file uploaded at the same moment by two people: serialise on the hash.
-      await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 727311))', [`${user.companyId}:${processed.sha256}`]);
-      const existing = await repo.findBySha(db, processed.sha256, user.companyId);
-      if (existing) {
-        if (!linkExisting) {
-          const visible = await repo.isVisible(db, user, existing.id);
-          return {
-            duplicate: {
-              number: displayNumber(existing),
-              createdAt: existing.created_at,
-              ...(visible ? { supplier: existing.supplier, reference: existing.reference } : {}),
-            },
-          };
-        }
-        // Holding the same file is enough to link it to tickets you may link to.
-        if (!numbers.length) throw bad('Choose at least one ticket to link this invoice to.', 'no_requests');
-        const targets = await loadLinkTargets(db, user, numbers);
-        const result = await linkAll(db, user, existing, targets, afterCommit);
-        const fresh = await repo.getByNumber(db, existing.number);
-        return { invoice: await toDetail(db, user, fresh), linkedExisting: true, ...result };
+  return inTransaction(async (db, afterCommit) => {
+    // Same file uploaded at the same moment by two people: serialise on the hash.
+    await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 727311))', [`${user.companyId}:${processed.sha256}`]);
+    const existing = await repo.findBySha(db, processed.sha256, user.companyId);
+    if (existing) {
+      if (!linkExisting) {
+        const visible = await repo.isVisible(db, user, existing.id);
+        return {
+          duplicate: {
+            number: displayNumber(existing),
+            createdAt: existing.created_at,
+            ...(visible ? { supplier: existing.supplier, reference: existing.reference } : {}),
+          },
+        };
       }
-
-      const serviceUnitId = user.companyId;
-      if (!serviceUnitId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
+      // Holding the same file is enough to link it to tickets you may link to.
+      if (!numbers.length) throw bad('Choose at least one ticket to link this invoice to.', 'no_requests');
       const targets = await loadLinkTargets(db, user, numbers);
+      const result = await linkAll(db, user, existing, targets, afterCommit);
+      const fresh = await repo.getByNumber(db, existing.number);
+      return { invoice: await toDetail(db, user, fresh), linkedExisting: true, ...result };
+    }
 
-      const storedName = files.newStoredName(processed.ext);
-      const row = await repo.insertInvoice(db, {
-        serviceUnitId,
-        sha256: processed.sha256,
-        storedName,
-        mimeType: processed.mimeType,
-        sizeBytes: processed.buffer.length,
-        originalName: clean(file.originalname).slice(0, 200) || null,
-        ...labels,
-        uploadedById: user.id,
-      });
-      await files.writeFile(row.id, storedName, processed.buffer);
-      written.id = row.id;
-      written.storedName = storedName;
+    const serviceUnitId = user.companyId;
+    if (!serviceUnitId) throw new HttpError(409, 'Choose a company first.', 'choose_company');
+    const targets = await loadLinkTargets(db, user, numbers);
 
-      const result = await linkAll(db, user, row, targets, afterCommit);
-      const fresh = await repo.getByNumber(db, row.number);
-      return { invoice: await toDetail(db, user, fresh), created: true, ...result };
+    const storedName = files.newStoredName(processed.ext);
+    const row = await repo.insertInvoice(db, {
+      serviceUnitId,
+      sha256: processed.sha256,
+      storedName,
+      mimeType: processed.mimeType,
+      sizeBytes: processed.buffer.length,
+      originalName: clean(file.originalname).slice(0, 200) || null,
+      ...labels,
+      uploadedById: user.id,
+      data: processed.buffer, // saved in the database (033) — nothing on disk
     });
-  } catch (err) {
-    if (written.storedName) await files.removeFile(written.id, written.storedName);
-    throw err;
-  }
+
+    const result = await linkAll(db, user, row, targets, afterCommit);
+    const fresh = await repo.getByNumber(db, row.number);
+    return { invoice: await toDetail(db, user, fresh), created: true, ...result };
+  });
 }
 
 // ---------- read ----------
@@ -297,7 +289,14 @@ async function detail(user, numberParam) {
 async function getFile(user, numberParam) {
   const inv = await loadVisible(pool, user, numberParam);
   const ext = inv.mime_type === 'application/pdf' ? 'pdf' : 'webp';
-  return { path: files.filePath(inv.id, inv.stored_name), mimeType: inv.mime_type, downloadName: `${displayNumber(inv)}.${ext}` };
+  // In the database (033); uploaded before that and not yet imported → still on disk.
+  const data = await repo.getData(pool, inv.id);
+  return {
+    data,
+    path: data ? null : files.filePath(inv.id, inv.stored_name),
+    mimeType: inv.mime_type,
+    downloadName: `${displayNumber(inv)}.${ext}`,
+  };
 }
 
 // For the ticket page (only called for users who may see internal content).
